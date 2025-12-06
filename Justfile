@@ -5,3 +5,6 @@ dev-web:
 
 dev-api:
     pnpm --dir api dev
+
+gen-sdk:
+    pnpm --dir web run gen:sdk

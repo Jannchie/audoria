@@ -5,4 +5,5 @@ export default jannchie({
   rules: {
     'node/prefer-global/process': 'off',
   },
+  ignores: ['src/api/**/*'],
 })
