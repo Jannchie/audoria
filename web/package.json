@@ -12,8 +12,10 @@
     "gen:sdk": "openapi-ts"
   },
   "dependencies": {
+    "@tanstack/vue-query": "catalog:default",
     "@vueuse/core": "catalog:default",
-    "vue": "catalog:default"
+    "vue": "catalog:default",
+    "vue-router": "^4.6.3"
   },
   "devDependencies": {
     "@hey-api/openapi-ts": "catalog:default",

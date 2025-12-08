@@ -1,9 +1,9 @@
 set shell := ["bash", "-cu"]
 
-dev-web:
+web-dev:
     pnpm --dir web dev
 
-dev-api:
+api-dev:
     pnpm --dir api dev
 
 gen-sdk:

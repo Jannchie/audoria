@@ -1,5 +1,6 @@
 import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client, type GetObjectCommandOutput } from '@aws-sdk/client-s3'
 import { serve } from '@hono/node-server'
+import { cors } from 'hono/cors'
 import { OpenAPIHono, createRoute, z } from '@hono/zod-openapi'
 import { Scalar , type ApiReferenceConfiguration } from '@scalar/hono-api-reference'
 import Database from 'better-sqlite3'
@@ -115,6 +116,15 @@ const ErrorSchema = z.object({
 })
 
 const app = new OpenAPIHono()
+
+app.use(
+  '*',
+  cors({
+    origin: '*',
+    allowMethods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+    allowHeaders: ['Content-Type', 'Authorization']
+  })
+)
 
 const uploadMusicRoute = createRoute({
   method: 'post',
