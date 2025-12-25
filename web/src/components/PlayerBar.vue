@@ -6,6 +6,8 @@ import IconButton from './IconButton.vue'
 
 const audioRef = ref<HTMLAudioElement | null>(null)
 const progressTrack = ref<HTMLDivElement | null>(null)
+const isScrubbing = ref(false)
+let shouldResumeAfterScrub = false
 const { data: tracks } = useMusicQuery()
 const {
   currentTrackId,
@@ -174,7 +176,7 @@ function handleSeek(event: Event): void {
   updateProgress(newTime, total)
 }
 
-function ratioFromClientX(clientX: number): number {
+function ratioFromPointer(event: PointerEvent | MouseEvent): number {
   const track = progressTrack.value
   if (!track) {
     return 0
@@ -183,6 +185,7 @@ function ratioFromClientX(clientX: number): number {
   if (rect.width === 0) {
     return 0
   }
+  const clientX = 'clientX' in event ? event.clientX : 0
   return Math.min(1, Math.max(0, (clientX - rect.left) / rect.width))
 }
 
@@ -204,34 +207,29 @@ function seekByRatio(ratio: number, shouldResume: boolean): void {
   }
 }
 
-function handleProgressClick(event: MouseEvent): void {
-  const ratio = ratioFromClientX(event.clientX)
-  seekByRatio(ratio, isPlaying.value)
+function handleProgressPointerDown(event: PointerEvent): void {
+  shouldResumeAfterScrub = isPlaying.value
+  isScrubbing.value = true
+  seekByRatio(ratioFromPointer(event), shouldResumeAfterScrub)
+  globalThis.addEventListener('pointermove', handleProgressPointerMove)
+  globalThis.addEventListener('pointerup', handleProgressPointerUp)
 }
 
-function handleProgressDrag(event: PointerEvent): void {
-  const track = progressTrack.value
-  const shouldResume = isPlaying.value
-  const startRatio = ratioFromClientX(event.clientX)
-  if (track) {
-    track.setPointerCapture(event.pointerId)
+function handleProgressPointerMove(event: PointerEvent): void {
+  if (!isScrubbing.value) {
+    return
   }
-  seekByRatio(startRatio, shouldResume)
-  const handleMove = (moveEvent: PointerEvent) => {
-    const nextRatio = ratioFromClientX(moveEvent.clientX)
-    seekByRatio(nextRatio, false)
+  seekByRatio(ratioFromPointer(event), false)
+}
+
+function handleProgressPointerUp(event: PointerEvent): void {
+  if (!isScrubbing.value) {
+    return
   }
-  const handleUp = (upEvent: PointerEvent) => {
-    const endRatio = ratioFromClientX(upEvent.clientX)
-    seekByRatio(endRatio, shouldResume)
-    globalThis.removeEventListener('pointermove', handleMove)
-    globalThis.removeEventListener('pointerup', handleUp)
-    if (track) {
-      track.releasePointerCapture(event.pointerId)
-    }
-  }
-  globalThis.addEventListener('pointermove', handleMove)
-  globalThis.addEventListener('pointerup', handleUp)
+  seekByRatio(ratioFromPointer(event), shouldResumeAfterScrub)
+  isScrubbing.value = false
+  globalThis.removeEventListener('pointermove', handleProgressPointerMove)
+  globalThis.removeEventListener('pointerup', handleProgressPointerUp)
 }
 
 function handleEnded(): void {
@@ -295,10 +293,10 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <footer class="border-t border-slate-800 bg-[#0b0f17]/95 bottom-0 left-0 right-0 fixed z-20 backdrop-blur">
+  <footer class="border-t border-[var(--line)] bg-[var(--bg-surface)]/90 bottom-0 left-0 right-0 fixed z-20 backdrop-blur">
     <div class="mx-auto px-8 py-4 flex gap-6 max-w-6xl items-center">
       <div class="flex flex-1 gap-4 min-w-0 items-center">
-        <div class="text-sm text-white font-semibold rounded-lg bg-slate-800 flex h-12 w-12 items-center justify-center">
+        <div class="text-sm text-white font-semibold rounded-lg bg-[var(--bg-muted)] flex h-12 w-12 items-center justify-center">
           {{ currentTrack?.filename.charAt(0).toUpperCase() ?? 'A' }}
         </div>
         <div class="min-w-0 w-full">
@@ -309,16 +307,15 @@ onUnmounted(() => {
             <span class="text-right w-10">{{ formattedTime(currentTime) }}</span>
             <div
               ref="progressTrack"
-              class="rounded-full bg-slate-800 flex-1 h-2 cursor-pointer relative overflow-hidden"
-              @click="handleProgressClick"
-              @pointerdown.prevent="handleProgressDrag"
+              class="rounded-full bg-[var(--bg-muted)] flex-1 h-2 cursor-pointer relative overflow-hidden"
+              @pointerdown.prevent="handleProgressPointerDown"
             >
               <div
-                class="rounded-full bg-blue-500 inset-y-0 left-0 absolute"
+                class="rounded-full bg-[var(--accent)] inset-y-0 left-0 absolute"
                 :style="{ width: `${progress}%` }"
               />
               <div
-                class="rounded-full bg-white h-3 w-3 shadow top-1/2 absolute -translate-y-1/2"
+                class="rounded-full bg-white h-3 w-3 top-1/2 absolute -translate-y-1/2"
                 :style="{ left: `calc(${progress}% - 6px)` }"
               />
             </div>

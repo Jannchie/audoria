@@ -1,0 +1,10 @@
+{
+  "name": "audoria",
+  "private": true,
+  "packageManager": "pnpm@10.15.1",
+  "scripts": {
+    "api:dev": "pnpm -C api dev",
+    "gen:sdk": "pnpm -C web gen:sdk",
+    "web:dev": "pnpm -C web dev"
+  }
+}

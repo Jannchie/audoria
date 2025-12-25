@@ -271,6 +271,48 @@ const toWebStream = (body: GetObjectCommandOutput['Body']): ReadableStream => {
   return body as ReadableStream
 }
 
+type ParsedRange = {
+  start: number
+  end: number
+}
+
+const parseRangeHeader = (rangeHeader: string | null, size: number): ParsedRange | null => {
+  if (!rangeHeader || !rangeHeader.startsWith('bytes=')) {
+    return null
+  }
+
+  const value = rangeHeader.replace('bytes=', '')
+  const [startString, endString] = value.split('-')
+
+  const start = startString ? Number(startString) : Number.NaN
+  const end = endString ? Number(endString) : Number.NaN
+
+  if (Number.isNaN(start) && Number.isNaN(end)) {
+    return null
+  }
+
+  if (Number.isNaN(start)) {
+    const suffixLength = end
+    if (Number.isNaN(suffixLength) || suffixLength <= 0) {
+      return null
+    }
+    const boundedLength = Math.min(suffixLength, size)
+    return {
+      start: size - boundedLength,
+      end: Math.max(size - 1, 0)
+    }
+  }
+
+  const rangeStart = start
+  const rangeEnd = Number.isNaN(end) ? size - 1 : end
+
+  if (rangeStart < 0 || rangeEnd >= size || rangeStart > rangeEnd) {
+    return null
+  }
+
+  return { start: rangeStart, end: rangeEnd }
+}
+
 app.openapi(downloadRoute, async (c) => {
   const { id } = c.req.valid('param')
   const record = db.select().from(tracks).where(eq(tracks.id, id)).get()
@@ -279,10 +321,28 @@ app.openapi(downloadRoute, async (c) => {
     return c.json({ message: 'Music not found' }, 404)
   }
 
+  const rangeHeader = c.req.header('range') ?? null
+  const range = parseRangeHeader(rangeHeader, record.size)
+  if (rangeHeader && !range) {
+    return new Response('Requested Range Not Satisfiable', {
+      status: 416,
+      headers: {
+        'Content-Range': `bytes */${record.size}`,
+        'Accept-Ranges': 'bytes'
+      }
+    })
+  }
+
+  const rangeHeaders: { Range?: string } = {}
+  if (range) {
+    rangeHeaders.Range = `bytes=${range.start}-${range.end}`
+  }
+
   const object = await s3Client.send(
     new GetObjectCommand({
       Bucket: config.s3.bucket,
-      Key: record.s3Key
+      Key: record.s3Key,
+      ...rangeHeaders
     })
   )
 
@@ -290,13 +350,26 @@ app.openapi(downloadRoute, async (c) => {
 
   const webStream = stream as unknown as globalThis.ReadableStream
 
+  const headers: Record<string, string> = {
+    'Content-Type': record.contentType ?? 'application/octet-stream',
+    'Content-Disposition': `attachment; filename="${record.filename}"`,
+    'Accept-Ranges': 'bytes'
+  }
+
+  if (range) {
+    headers['Content-Range'] = `bytes ${range.start}-${range.end}/${record.size}`
+    headers['Content-Length'] = `${range.end - range.start + 1}`
+    return new Response(webStream, {
+      status: 206,
+      headers
+    })
+  }
+
+  headers['Content-Length'] = record.size.toString()
+
   return new Response(webStream, {
     status: 200,
-    headers: {
-      'Content-Type': record.contentType ?? 'application/octet-stream',
-      'Content-Disposition': `attachment; filename="${record.filename}"`,
-      'Content-Length': record.size.toString()
-    }
+    headers
   })
 })
 

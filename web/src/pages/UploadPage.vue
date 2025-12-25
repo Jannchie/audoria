@@ -50,39 +50,39 @@ function handleUpload(): void {
 </script>
 
 <template>
-  <section class="space-y-5">
-    <div class="p-6 border border-slate-800 rounded-2xl bg-[#0c101a] flex gap-6 items-start justify-between">
-      <div>
-        <p class="text-xs text-slate-500 tracking-[0.25em] uppercase">
-          Upload
-        </p>
-        <h2 class="text-3xl text-white font-semibold">
-          Bring new stems into the room
-        </h2>
-        <p class="text-sm text-slate-400">
-          Choose an audio file and it will land in Library and the player queue.
-        </p>
+  <section class="space-y-6">
+    <div class="p-6 border border-[var(--line)] rounded-xl bg-[var(--bg-surface)]/75 space-y-6">
+      <div class="flex gap-6 items-start justify-between">
+        <div class="space-y-2">
+          <p class="text-xs text-slate-500 tracking-[0.25em] uppercase">
+            Upload
+          </p>
+          <h2 class="text-3xl text-white font-semibold">
+            Bring new stems into the room
+          </h2>
+          <p class="text-sm text-slate-400">
+            Choose an audio file and it will land in Library and the player queue.
+          </p>
+        </div>
+        <div class="text-sm text-slate-400 text-right">
+          <p class="text-xs text-slate-500 tracking-[0.2em] uppercase">
+            Status
+          </p>
+          <p class="text-white font-semibold">
+            {{ isUploading ? 'Uploading…' : 'Ready' }}
+          </p>
+          <p v-if="uploadMutation.data.value" class="text-xs text-slate-500 mt-1">
+            Last uploaded: {{ uploadMutation.data.value.filename }}
+          </p>
+        </div>
       </div>
-      <div class="text-sm text-slate-400 text-right">
-        <p class="text-xs text-slate-500 tracking-[0.2em] uppercase">
-          Status
-        </p>
-        <p class="text-white font-semibold">
-          {{ isUploading ? 'Uploading…' : 'Ready' }}
-        </p>
-        <p v-if="uploadMutation.data.value" class="text-xs text-slate-500 mt-1">
-          Last uploaded: {{ uploadMutation.data.value.filename }}
-        </p>
-      </div>
-    </div>
 
-    <div class="p-6 border border-slate-800 rounded-2xl bg-[#0c101a] space-y-4">
       <label
-        class="text-slate-300 px-4 py-6 text-center border border-slate-700 rounded-xl border-dashed bg-slate-900/60 block cursor-pointer transition-colors hover:border-blue-500/80"
+        class="text-slate-300 px-4 py-6 text-center border border-[var(--line)] rounded-lg border-dashed bg-[var(--bg-primary)]/70 block cursor-pointer transition-colors hover:border-[var(--accent)]/70"
         for="file-input"
       >
         <div class="flex flex-col gap-2 items-center">
-          <span class="i-tabler-cloud-upload text-3xl text-blue-400" />
+          <span class="i-tabler-cloud-upload text-3xl text-[var(--accent)]" />
           <p class="text-base text-white font-semibold">
             Drop or pick an audio file
           </p>
@@ -117,7 +117,7 @@ function handleUpload(): void {
           </p>
         </div>
         <button
-          class="text-sm text-white font-medium px-4 py-2 border border-blue-500/70 rounded-lg bg-blue-500/10 inline-flex gap-2 items-center hover:bg-blue-500/20 disabled:opacity-60 disabled:cursor-not-allowed"
+          class="text-sm text-white font-medium px-4 py-2 border border-[var(--accent)]/70 rounded-lg bg-[var(--accent)]/10 inline-flex gap-2 items-center hover:bg-[var(--accent)]/20 disabled:opacity-60 disabled:cursor-not-allowed"
           :disabled="isUploading"
           type="button"
           @click="handleUpload"

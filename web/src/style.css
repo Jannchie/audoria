@@ -1,11 +1,18 @@
 :root {
   color-scheme: dark;
   font-family: 'Space Grotesk', 'DM Sans', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background-color: #090c13;
-  color: #e2e8f0;
+  --bg-primary: #080b12;
+  --bg-surface: #0c111a;
+  --bg-muted: #111724;
+  --line: #1b2535;
+  --text-primary: #e5e7eb;
+  --text-secondary: #94a3b8;
+  --accent: #4f8bff;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
 }
 
 body {
   margin: 0;
-  background-color: #090c13;
+  background-color: var(--bg-primary);
 }

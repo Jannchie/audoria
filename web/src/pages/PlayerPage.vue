@@ -30,7 +30,7 @@ function handlePick(id: string): void {
 
 <template>
   <section class="space-y-6">
-    <div class="p-6 border border-slate-800 rounded-2xl bg-[#0c101a]">
+    <div class="p-6 border border-[var(--line)] rounded-xl bg-[var(--bg-surface)]/75">
       <div class="flex gap-4 items-start justify-between">
         <div>
           <p class="text-xs text-slate-500 tracking-[0.25em] uppercase">
@@ -52,8 +52,8 @@ function handlePick(id: string): void {
       </div>
 
       <div class="mt-6 gap-5 grid md:grid-cols-3">
-        <div class="p-4 border border-slate-800 rounded-xl bg-slate-900/60 flex gap-4 items-center md:col-span-2">
-          <div class="text-lg text-white font-semibold rounded-xl bg-slate-800 flex h-24 w-24 items-center justify-center">
+        <div class="p-4 border border-[var(--line)] rounded-lg bg-[var(--bg-primary)]/70 flex gap-4 items-center md:col-span-2">
+          <div class="text-lg text-white font-semibold rounded-lg bg-[var(--bg-muted)] flex h-24 w-24 items-center justify-center">
             {{ currentTrack?.filename.charAt(0).toUpperCase() ?? 'A' }}
           </div>
           <div class="space-y-2">
@@ -64,16 +64,16 @@ function handlePick(id: string): void {
               {{ currentTrack ? new Date(currentTrack.createdAt).toLocaleString() : 'Uploads appear here once selected.' }}
             </p>
             <div class="text-xs text-slate-400 flex flex-wrap gap-2">
-              <span class="px-2 py-1 border border-slate-700 rounded-full bg-slate-900/70">
+              <span class="px-2 py-1 border border-[var(--line)] rounded-full bg-[var(--bg-primary)]/70">
                 {{ currentTrack?.contentType ?? 'audio' }}
               </span>
-              <span class="px-2 py-1 border border-slate-700 rounded-full bg-slate-900/70">
+              <span class="px-2 py-1 border border-[var(--line)] rounded-full bg-[var(--bg-primary)]/70">
                 {{ currentTrack ? `${(currentTrack.size / 1024).toFixed(1)} KB` : 'No size' }}
               </span>
             </div>
           </div>
         </div>
-        <div class="text-sm text-slate-300 p-4 border border-slate-800 rounded-xl bg-slate-900/60 space-y-3">
+        <div class="text-sm text-slate-300 p-4 border border-[var(--line)] rounded-lg bg-[var(--bg-primary)]/70 space-y-3">
           <p class="text-xs text-slate-500 tracking-[0.2em] uppercase">
             Actions
           </p>
@@ -95,7 +95,7 @@ function handlePick(id: string): void {
       </div>
     </div>
 
-    <div class="p-5 border border-slate-800 rounded-2xl bg-[#0c101a]">
+    <div class="p-5 border border-[var(--line)] rounded-xl bg-[var(--bg-surface)]/75">
       <div class="flex items-center justify-between">
         <div>
           <p class="text-xs text-slate-500 tracking-[0.25em] uppercase">
@@ -105,12 +105,6 @@ function handlePick(id: string): void {
             Recent tracks
           </h3>
         </div>
-        <RouterLink
-          class="text-sm text-slate-200 px-3 py-2 border border-slate-700 rounded-lg hover:bg-slate-800"
-          to="/library"
-        >
-          Manage Library
-        </RouterLink>
       </div>
       <div class="mt-4 space-y-2">
         <p v-if="isPending" class="text-sm text-slate-400">
@@ -123,11 +117,11 @@ function handlePick(id: string): void {
           v-for="track in tracks?.slice(0, 8)"
           v-else
           :key="track.id"
-          class="px-3 py-3 text-left border border-slate-800 rounded-xl bg-slate-900/60 flex gap-3 w-full transition-colors items-center justify-between hover:bg-slate-800"
+          class="px-3 py-3 text-left border border-[var(--line)] rounded-lg bg-[var(--bg-primary)]/70 flex gap-3 w-full transition-colors items-center justify-between hover:bg-[var(--bg-muted)]/70"
           @click="handlePick(track.id)"
         >
           <div class="flex gap-3 min-w-0 items-center">
-            <span class="text-sm text-white font-semibold rounded-lg bg-slate-800 flex h-10 w-10 items-center justify-center">
+            <span class="text-sm text-white font-semibold rounded-md bg-[var(--bg-muted)] flex h-10 w-10 items-center justify-center">
               {{ track.filename.charAt(0).toUpperCase() }}
             </span>
             <div class="min-w-0">
@@ -141,7 +135,7 @@ function handlePick(id: string): void {
           </div>
           <span
             class="text-xs px-2 py-1 border rounded-full"
-            :class="track.id === currentTrackId ? 'border-blue-500/70 bg-blue-500/10 text-white' : 'border-slate-700 bg-slate-900/70 text-slate-300'"
+            :class="track.id === currentTrackId ? 'border-[var(--accent)]/70 bg-[var(--accent)]/15 text-white' : 'border-[var(--line)] bg-[var(--bg-primary)]/70 text-slate-300'"
           >
             {{ track.id === currentTrackId ? 'Playing' : 'Play' }}
           </span>
