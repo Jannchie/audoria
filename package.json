@@ -5,6 +5,15 @@
   "scripts": {
     "api:dev": "pnpm -C api dev",
     "gen:sdk": "pnpm -C web gen:sdk",
-    "web:dev": "pnpm -C web dev"
+    "lint": "eslint . --fix",
+    "web:dev": "pnpm -C web dev",
+    "dev": "concurrently \"pnpm api:dev\" \"pnpm web:dev\""
+  },
+  "devDependencies": {
+    "@jannchie/eslint-config": "^3.7.5",
+    "@unocss/eslint-plugin": "^66.5.10",
+    "concurrently": "^9.2.1",
+    "eslint": "^9.39.2",
+    "typescript": "^5.9.3"
   }
 }

@@ -7,31 +7,47 @@ const props = defineProps<{
   disabled?: boolean
   ariaLabel?: string
   tone?: 'primary' | 'ghost'
+  size?: 'sm' | 'md' | 'lg'
 }>()
+
+const sizeClass = computed(() => {
+  if (props.size === 'sm') {
+    return 'h-10 w-10 text-lg'
+  }
+  if (props.size === 'lg') {
+    return 'h-12 w-12 text-xl'
+  }
+  return 'h-11 w-11 text-lg'
+})
 
 const toneClass = computed(() => {
   if (props.tone === 'primary') {
     return props.disabled
-      ? 'bg-slate-700 text-white'
-      : 'bg-blue-500 text-white hover:bg-blue-600'
+      ? 'bg-[var(--bg-elevated)] text-[var(--text-tertiary)] cursor-not-allowed'
+      : 'bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)]'
   }
-  return props.disabled
-    ? 'text-slate-500 hover:bg-transparent'
-    : (props.active
-        ? 'text-blue-400 hover:bg-slate-800'
-        : 'text-slate-200 hover:bg-slate-800')
+  if (props.disabled) {
+    return 'text-[var(--text-tertiary)] cursor-not-allowed'
+  }
+  if (props.active) {
+    return 'text-[var(--accent)]'
+  }
+  return 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
 })
 </script>
 
 <template>
   <button
-    class="px-3 py-2 rounded-md flex transition-colors items-center justify-center"
-    :class="toneClass"
+    class="rounded-full flex transition-colors items-center justify-center"
+    :class="[toneClass, sizeClass]"
     :aria-label="ariaLabel"
     :disabled="disabled"
     type="button"
   >
-    <span class="text-lg inline-block" :class="icon" />
+    <span
+      class="inline-block"
+      :class="icon"
+    />
     <slot />
   </button>
 </template>

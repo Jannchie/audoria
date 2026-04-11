@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { buildDownloadUrl, useMusicQuery } from '../composables/useMusic'
 import { usePlayerState } from '../composables/usePlayerState'
 import IconButton from './IconButton.vue'
 
+const router = useRouter()
 const audioRef = ref<HTMLAudioElement | null>(null)
 const progressTrack = ref<HTMLDivElement | null>(null)
 const isScrubbing = ref(false)
@@ -236,6 +238,10 @@ function handleEnded(): void {
   handleNext()
 }
 
+function goToPlayer(): void {
+  router.push('/player')
+}
+
 watch(audioSrc, (src) => {
   const audio = audioRef.value
   if (!audio) {
@@ -293,81 +299,97 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <footer class="border-t border-[var(--line)] bg-[var(--bg-surface)]/90 bottom-0 left-0 right-0 fixed z-20 backdrop-blur">
-    <div class="mx-auto px-8 py-4 flex gap-6 max-w-6xl items-center">
-      <div class="flex flex-1 gap-4 min-w-0 items-center">
-        <div class="text-sm text-white font-semibold rounded-lg bg-[var(--bg-muted)] flex h-12 w-12 items-center justify-center">
-          {{ currentTrack?.filename.charAt(0).toUpperCase() ?? 'A' }}
-        </div>
-        <div class="min-w-0 w-full">
-          <p class="text-sm text-white font-semibold truncate">
-            {{ currentTrack?.filename ?? 'Select a track to start' }}
-          </p>
-          <div class="text-xs text-slate-400 mt-2 flex gap-3 items-center">
-            <span class="text-right w-10">{{ formattedTime(currentTime) }}</span>
-            <div
-              ref="progressTrack"
-              class="rounded-full bg-[var(--bg-muted)] flex-1 h-2 cursor-pointer relative overflow-hidden"
-              @pointerdown.prevent="handleProgressPointerDown"
-            >
-              <div
-                class="rounded-full bg-[var(--accent)] inset-y-0 left-0 absolute"
-                :style="{ width: `${progress}%` }"
-              />
-              <div
-                class="rounded-full bg-white h-3 w-3 top-1/2 absolute -translate-y-1/2"
-                :style="{ left: `calc(${progress}% - 6px)` }"
-              />
-            </div>
-            <input
-              class="opacity-0 h-px w-px pointer-events-none absolute"
-              max="100"
-              min="0"
-              step="0.1"
-              type="range"
-              :value="progress"
-              @input="handleSeek"
-            >
-            <span class="w-10">{{ formattedTime(duration) }}</span>
-          </div>
-        </div>
+  <footer class="border-t border-[var(--border)] bg-[var(--bg-primary)] bottom-0 left-0 right-0 fixed z-40">
+    <!-- Progress bar: visual is 2px but hit area is 20px via padding -->
+    <div
+      ref="progressTrack"
+      class="py-2 w-full cursor-pointer relative"
+      @pointerdown.prevent="handleProgressPointerDown"
+    >
+      <div class="bg-[var(--bg-surface)] h-0.5 w-full relative">
+        <div
+          class="bg-[var(--accent)] h-full transition-none inset-y-0 left-0 absolute"
+          :style="{ width: `${progress}%` }"
+        />
       </div>
+    </div>
 
-      <div class="flex gap-2 items-center">
+    <div class="mx-auto px-4 py-2 flex gap-3 max-w-3xl items-center sm:px-5">
+      <!-- Track info -->
+      <button
+        type="button"
+        class="text-left flex flex-1 gap-3 min-w-0 transition-colors items-center"
+        @click="goToPlayer"
+      >
+        <div class="rounded-lg bg-[var(--bg-elevated)] flex shrink-0 h-11 w-11 items-center justify-center">
+          <span class="text-[11px] text-[var(--text-secondary)] font-bold text-heading">
+            {{ (currentTrack?.filename?.charAt(0) ?? 'A').toUpperCase() }}
+          </span>
+        </div>
+        <div class="min-w-0">
+          <p class="text-[13px] leading-tight font-medium text-heading truncate">
+            {{ currentTrack?.filename ?? 'Select a track' }}
+          </p>
+          <p class="text-[11px] text-[var(--text-tertiary)] mt-0.5 tabular-nums">
+            {{ formattedTime(currentTime) }} / {{ formattedTime(duration) }}
+          </p>
+        </div>
+      </button>
+
+      <!-- Controls -->
+      <div class="flex gap-0.5 items-center">
         <IconButton
           :active="shuffle"
           aria-label="Shuffle"
           icon="i-tabler-arrows-shuffle"
+          size="sm"
+          class="hidden sm:flex"
           @click="toggleShuffle"
         />
         <IconButton
           aria-label="Previous"
-          class="text-white rounded-full bg-slate-800 hover:bg-slate-700"
-          icon="i-tabler-player-skip-back"
+          icon="i-tabler-player-skip-back-filled"
+          size="sm"
           @click="handlePrev"
         />
         <IconButton
           :disabled="!audioSrc"
           aria-label="Play or pause"
-          class="px-4 py-3 rounded-full"
           :icon="isPlaying ? 'i-tabler-player-pause-filled' : 'i-tabler-player-play-filled'"
           tone="primary"
+          size="lg"
           @click="togglePlayPause"
         />
         <IconButton
           aria-label="Next"
-          class="text-white rounded-full bg-slate-800 hover:bg-slate-700"
-          icon="i-tabler-player-skip-forward"
+          icon="i-tabler-player-skip-forward-filled"
+          size="sm"
           @click="handleNext"
         />
         <IconButton
           :active="repeatMode !== 'off'"
           aria-label="Repeat mode"
           :icon="repeatIcon"
+          size="sm"
+          class="hidden sm:flex"
           @click="cycleRepeat"
         />
       </div>
     </div>
-    <audio ref="audioRef" class="hidden" :src="audioSrc" />
+
+    <input
+      class="opacity-0 h-px w-px pointer-events-none absolute"
+      max="100"
+      min="0"
+      step="0.1"
+      type="range"
+      :value="progress"
+      @input="handleSeek"
+    >
+    <audio
+      ref="audioRef"
+      class="hidden"
+      :src="audioSrc"
+    />
   </footer>
 </template>
