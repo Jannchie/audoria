@@ -46,12 +46,15 @@ export type MusicImportJob = {
     songName: string;
     singers: string;
     status: 'queued' | 'running' | 'succeeded' | 'failed';
-    trackId: string;
-    errorMessage: string;
+    trackId: string | null;
+    errorMessage: string | null;
+    progressBytes: number | null;
+    totalBytes: number | null;
+    progressPercent: number | null;
     createdAt: string;
     updatedAt: string;
-    startedAt: string;
-    finishedAt: string;
+    startedAt: string | null;
+    finishedAt: string | null;
 };
 
 export type MusicDlImportRequest = {

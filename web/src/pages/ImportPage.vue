@@ -1,14 +1,23 @@
 <script setup lang="ts">
-import type { MusicDlSearchResult } from '../api/types.gen'
+import type { MusicDlSearchResult, MusicDlSource } from '../api/types.gen'
 import { useQueryClient } from '@tanstack/vue-query'
 import { computed, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import { useImportJobQuery, useImportMusic, useSearchMusicImport } from '../composables/useMusic'
 import { usePlayerState } from '../composables/usePlayerState'
 
-const router = useRouter()
+const sourceOptions: Array<{ value: MusicDlSource | null, label: string }> = [
+  { value: null, label: 'All' },
+  { value: 'NeteaseMusicClient', label: 'Netease' },
+  { value: 'QQMusicClient', label: 'QQ' },
+  { value: 'KuwoMusicClient', label: 'Kuwo' },
+  { value: 'MiguMusicClient', label: 'Migu' },
+  { value: 'QianqianMusicClient', label: 'Qianqian' },
+  { value: 'JamendoMusicClient', label: 'Jamendo' },
+]
+
 const queryClient = useQueryClient()
 const searchKeyword = ref('')
+const selectedSource = ref<MusicDlSource | null>(null)
 const searchResults = ref<MusicDlSearchResult[]>([])
 const activeImportResultId = ref<string | null>(null)
 const activeImportJobId = ref<string | null>(null)
@@ -34,12 +43,37 @@ const importErrorMessage = computed(() => {
   return err instanceof Error ? err.message : 'Import failed.'
 })
 
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+const importProgress = computed(() => {
+  const job = currentImportJob.value
+  if (!job || job.status !== 'running') return null
+
+  return {
+    progressBytes: typeof job.progressBytes === 'number' ? job.progressBytes : 0,
+    totalBytes: typeof job.totalBytes === 'number' ? job.totalBytes : null,
+    progressPercent: typeof job.progressPercent === 'number' ? job.progressPercent : null,
+  }
+})
+
 const importJobMessage = computed(() => {
   const job = currentImportJob.value
   if (!job) return ''
   if (job.status === 'queued') return `Queued: ${job.songName}`
-  if (job.status === 'running') return `Importing: ${job.songName}...`
-  if (job.status === 'succeeded') return `Done! Redirecting...`
+  if (job.status === 'running') {
+    if (importProgress.value?.progressPercent !== null && importProgress.value) {
+      return `Importing: ${job.songName}... ${importProgress.value.progressPercent}%`
+    }
+    if (importProgress.value && importProgress.value.progressBytes > 0) {
+      return `Importing: ${job.songName}... ${formatBytes(importProgress.value.progressBytes)}`
+    }
+    return `Importing: ${job.songName}...`
+  }
+  if (job.status === 'succeeded') return `Done!`
   return job.errorMessage || `Failed: ${job.songName}`
 })
 
@@ -63,7 +97,6 @@ watch(currentImportJob, (job) => {
     queryClient.invalidateQueries({ queryKey: ['music'] }).catch(() => {})
     selectTrack(job.trackId)
     setPlaying(true)
-    setTimeout(() => router.push('/library'), 600)
   }
 })
 
@@ -82,7 +115,10 @@ function handleSearch(): void {
   importFormError.value = ''
   searchResults.value = []
   resetImportState()
-  searchMutation.mutate({ keyword }, {
+  searchMutation.mutate({
+    keyword,
+    source: selectedSource.value ?? undefined,
+  }, {
     onSuccess: (results) => { searchResults.value = results },
   })
 }
@@ -131,6 +167,18 @@ function isImporting(id: string): boolean {
           />
         </button>
       </div>
+      <div class="source-filter">
+        <button
+          v-for="option in sourceOptions"
+          :key="option.label"
+          type="button"
+          class="source-chip"
+          :class="{ 'source-chip--active': selectedSource === option.value }"
+          @click="selectedSource = option.value"
+        >
+          {{ option.label }}
+        </button>
+      </div>
 
       <!-- Status -->
       <div
@@ -143,6 +191,26 @@ function isImporting(id: string): boolean {
         }"
       >
         {{ statusMessage.text }}
+      </div>
+      <div
+        v-if="importProgress"
+        class="progress-block"
+      >
+        <div class="progress-track">
+          <div
+            class="progress-fill"
+            :class="{ 'progress-fill--indeterminate': importProgress.progressPercent === null }"
+            :style="{ width: `${importProgress.progressPercent ?? 35}%` }"
+          />
+        </div>
+        <p class="progress-text">
+          <template v-if="importProgress.totalBytes">
+            {{ formatBytes(importProgress.progressBytes) }} / {{ formatBytes(importProgress.totalBytes) }}
+          </template>
+          <template v-else>
+            {{ formatBytes(importProgress.progressBytes) }}
+          </template>
+        </p>
       </div>
     </div>
 
@@ -329,6 +397,41 @@ function isImporting(id: string): boolean {
   background: var(--accent-hover);
 }
 
+.source-filter {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.125rem;
+  scrollbar-width: none;
+}
+
+.source-filter::-webkit-scrollbar {
+  display: none;
+}
+
+.source-chip {
+  flex-shrink: 0;
+  border: none;
+  border-radius: 999px;
+  background: var(--bg-surface);
+  color: var(--text-tertiary);
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.source-chip:hover {
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+}
+
+.source-chip--active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
 .status-pill {
   font-size: 0.75rem;
   padding: 0.375rem 0.75rem;
@@ -349,6 +452,47 @@ function isImporting(id: string): boolean {
 .status-pill--info {
   color: var(--accent);
   background: var(--accent-soft);
+}
+
+.progress-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.progress-track {
+  width: 100%;
+  height: 0.25rem;
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 0.2s ease;
+}
+
+.progress-fill--indeterminate {
+  animation: progress-pulse 1.2s ease-in-out infinite;
+}
+
+.progress-text {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+}
+
+@keyframes progress-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+
+  50% {
+    opacity: 1;
+  }
 }
 
 /* ---- Idle state ---- */

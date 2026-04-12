@@ -8,6 +8,7 @@ import {
   markMusicImportJobFailed,
   markMusicImportJobSucceeded,
   requeueRunningMusicImportJobs,
+  updateMusicImportJobProgress,
   updateTrackImportedMetadata,
 } from './db.js'
 import { MusicDlBridgeError, MusicDlUnavailableError, openMusicDlStream } from './musicdl.js'
@@ -44,11 +45,29 @@ async function processNextJob(): Promise<boolean> {
   try {
     const songInfo = JSON.parse(job.songInfoJson) as MusicDlSongInfo
     const imported = await openMusicDlStream(songInfo, config.musicdl)
+    const totalBytes = imported.contentLength ?? songInfo.file_size_bytes
+    let lastProgressAt = 0
+    updateMusicImportJobProgress(job.id, {
+      progressBytes: 0,
+      totalBytes: totalBytes ?? null,
+    })
+
     const track = await storeTrack({
       filename: imported.filename,
       contentType: imported.contentType,
-      size: imported.contentLength ?? songInfo.file_size_bytes,
+      size: totalBytes,
       body: Readable.fromWeb(imported.body as unknown as ReadableStream),
+      onProgress: (progressBytes) => {
+        const now = Date.now()
+        if (now - lastProgressAt < 200 && (!totalBytes || progressBytes < totalBytes)) {
+          return
+        }
+        lastProgressAt = now
+        updateMusicImportJobProgress(job.id, {
+          progressBytes,
+          totalBytes: totalBytes ?? null,
+        })
+      },
     })
 
     let coverS3Key: string | null = null
@@ -80,7 +99,7 @@ async function processNextJob(): Promise<boolean> {
       durationSeconds: songInfo.duration_s,
     })
 
-    markMusicImportJobSucceeded(job.id, track.id)
+    markMusicImportJobSucceeded(job.id, track.id, track.size)
   }
   catch (error) {
     const message = error instanceof MusicDlUnavailableError || error instanceof MusicDlBridgeError

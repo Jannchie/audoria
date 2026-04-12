@@ -13,12 +13,10 @@ export const musicDlSources = [
   'JamendoMusicClient',
 ] as const
 
-const aggregateMusicDlSources = [
-  'MiguMusicClient',
-  'NeteaseMusicClient',
-  'QQMusicClient',
-  'KuwoMusicClient',
-] as const
+const aggregateMusicDlSources = musicDlSources
+
+const searchSizePerSource = 10
+const searchSizePerPage = 20
 
 export type MusicDlSource = (typeof musicDlSources)[number]
 
@@ -226,8 +224,8 @@ async function searchSingleSource(keyword: string, source: MusicDlSource, config
       musicClient.search({
         keyword,
         sources: [source],
-        searchSizePerSource: 5,
-        searchSizePerPage: 10,
+        searchSizePerSource,
+        searchSizePerPage,
         requestOverrides: {
           [source]: {
             timeoutMs: config.searchTimeoutMs,

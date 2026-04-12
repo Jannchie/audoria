@@ -1,7 +1,7 @@
 import type { Readable } from 'node:stream'
 import type { Track } from './db.js'
 import { randomUUID } from 'node:crypto'
-import { PassThrough } from 'node:stream'
+import { Transform } from 'node:stream'
 import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import { config } from './config.js'
 import { db, tracks } from './db.js'
@@ -10,6 +10,7 @@ const s3Client = new S3Client({
   endpoint: config.s3.endpoint,
   region: config.s3.region,
   forcePathStyle: config.s3.forcePathStyle,
+  requestChecksumCalculation: 'WHEN_REQUIRED',
   credentials: {
     accessKeyId: config.s3.accessKeyId,
     secretAccessKey: config.s3.secretAccessKey,
@@ -21,48 +22,40 @@ export async function storeTrack({
   contentType,
   size,
   body,
+  onProgress,
 }: {
   filename: string
   contentType: string | null
   size?: number | null
   body: Readable
+  onProgress?: (transferredBytes: number) => void
 }): Promise<Track> {
   const id = randomUUID()
   const key = `music/${id}-${filename || 'audio'}`
   const createdAt = Date.now()
   let resolvedSize = size ?? null
-  let uploadBody: Readable = body
+  let countedBytes = 0
+  const countingStream = new Transform({
+    transform(chunk, _encoding, callback) {
+      countedBytes += Buffer.isBuffer(chunk) ? chunk.byteLength : Buffer.byteLength(String(chunk))
+      onProgress?.(countedBytes)
+      callback(null, chunk)
+    },
+  })
+  body.on('error', error => countingStream.destroy(error))
+  body.pipe(countingStream)
 
-  if (resolvedSize === null) {
-    const countingStream = new PassThrough()
-    let countedBytes = 0
-    countingStream.on('data', (chunk: Buffer | string) => {
-      countedBytes += Buffer.isBuffer(chunk) ? chunk.byteLength : Buffer.byteLength(chunk)
-    })
-    body.on('error', error => countingStream.destroy(error))
-    body.pipe(countingStream)
-    uploadBody = countingStream
-    await s3Client.send(
-      new PutObjectCommand({
-        Bucket: config.s3.bucket,
-        Key: key,
-        Body: uploadBody,
-        ContentType: contentType || undefined,
-      }),
-    )
-    resolvedSize = countedBytes
-  }
-  else {
-    await s3Client.send(
-      new PutObjectCommand({
-        Bucket: config.s3.bucket,
-        Key: key,
-        Body: uploadBody,
-        ContentType: contentType || undefined,
-        ContentLength: resolvedSize,
-      }),
-    )
-  }
+  await s3Client.send(
+    new PutObjectCommand({
+      Bucket: config.s3.bucket,
+      Key: key,
+      Body: countingStream,
+      ContentType: contentType || undefined,
+      ContentLength: resolvedSize ?? undefined,
+    }),
+  )
+  resolvedSize = countedBytes
+  onProgress?.(resolvedSize)
 
   const record: Track = {
     id,

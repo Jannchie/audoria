@@ -1,5 +1,5 @@
 import type { Ref } from 'vue'
-import type { Music, MusicDlSearchResult, MusicImportJob } from '../api/types.gen'
+import type { Music, MusicDlSearchResult, MusicDlSource, MusicImportJob } from '../api/types.gen'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed } from 'vue'
 import { client } from '../api/client.gen'
@@ -52,9 +52,12 @@ export function useUploadMusic() {
 
 export function useSearchMusicImport() {
   return useMutation({
-    mutationFn: async ({ keyword }: { keyword: string }): Promise<MusicDlSearchResult[]> => {
+    mutationFn: async ({ keyword, source }: { keyword: string, source?: MusicDlSource }): Promise<MusicDlSearchResult[]> => {
       const response = await postMusicImportsSearch({
-        body: { keyword },
+        body: {
+          keyword,
+          source,
+        },
         throwOnError: true,
       })
       return response.data

@@ -47,6 +47,9 @@ export const musicImportJobs = sqliteTable('music_import_jobs', {
   songInfoJson: text('song_info_json').notNull(),
   trackId: text('track_id'),
   errorMessage: text('error_message'),
+  progressBytes: integer('progress_bytes', { mode: 'number' }),
+  totalBytes: integer('total_bytes', { mode: 'number' }),
+  progressPercent: integer('progress_percent', { mode: 'number' }),
   createdAt: integer('created_at', { mode: 'number' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'number' }).notNull(),
   startedAt: integer('started_at', { mode: 'number' }),
@@ -102,6 +105,9 @@ sqlite.exec(`
     song_info_json TEXT NOT NULL,
     track_id TEXT,
     error_message TEXT,
+    progress_bytes INTEGER,
+    total_bytes INTEGER,
+    progress_percent INTEGER,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
     started_at INTEGER,
@@ -133,6 +139,16 @@ if (!trackColumns.some(column => column.name === 'duration_seconds')) {
 }
 if (!trackColumns.some(column => column.name === 'lyrics')) {
   sqlite.exec('ALTER TABLE tracks ADD COLUMN lyrics TEXT')
+}
+const importJobColumns = sqlite.prepare('PRAGMA table_info(music_import_jobs)').all() as Array<{ name: string }>
+if (!importJobColumns.some(column => column.name === 'progress_bytes')) {
+  sqlite.exec('ALTER TABLE music_import_jobs ADD COLUMN progress_bytes INTEGER')
+}
+if (!importJobColumns.some(column => column.name === 'total_bytes')) {
+  sqlite.exec('ALTER TABLE music_import_jobs ADD COLUMN total_bytes INTEGER')
+}
+if (!importJobColumns.some(column => column.name === 'progress_percent')) {
+  sqlite.exec('ALTER TABLE music_import_jobs ADD COLUMN progress_percent INTEGER')
 }
 
 export const db = drizzle(sqlite)
@@ -170,6 +186,9 @@ export function createMusicImportJobFromCandidate(candidate: MusicImportCandidat
     songInfoJson: candidate.songInfoJson,
     trackId: null,
     errorMessage: null,
+    progressBytes: 0,
+    totalBytes: null,
+    progressPercent: null,
     createdAt: now,
     updatedAt: now,
     startedAt: null,
@@ -191,6 +210,9 @@ export function requeueRunningMusicImportJobs(): void {
       updatedAt: now,
       startedAt: null,
       errorMessage: null,
+      progressBytes: 0,
+      totalBytes: null,
+      progressPercent: null,
     })
     .where(eq(musicImportJobs.status, 'running'))
     .run()
@@ -215,6 +237,9 @@ export function claimNextQueuedMusicImportJob(): MusicImportJob | null {
       updatedAt: now,
       startedAt: now,
       errorMessage: null,
+      progressBytes: 0,
+      totalBytes: null,
+      progressPercent: null,
     })
     .where(and(eq(musicImportJobs.id, queuedJob.id), eq(musicImportJobs.status, 'queued')))
     .run()
@@ -226,12 +251,36 @@ export function claimNextQueuedMusicImportJob(): MusicImportJob | null {
   return getMusicImportJobById(queuedJob.id) ?? null
 }
 
-export function markMusicImportJobSucceeded(id: string, trackId: string): void {
+export function updateMusicImportJobProgress(id: string, progress: {
+  progressBytes: number
+  totalBytes: number | null
+}): void {
+  const normalizedProgressBytes = Math.max(0, Math.floor(progress.progressBytes))
+  const normalizedTotalBytes = progress.totalBytes === null ? null : Math.max(0, Math.floor(progress.totalBytes))
+  const progressPercent = normalizedTotalBytes && normalizedTotalBytes > 0
+    ? Math.min(100, Math.floor((normalizedProgressBytes / normalizedTotalBytes) * 100))
+    : null
+
+  db.update(musicImportJobs)
+    .set({
+      progressBytes: normalizedProgressBytes,
+      totalBytes: normalizedTotalBytes,
+      progressPercent,
+      updatedAt: Date.now(),
+    })
+    .where(eq(musicImportJobs.id, id))
+    .run()
+}
+
+export function markMusicImportJobSucceeded(id: string, trackId: string, size: number): void {
   const now = Date.now()
   db.update(musicImportJobs)
     .set({
       status: 'succeeded',
       trackId,
+      progressBytes: size,
+      totalBytes: size,
+      progressPercent: 100,
       updatedAt: now,
       finishedAt: now,
       errorMessage: null,

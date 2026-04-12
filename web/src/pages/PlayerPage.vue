@@ -33,6 +33,8 @@ const currentTrack = computed(() => {
   return items.find(item => item.id === currentTrackId.value) ?? items[0]
 })
 
+const resolvedCurrentTrackId = computed(() => currentTrack.value?.id ?? null)
+
 const currentTrackCoverUrl = computed(() => {
   if (!currentTrack.value?.coverUrl) {
     return ''
@@ -120,11 +122,11 @@ function pickNextId(direction: 'next' | 'prev'): string | null {
     return null
   }
   if (shuffle.value) {
-    const others = items.filter(item => item.id !== currentTrackId.value)
+    const others = items.filter(item => item.id !== resolvedCurrentTrackId.value)
     const pool = others.length > 0 ? others : items
     return pool[Math.floor(Math.random() * pool.length)]?.id ?? null
   }
-  const index = items.findIndex(item => item.id === currentTrackId.value)
+  const index = items.findIndex(item => item.id === resolvedCurrentTrackId.value)
   if (index === -1) {
     return items[0]?.id ?? null
   }
@@ -170,6 +172,9 @@ function togglePlayPause(): void {
     return
   }
   if (audio.paused) {
+    if (!currentTrackId.value && resolvedCurrentTrackId.value) {
+      selectTrack(resolvedCurrentTrackId.value)
+    }
     audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false))
   }
   else {
