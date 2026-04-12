@@ -210,8 +210,6 @@ const isPlayerPage = computed(() => route.path === '/player')
 .mobile-tabs-inner {
   display: flex;
   align-items: stretch;
-  max-width: 28rem;
-  margin: 0 auto;
 }
 
 .mobile-tab {

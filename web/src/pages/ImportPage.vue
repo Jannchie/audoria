@@ -42,6 +42,26 @@ const sourceOptions: Array<{ value: MusicDlSource | null, label: string }> = [
   { value: 'JamendoMusicClient', label: 'Jamendo' },
 ]
 
+const sourceDisplayMap = {
+  NeteaseMusicClient: { label: 'Netease', icon: 'i-tabler-brand-netease-music' },
+  QQMusicClient: { label: 'QQ', icon: 'i-arcticons-qq-music' },
+  KuwoMusicClient: { label: 'Kuwo', icon: 'i-tabler-disc' },
+  MiguMusicClient: { label: 'Migu', icon: 'i-arcticons-migu' },
+  QianqianMusicClient: { label: 'Qianqian', icon: 'i-tabler-wave-sine' },
+  JamendoMusicClient: { label: 'Jamendo', icon: 'i-arcticons-jamendo' },
+} satisfies Record<MusicDlSource, { label: string, icon: string }>
+
+function getSourceDisplay(source: string): { label: string, icon: string } {
+  if (source in sourceDisplayMap) {
+    return sourceDisplayMap[source as MusicDlSource]
+  }
+
+  return {
+    label: source || 'Unknown',
+    icon: 'i-tabler-world',
+  }
+}
+
 const queryClient = useQueryClient()
 const searchKeyword = ref(persistedState?.searchKeyword ?? '')
 const selectedSource = ref<MusicDlSource | null>(persistedState?.selectedSource ?? null)
@@ -332,7 +352,13 @@ function isImporting(id: string): boolean {
         </div>
 
         <div class="result-right">
-          <span class="result-tag">{{ result.source }}</span>
+          <span class="result-source">
+            <span
+              class="result-source-icon"
+              :class="getSourceDisplay(result.source).icon"
+            />
+            <span class="result-source-label">{{ getSourceDisplay(result.source).label }}</span>
+          </span>
           <span
             v-if="isImporting(result.id)"
             class="i-tabler-loader-2 text-base text-[var(--accent)] animate-spin"
@@ -658,17 +684,24 @@ function isImporting(id: string): boolean {
   flex-shrink: 0;
 }
 
-.result-tag {
-  font-size: 0.625rem;
+.result-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
   color: var(--text-tertiary);
-  padding: 0.125rem 0.375rem;
-  border-radius: 0.25rem;
-  background: var(--bg-elevated);
+}
+
+.result-source-icon {
+  font-size: 0.875rem;
+}
+
+.result-source-label {
   display: none;
+  font-size: 0.625rem;
 }
 
 @media (min-width: 640px) {
-  .result-tag {
+  .result-source-label {
     display: inline;
   }
 }

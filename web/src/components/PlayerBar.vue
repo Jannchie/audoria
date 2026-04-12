@@ -286,11 +286,11 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <div class="mx-auto px-4 py-2 flex gap-3 items-center sm:px-5">
+    <div class="playerbar-content">
       <!-- Track info -->
       <button
         type="button"
-        class="text-left flex flex-1 gap-3 min-w-0 transition-colors items-center"
+        class="playerbar-track text-left flex flex-1 gap-3 min-w-0 transition-colors items-center"
         @click="goToPlayer"
       >
         <div class="rounded-lg bg-[var(--bg-elevated)] flex shrink-0 h-11 w-11 items-center justify-center overflow-hidden">
@@ -321,7 +321,7 @@ onUnmounted(() => {
       </button>
 
       <!-- Controls -->
-      <div class="flex gap-0.5 items-center">
+      <div class="playerbar-controls flex gap-0.5 items-center">
         <IconButton
           :active="shuffle"
           aria-label="Shuffle"
@@ -361,7 +361,7 @@ onUnmounted(() => {
       </div>
 
       <!-- Volume (desktop only) -->
-      <div class="hidden gap-1 items-center lg:flex">
+      <div class="playerbar-volume hidden gap-1 items-center lg:flex">
         <IconButton
           aria-label="Toggle mute"
           :icon="volumeIcon"
@@ -415,6 +415,35 @@ onUnmounted(() => {
 @media (min-width: 768px) {
   .playerbar {
     bottom: 0;
+  }
+}
+
+.playerbar-content {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0 auto;
+  padding: 0.5rem 1rem;
+}
+
+.playerbar-track {
+  min-width: 0;
+}
+
+@media (min-width: 768px) {
+  .playerbar-content {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+  }
+
+  .playerbar-controls {
+    justify-self: center;
+  }
+
+  .playerbar-volume {
+    justify-self: end;
   }
 }
 

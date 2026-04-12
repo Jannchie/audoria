@@ -15,7 +15,7 @@ export const musicDlSources = [
 
 const aggregateMusicDlSources = musicDlSources
 
-const searchSizePerSource = 10
+const searchSizePerSource = 5
 const searchSizePerPage = 20
 
 export type MusicDlSource = (typeof musicDlSources)[number]

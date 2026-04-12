@@ -449,8 +449,7 @@ watch(currentLineIndex, async (idx) => {
   height: 100%;
   padding: 1.25rem;
   overflow: hidden;
-  /* center horizontally with breathing room */
-  max-width: 1180px;
+  max-width: 80rem;
   margin: 0 auto;
 }
 
