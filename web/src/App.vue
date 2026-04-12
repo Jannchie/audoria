@@ -55,8 +55,8 @@ const isPlayerPage = computed(() => route.path === '/player')
       <RouterView />
     </main>
 
-    <!-- Player bar (hidden on player page) -->
-    <PlayerBar v-show="!isPlayerPage" />
+    <!-- Player bar -->
+    <PlayerBar />
 
     <!-- Mobile bottom tab bar (hidden on desktop and player page) -->
     <nav

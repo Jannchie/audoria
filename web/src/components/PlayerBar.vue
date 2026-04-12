@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { buildDownloadUrl, resolveApiUrl, useMusicQuery } from '../composables/useMusic'
 import { usePlayerState } from '../composables/usePlayerState'
 import IconButton from './IconButton.vue'
 
 const router = useRouter()
+const route = useRoute()
 const audioRef = ref<HTMLAudioElement | null>(null)
 const progressTrack = ref<HTMLDivElement | null>(null)
 const isScrubbing = ref(false)
@@ -46,6 +47,7 @@ const currentTrackCoverUrl = computed(() => {
   if (!currentTrack.value?.coverUrl) return ''
   return resolveApiUrl(currentTrack.value.coverUrl)
 })
+const isPlayerPage = computed(() => route.path === '/player')
 
 const progress = computed(() => {
   if (!duration.value) return 0
@@ -84,7 +86,7 @@ function handleLoaded(): void {
   if (!audio) return
   updateProgress(audio.currentTime, audio.duration || 0)
   if (isPlaying.value) {
-    audio.play().catch(() => setPlaying(false))
+    audio.play().catch(() => {})
   }
 }
 
@@ -220,11 +222,10 @@ watch(effectiveVolume, (v) => {
 watch(audioSrc, (src) => {
   const audio = audioRef.value
   if (!audio) return
+  audio.autoplay = isPlaying.value
   audio.src = src
-  if (src && isPlaying.value) {
-    audio.play().catch(() => setPlaying(false))
-  }
-  else {
+  audio.load()
+  if (!src) {
     audio.pause()
     setPlaying(false)
   }
@@ -233,6 +234,7 @@ watch(audioSrc, (src) => {
 watch(isPlaying, (playing) => {
   const audio = audioRef.value
   if (!audio) return
+  audio.autoplay = playing
   if (playing) {
     audio.play().catch(() => setPlaying(false))
   }
@@ -260,7 +262,10 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <footer class="playerbar">
+  <footer
+    v-show="!isPlayerPage"
+    class="playerbar"
+  >
     <!-- Progress bar -->
     <div
       ref="progressTrack"
@@ -369,21 +374,23 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <input
-      class="opacity-0 h-px w-px pointer-events-none absolute"
-      max="100"
-      min="0"
-      step="0.1"
-      type="range"
-      :value="progress"
-      @input="handleSeek"
-    >
-    <audio
-      ref="audioRef"
-      class="hidden"
-      :src="audioSrc"
-    />
   </footer>
+  <input
+    class="opacity-0 h-px w-px pointer-events-none absolute"
+    max="100"
+    min="0"
+    step="0.1"
+    type="range"
+    :value="progress"
+    @input="handleSeek"
+  >
+  <audio
+    ref="audioRef"
+    class="hidden"
+    :autoplay="isPlaying"
+    preload="auto"
+    :src="audioSrc"
+  />
 </template>
 
 <style scoped>

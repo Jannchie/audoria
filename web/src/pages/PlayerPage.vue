@@ -441,7 +441,7 @@ watch(currentLineIndex, async (idx) => {
   padding: 1.25rem;
   overflow: hidden;
   /* center horizontally with breathing room */
-  max-width: 1100px;
+  max-width: 1180px;
   margin: 0 auto;
 }
 
@@ -530,13 +530,13 @@ watch(currentLineIndex, async (idx) => {
 @media (min-width: 768px) {
   .player-main {
     flex-direction: row;
-    gap: 3rem;
+    gap: 3.5rem;
     align-items: stretch;
   }
 
   .player-left {
     width: 40%;
-    max-width: 380px;
+    max-width: 400px;
     flex-shrink: 0;
     align-items: center;
     justify-content: center;
@@ -568,7 +568,7 @@ watch(currentLineIndex, async (idx) => {
 
 @media (min-width: 1200px) {
   .player-left {
-    max-width: 420px;
+    max-width: 440px;
   }
 }
 
