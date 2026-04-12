@@ -8,7 +8,7 @@ const route = useRoute()
 
 const navItems = [
   { name: 'Library', path: '/library', icon: 'i-tabler-vinyl' },
-  { name: 'Download', path: '/import', icon: 'i-tabler-download' },
+  { name: 'Explore', path: '/import', icon: 'i-tabler-compass' },
   { name: 'Upload', path: '/upload', icon: 'i-tabler-upload' },
   { name: 'Player', path: '/player', icon: 'i-tabler-wave-sine' },
 ]
@@ -63,19 +63,22 @@ const isPlayerPage = computed(() => route.path === '/player')
       v-show="!isPlayerPage"
       class="mobile-tabs"
     >
-      <RouterLink
-        v-for="item in navItems"
-        :key="item.path"
-        class="mobile-tab"
-        :class="{ 'mobile-tab--active': currentPath.startsWith(item.path) }"
-        :to="item.path"
-      >
-        <span
-          class="mobile-tab-icon"
-          :class="[item.icon]"
-        />
-        <span class="mobile-tab-label">{{ item.name }}</span>
-      </RouterLink>
+      <div class="mobile-tabs-inner">
+        <RouterLink
+          v-for="item in navItems"
+          :key="item.path"
+          class="mobile-tab"
+          :class="{ 'mobile-tab--active': currentPath.startsWith(item.path) }"
+          :to="item.path"
+        >
+          <span class="mobile-tab-indicator" />
+          <span
+            class="mobile-tab-icon"
+            :class="[item.icon]"
+          />
+          <span class="mobile-tab-label">{{ item.name }}</span>
+        </RouterLink>
+      </div>
     </nav>
   </div>
 </template>
@@ -191,11 +194,11 @@ const isPlayerPage = computed(() => route.path === '/player')
   left: 0;
   right: 0;
   z-index: 50;
-  display: flex;
-  align-items: stretch;
-  background: var(--bg-primary);
-  border-top: 1px solid var(--border);
-  padding-bottom: env(safe-area-inset-bottom, 0);
+  padding: 0.5rem 0.75rem calc(0.5rem + env(safe-area-inset-bottom, 0));
+  background: rgba(20, 20, 22, 0.72);
+  backdrop-filter: blur(20px) saturate(1.6);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
 }
 
 @media (min-width: 768px) {
@@ -204,32 +207,72 @@ const isPlayerPage = computed(() => route.path === '/player')
   }
 }
 
+.mobile-tabs-inner {
+  display: flex;
+  align-items: stretch;
+  max-width: 28rem;
+  margin: 0 auto;
+}
+
 .mobile-tab {
   flex: 1;
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.125rem;
-  padding: 0.5rem 0;
+  gap: 0.25rem;
+  padding: 0.375rem 0;
   color: var(--text-tertiary);
   text-decoration: none;
-  transition: color 0.15s ease;
+  transition: color 0.2s ease, transform 0.15s ease;
   -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-tab:active {
+  transform: scale(0.92);
 }
 
 .mobile-tab--active {
   color: var(--accent);
 }
 
+.mobile-tab-indicator {
+  position: absolute;
+  top: -0.5rem;
+  left: 50%;
+  transform: translateX(-50%) scaleX(0);
+  width: 1.25rem;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.mobile-tab--active .mobile-tab-indicator {
+  transform: translateX(-50%) scaleX(1);
+}
+
 .mobile-tab-icon {
-  font-size: 1.25rem;
+  font-size: 1.375rem;
+  transition: transform 0.2s ease;
+}
+
+.mobile-tab--active .mobile-tab-icon {
+  transform: translateY(-1px);
 }
 
 .mobile-tab-label {
-  font-size: 0.625rem;
+  font-size: 0.6rem;
   font-weight: 500;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+}
+
+.mobile-tab--active .mobile-tab-label {
+  opacity: 1;
+  font-weight: 600;
 }
 
 </style>

@@ -67,6 +67,12 @@ const volumeIcon = computed(() => {
 })
 
 const effectiveVolume = computed(() => muted.value ? 0 : volume.value)
+const volumeSliderStyle = computed(() => {
+  const percent = Math.round(effectiveVolume.value * 100)
+  return {
+    background: `linear-gradient(to right, var(--accent) 0%, var(--accent) ${percent}%, var(--bg-surface) ${percent}%, var(--bg-surface) 100%)`,
+  }
+})
 
 function formattedTime(seconds: number): string {
   if (!Number.isFinite(seconds)) return '0:00'
@@ -369,6 +375,7 @@ onUnmounted(() => {
           step="1"
           type="range"
           :value="muted ? 0 : Math.round(volume * 100)"
+          :style="volumeSliderStyle"
           @input="handleVolumeInput"
         >
       </div>
@@ -428,20 +435,20 @@ onUnmounted(() => {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: var(--text-secondary);
+  background: white;
   cursor: pointer;
   transition: background 0.15s ease;
 }
 
 .volume-slider::-webkit-slider-thumb:hover {
-  background: var(--text-primary);
+  background: white;
 }
 
 .volume-slider::-moz-range-thumb {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: var(--text-secondary);
+  background: white;
   border: none;
   cursor: pointer;
 }

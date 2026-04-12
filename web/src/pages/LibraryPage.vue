@@ -1,15 +1,23 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { watch } from 'vue'
 import { useRouter } from 'vue-router'
 import SoundWave from '../components/SoundWave.vue'
-import { resolveApiUrl, useMusicQuery } from '../composables/useMusic'
+import { resolveApiUrl, useDeleteMusic, useMusicQuery } from '../composables/useMusic'
 import { usePlayerState } from '../composables/usePlayerState'
+
+const librarySearchStateKey = 'audoria.library-search'
 
 const router = useRouter()
 const { data: tracks, isPending, isError, error } = useMusicQuery()
+const deleteMutation = useDeleteMusic()
 const { currentTrackId, isPlaying, selectTrack, setPlaying } = usePlayerState()
 
-const search = ref('')
+const search = ref(window.sessionStorage.getItem(librarySearchStateKey) ?? '')
+
+watch(search, (value) => {
+  window.sessionStorage.setItem(librarySearchStateKey, value)
+})
 
 const filteredTracks = computed(() => {
   const keyword = search.value.trim().toLowerCase()
@@ -37,6 +45,23 @@ function handleTrackClick(id: string): void {
 
 function trackCoverUrl(coverUrl: string | null): string {
   return coverUrl ? resolveApiUrl(coverUrl) : ''
+}
+
+function isDeleting(id: string): boolean {
+  return deleteMutation.isPending.value && deleteMutation.variables.value === id
+}
+
+async function handleDelete(id: string): Promise<void> {
+  if (isDeleting(id)) {
+    return
+  }
+
+  await deleteMutation.mutateAsync(id)
+
+  if (currentTrackId.value === id) {
+    setPlaying(false)
+    selectTrack(null)
+  }
 }
 </script>
 
@@ -167,6 +192,22 @@ function trackCoverUrl(coverUrl: string | null): string {
           >
             {{ track.durationText }}
           </span>
+          <button
+            type="button"
+            class="track-delete"
+            :disabled="isDeleting(track.id)"
+            :aria-label="isDeleting(track.id) ? 'Deleting track' : 'Delete track'"
+            @click.stop="handleDelete(track.id)"
+          >
+            <span
+              v-if="isDeleting(track.id)"
+              class="i-tabler-loader-2 animate-spin"
+            />
+            <span
+              v-else
+              class="i-tabler-trash"
+            />
+          </button>
         </div>
       </button>
     </div>
@@ -195,9 +236,8 @@ function trackCoverUrl(coverUrl: string | null): string {
 
 @media (min-width: 768px) {
   .search-wrapper {
-    position: relative;
-    padding: 0;
-    margin-bottom: 0.5rem;
+    top: 3.5rem;
+    padding: 0.75rem 0 0.5rem;
   }
 }
 
@@ -355,12 +395,37 @@ function trackCoverUrl(coverUrl: string | null): string {
   flex-shrink: 0;
   display: flex;
   align-items: center;
+  gap: 0.5rem;
 }
 
 .track-duration {
   font-size: 0.6875rem;
   color: var(--text-tertiary);
   font-variant-numeric: tabular-nums;
+}
+
+.track-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.track-delete:hover:enabled {
+  background: var(--bg-elevated);
+  color: var(--danger);
+}
+
+.track-delete:disabled {
+  cursor: default;
+  opacity: 0.6;
 }
 
 /* ---- Empty state ---- */

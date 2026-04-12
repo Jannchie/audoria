@@ -3,7 +3,7 @@ import type { Music, MusicDlSearchResult, MusicDlSource, MusicImportJob } from '
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed } from 'vue'
 import { client } from '../api/client.gen'
-import { getMusic, getMusicImportsById, postMusic, postMusicImports, postMusicImportsSearch } from '../api/sdk.gen'
+import { deleteMusicById, getMusic, getMusicImportsById, postMusic, postMusicImports, postMusicImportsSearch } from '../api/sdk.gen'
 
 export const musicQueryKey = ['music'] as const
 export function buildDownloadUrl(id: string): string {
@@ -43,6 +43,22 @@ export function useUploadMusic() {
         throwOnError: true,
       })
       return response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: musicQueryKey }).catch(() => {})
+    },
+  })
+}
+
+export function useDeleteMusic() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (id: string): Promise<void> => {
+      await deleteMusicById({
+        path: { id },
+        throwOnError: true,
+      })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: musicQueryKey }).catch(() => {})

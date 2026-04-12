@@ -3,7 +3,34 @@ import type { MusicDlSearchResult, MusicDlSource } from '../api/types.gen'
 import { useQueryClient } from '@tanstack/vue-query'
 import { computed, ref, watch } from 'vue'
 import { useImportJobQuery, useImportMusic, useSearchMusicImport } from '../composables/useMusic'
-import { usePlayerState } from '../composables/usePlayerState'
+
+const importPageStateKey = 'audoria.import-page-state'
+type PersistedImportPageState = {
+  searchKeyword: string
+  selectedSource: MusicDlSource | null
+  searchResults: MusicDlSearchResult[]
+  activeImportResultId: string | null
+  activeImportJobId: string | null
+  importFormError: string
+  hasSearchedOnce: boolean
+}
+
+function loadPersistedImportPageState(): PersistedImportPageState | null {
+  try {
+    const raw = window.sessionStorage.getItem(importPageStateKey)
+    if (!raw) return null
+    return JSON.parse(raw) as PersistedImportPageState
+  }
+  catch {
+    return null
+  }
+}
+
+function savePersistedImportPageState(state: PersistedImportPageState): void {
+  window.sessionStorage.setItem(importPageStateKey, JSON.stringify(state))
+}
+
+const persistedState = loadPersistedImportPageState()
 
 const sourceOptions: Array<{ value: MusicDlSource | null, label: string }> = [
   { value: null, label: 'All' },
@@ -16,19 +43,19 @@ const sourceOptions: Array<{ value: MusicDlSource | null, label: string }> = [
 ]
 
 const queryClient = useQueryClient()
-const searchKeyword = ref('')
-const selectedSource = ref<MusicDlSource | null>(null)
-const searchResults = ref<MusicDlSearchResult[]>([])
-const activeImportResultId = ref<string | null>(null)
-const activeImportJobId = ref<string | null>(null)
-const importFormError = ref('')
+const searchKeyword = ref(persistedState?.searchKeyword ?? '')
+const selectedSource = ref<MusicDlSource | null>(persistedState?.selectedSource ?? null)
+const searchResults = ref<MusicDlSearchResult[]>(persistedState?.searchResults ?? [])
+const activeImportResultId = ref<string | null>(persistedState?.activeImportResultId ?? null)
+const activeImportJobId = ref<string | null>(persistedState?.activeImportJobId ?? null)
+const importFormError = ref(persistedState?.importFormError ?? '')
+const hasSearchedOnce = ref(persistedState?.hasSearchedOnce ?? false)
 const searchMutation = useSearchMusicImport()
 const importMutation = useImportMusic()
 const importJobQuery = useImportJobQuery(activeImportJobId)
-const { selectTrack, setPlaying } = usePlayerState()
 
 const isSearching = computed<boolean>(() => searchMutation.isPending.value)
-const hasSearched = computed(() => searchMutation.isSuccess.value || searchResults.value.length > 0)
+const hasSearched = computed(() => hasSearchedOnce.value || searchMutation.isSuccess.value || searchResults.value.length > 0)
 const currentImportJob = computed(() => activeImportJobId.value ? (importJobQuery.data.value ?? null) : null)
 
 const searchErrorMessage = computed(() => {
@@ -95,10 +122,24 @@ watch(currentImportJob, (job) => {
   if (!job) return
   if (job.status === 'succeeded' && job.trackId) {
     queryClient.invalidateQueries({ queryKey: ['music'] }).catch(() => {})
-    selectTrack(job.trackId)
-    setPlaying(true)
   }
 })
+
+watch(
+  [searchKeyword, selectedSource, searchResults, activeImportResultId, activeImportJobId, importFormError, hasSearchedOnce],
+  () => {
+    savePersistedImportPageState({
+      searchKeyword: searchKeyword.value,
+      selectedSource: selectedSource.value,
+      searchResults: searchResults.value,
+      activeImportResultId: activeImportResultId.value,
+      activeImportJobId: activeImportJobId.value,
+      importFormError: importFormError.value,
+      hasSearchedOnce: hasSearchedOnce.value,
+    })
+  },
+  { deep: true },
+)
 
 function resetImportState(): void {
   activeImportResultId.value = null
@@ -113,6 +154,7 @@ function handleSearch(): void {
     return
   }
   importFormError.value = ''
+  hasSearchedOnce.value = true
   searchResults.value = []
   resetImportState()
   searchMutation.mutate({
@@ -333,10 +375,22 @@ function isImporting(id: string): boolean {
 
 /* ---- Search ---- */
 .search-area {
+  position: sticky;
+  top: 0;
+  z-index: 10;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  padding: 0.5rem 0;
+  background: var(--bg-base);
   margin-bottom: 0.5rem;
+}
+
+@media (min-width: 768px) {
+  .search-area {
+    top: 3.5rem;
+    padding: 0.75rem 0 0.5rem;
+  }
 }
 
 .search-bar {

@@ -79,6 +79,14 @@ const volumeIcon = computed(() => {
   return 'i-tabler-volume'
 })
 
+const effectiveVolume = computed(() => muted.value ? 0 : volume.value)
+const volumeSliderStyle = computed(() => {
+  const percent = Math.round(effectiveVolume.value * 100)
+  return {
+    background: `linear-gradient(to right, rgb(255, 255, 255) 0%, rgb(255, 255, 255) ${percent}%, rgba(255, 255, 255, 0.12) ${percent}%, rgba(255, 255, 255, 0.12) 100%)`,
+  }
+})
+
 function formattedTime(seconds: number): string {
   if (!Number.isFinite(seconds)) {
     return '0:00'
@@ -382,6 +390,7 @@ watch(currentLineIndex, async (idx) => {
               step="1"
               type="range"
               :value="muted ? 0 : Math.round(volume * 100)"
+              :style="volumeSliderStyle"
               @input="handleVolumeInput"
             >
           </div>
@@ -767,7 +776,7 @@ watch(currentLineIndex, async (idx) => {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.6);
+  background: white;
   cursor: pointer;
   transition: background 0.15s ease;
 }
@@ -776,7 +785,7 @@ watch(currentLineIndex, async (idx) => {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.6);
+  background: white;
   border: none;
   cursor: pointer;
 }
