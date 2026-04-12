@@ -8,8 +8,54 @@ export type Music = {
     id: string;
     filename: string;
     size: number;
-    contentType: string;
+    contentType: string | null;
+    coverUrl: string | null;
+    lyrics: string | null;
+    title: string | null;
+    artists: string | null;
+    album: string | null;
+    source: string | null;
+    durationText: string | null;
+    durationSeconds: number | null;
     createdAt: string;
+};
+
+export type MusicDlSearchResult = {
+    id: string;
+    songName: string;
+    singers: string;
+    album: string;
+    source: string;
+    ext: string;
+    fileSize: string;
+    duration: string;
+    coverUrl: string;
+    downloadable: boolean;
+};
+
+export type MusicDlSource = 'NeteaseMusicClient' | 'QQMusicClient' | 'KuwoMusicClient' | 'MiguMusicClient' | 'QianqianMusicClient' | 'JamendoMusicClient';
+
+export type MusicDlSearchRequest = {
+    keyword: string;
+    source?: MusicDlSource;
+};
+
+export type MusicImportJob = {
+    id: string;
+    source: string;
+    songName: string;
+    singers: string;
+    status: 'queued' | 'running' | 'succeeded' | 'failed';
+    trackId: string;
+    errorMessage: string;
+    createdAt: string;
+    updatedAt: string;
+    startedAt: string;
+    finishedAt: string;
+};
+
+export type MusicDlImportRequest = {
+    resultId: string;
 };
 
 export type GetMusicData = {
@@ -59,6 +105,107 @@ export type PostMusicResponses = {
 };
 
 export type PostMusicResponse = PostMusicResponses[keyof PostMusicResponses];
+
+export type PostMusicImportsSearchData = {
+    body?: MusicDlSearchRequest;
+    path?: never;
+    query?: never;
+    url: '/music/imports/search';
+};
+
+export type PostMusicImportsSearchErrors = {
+    /**
+     * Invalid request
+     */
+    400: {
+        message: string;
+    };
+    /**
+     * musicdl failed
+     */
+    502: {
+        message: string;
+    };
+    /**
+     * musicdl unavailable
+     */
+    503: {
+        message: string;
+    };
+};
+
+export type PostMusicImportsSearchError = PostMusicImportsSearchErrors[keyof PostMusicImportsSearchErrors];
+
+export type PostMusicImportsSearchResponses = {
+    /**
+     * Search results
+     */
+    200: Array<MusicDlSearchResult>;
+};
+
+export type PostMusicImportsSearchResponse = PostMusicImportsSearchResponses[keyof PostMusicImportsSearchResponses];
+
+export type PostMusicImportsData = {
+    body?: MusicDlImportRequest;
+    path?: never;
+    query?: never;
+    url: '/music/imports';
+};
+
+export type PostMusicImportsErrors = {
+    /**
+     * Invalid request
+     */
+    400: {
+        message: string;
+    };
+    /**
+     * Search result not found
+     */
+    404: {
+        message: string;
+    };
+};
+
+export type PostMusicImportsError = PostMusicImportsErrors[keyof PostMusicImportsErrors];
+
+export type PostMusicImportsResponses = {
+    /**
+     * Accepted
+     */
+    202: MusicImportJob;
+};
+
+export type PostMusicImportsResponse = PostMusicImportsResponses[keyof PostMusicImportsResponses];
+
+export type GetMusicImportsByIdData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/music/imports/{id}';
+};
+
+export type GetMusicImportsByIdErrors = {
+    /**
+     * Not found
+     */
+    404: {
+        message: string;
+    };
+};
+
+export type GetMusicImportsByIdError = GetMusicImportsByIdErrors[keyof GetMusicImportsByIdErrors];
+
+export type GetMusicImportsByIdResponses = {
+    /**
+     * Job status
+     */
+    200: MusicImportJob;
+};
+
+export type GetMusicImportsByIdResponse = GetMusicImportsByIdResponses[keyof GetMusicImportsByIdResponses];
 
 export type GetMusicByIdDownloadData = {
     body?: never;

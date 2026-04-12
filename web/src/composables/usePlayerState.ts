@@ -6,6 +6,8 @@ const shuffle = ref(false)
 const repeatMode = ref<'all' | 'one' | 'off'>('all')
 const currentTime = ref(0)
 const duration = ref(0)
+const volume = ref(1)
+const muted = ref(false)
 
 export function usePlayerState() {
   const selectTrack = (id: string | null) => {
@@ -41,6 +43,17 @@ export function usePlayerState() {
     currentTime.value = time
   }
 
+  const setVolume = (v: number) => {
+    volume.value = Math.min(1, Math.max(0, v))
+    if (volume.value > 0) {
+      muted.value = false
+    }
+  }
+
+  const toggleMute = () => {
+    muted.value = !muted.value
+  }
+
   return {
     currentTrackId,
     isPlaying,
@@ -48,11 +61,15 @@ export function usePlayerState() {
     repeatMode,
     currentTime,
     duration,
+    volume,
+    muted,
     selectTrack,
     setPlaying,
     toggleShuffle,
     cycleRepeat,
     updateProgress,
     seekTo,
+    setVolume,
+    toggleMute,
   }
 }

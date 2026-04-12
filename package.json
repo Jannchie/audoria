@@ -4,16 +4,17 @@
   "packageManager": "pnpm@10.15.1",
   "scripts": {
     "api:dev": "pnpm -C api dev",
+    "api:worker": "pnpm -C api worker",
     "gen:sdk": "pnpm -C web gen:sdk",
     "lint": "eslint . --fix",
     "web:dev": "pnpm -C web dev",
-    "dev": "concurrently \"pnpm api:dev\" \"pnpm web:dev\""
+    "dev": "concurrently \"pnpm api:dev\" \"pnpm api:worker\" \"pnpm web:dev\""
   },
   "devDependencies": {
-    "@jannchie/eslint-config": "^3.7.5",
-    "@unocss/eslint-plugin": "^66.5.10",
+    "@jannchie/eslint-config": "^3.7.8",
+    "@unocss/eslint-plugin": "^66.6.8",
     "concurrently": "^9.2.1",
-    "eslint": "^9.39.2",
-    "typescript": "^5.9.3"
+    "eslint": "^10.2.0",
+    "typescript": "^6.0.2"
   }
 }

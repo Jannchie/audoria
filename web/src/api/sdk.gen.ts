@@ -2,7 +2,7 @@
 
 import { type Client, formDataBodySerializer, type Options as Options2, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { DeleteMusicByIdData, DeleteMusicByIdErrors, DeleteMusicByIdResponses, GetMusicByIdDownloadData, GetMusicByIdDownloadErrors, GetMusicByIdDownloadResponses, GetMusicData, GetMusicResponses, PostMusicData, PostMusicErrors, PostMusicResponses } from './types.gen';
+import type { DeleteMusicByIdData, DeleteMusicByIdErrors, DeleteMusicByIdResponses, GetMusicByIdDownloadData, GetMusicByIdDownloadErrors, GetMusicByIdDownloadResponses, GetMusicData, GetMusicImportsByIdData, GetMusicImportsByIdErrors, GetMusicImportsByIdResponses, GetMusicResponses, PostMusicData, PostMusicErrors, PostMusicImportsData, PostMusicImportsErrors, PostMusicImportsResponses, PostMusicImportsSearchData, PostMusicImportsSearchErrors, PostMusicImportsSearchResponses, PostMusicResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean> = Options2<TData, ThrowOnError> & {
     /**
@@ -35,6 +35,35 @@ export const postMusic = <ThrowOnError extends boolean = false>(options?: Option
         ...options?.headers
     }
 });
+
+/**
+ * Search tracks through musicdl
+ */
+export const postMusicImportsSearch = <ThrowOnError extends boolean = false>(options?: Options<PostMusicImportsSearchData, ThrowOnError>) => (options?.client ?? client).post<PostMusicImportsSearchResponses, PostMusicImportsSearchErrors, ThrowOnError>({
+    url: '/music/imports/search',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers
+    }
+});
+
+/**
+ * Create an asynchronous import job through musicdl
+ */
+export const postMusicImports = <ThrowOnError extends boolean = false>(options?: Options<PostMusicImportsData, ThrowOnError>) => (options?.client ?? client).post<PostMusicImportsResponses, PostMusicImportsErrors, ThrowOnError>({
+    url: '/music/imports',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers
+    }
+});
+
+/**
+ * Get an import job status
+ */
+export const getMusicImportsById = <ThrowOnError extends boolean = false>(options: Options<GetMusicImportsByIdData, ThrowOnError>) => (options.client ?? client).get<GetMusicImportsByIdResponses, GetMusicImportsByIdErrors, ThrowOnError>({ url: '/music/imports/{id}', ...options });
 
 /**
  * Download a music file by id

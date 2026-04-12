@@ -1,79 +1,235 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
+import AudoriaLogo from './components/AudoriaLogo.vue'
 import PlayerBar from './components/PlayerBar.vue'
 
 const route = useRoute()
 
 const navItems = [
   { name: 'Library', path: '/library', icon: 'i-tabler-vinyl' },
-  { name: 'Upload', path: '/upload', icon: 'i-tabler-cloud-up' },
+  { name: 'Download', path: '/import', icon: 'i-tabler-download' },
+  { name: 'Upload', path: '/upload', icon: 'i-tabler-upload' },
   { name: 'Player', path: '/player', icon: 'i-tabler-wave-sine' },
 ]
 
 const currentPath = computed(() => route.path)
+const isPlayerPage = computed(() => route.path === '/player')
 </script>
 
 <template>
-  <div class="bg-[var(--bg-base)] min-h-screen">
-    <header class="border-b border-[var(--border)] bg-[var(--bg-primary)] top-0 sticky z-30">
-      <div class="mx-auto px-5 flex h-14 max-w-3xl items-center justify-between">
+  <div class="app-shell">
+    <!-- Desktop top bar (hidden on mobile) -->
+    <header class="topbar">
+      <div class="topbar-inner">
         <RouterLink
           to="/"
           class="flex gap-2.5 items-center"
         >
-          <div class="text-[11px] text-white tracking-widest font-bold text-heading rounded-lg bg-[var(--accent)] flex h-8 w-8 items-center justify-center">
-            A
-          </div>
-          <span class="text-xs text-[var(--text-secondary)] tracking-[0.2em] font-semibold text-heading hidden uppercase sm:inline">
+          <AudoriaLogo :size="32" />
+          <span class="logo-text">
             Audoria
           </span>
         </RouterLink>
 
-        <nav class="p-1 rounded-xl bg-[var(--bg-surface)] flex gap-0.5 items-center">
+        <nav class="desktop-nav">
           <RouterLink
             v-for="item in navItems"
             :key="item.path"
-            class="text-xs px-3 py-2 rounded-lg flex gap-1.5 transition-colors items-center"
-            :class="currentPath.startsWith(item.path)
-              ? 'text-[var(--text-primary)] bg-[var(--bg-elevated)] font-medium'
-              : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'"
+            class="desktop-nav-item"
+            :class="{ 'desktop-nav-item--active': currentPath.startsWith(item.path) }"
             :to="item.path"
-            :aria-label="item.name"
           >
-            <span
-              class="text-base"
-              :class="[item.icon]"
-            />
-            <span class="hidden sm:inline">{{ item.name }}</span>
+            <span :class="[item.icon]" />
+            <span>{{ item.name }}</span>
           </RouterLink>
         </nav>
       </div>
     </header>
 
-    <main class="mx-auto px-5 pb-32 pt-5 max-w-3xl">
-      <RouterView v-slot="{ Component }">
-        <Transition
-          name="page"
-          mode="out-in"
-        >
-          <component :is="Component" />
-        </Transition>
-      </RouterView>
+    <!-- Main content -->
+    <main
+      class="main-content"
+      :class="{ 'main-content--player': isPlayerPage }"
+    >
+      <RouterView />
     </main>
 
-    <PlayerBar />
+    <!-- Player bar (hidden on player page) -->
+    <PlayerBar v-show="!isPlayerPage" />
+
+    <!-- Mobile bottom tab bar (hidden on desktop and player page) -->
+    <nav
+      v-show="!isPlayerPage"
+      class="mobile-tabs"
+    >
+      <RouterLink
+        v-for="item in navItems"
+        :key="item.path"
+        class="mobile-tab"
+        :class="{ 'mobile-tab--active': currentPath.startsWith(item.path) }"
+        :to="item.path"
+      >
+        <span
+          class="mobile-tab-icon"
+          :class="[item.icon]"
+        />
+        <span class="mobile-tab-label">{{ item.name }}</span>
+      </RouterLink>
+    </nav>
   </div>
 </template>
 
 <style scoped>
-.page-enter-active,
-.page-leave-active {
-  transition: opacity 0.12s ease;
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-base);
 }
 
-.page-enter-from,
-.page-leave-to {
-  opacity: 0;
+/* ---- Top bar: desktop only ---- */
+.topbar {
+  display: none;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border);
 }
+
+@media (min-width: 768px) {
+  .topbar {
+    display: block;
+  }
+}
+
+.topbar-inner {
+  max-width: 80rem;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  height: 3.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.logo-text {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  font-family: 'Outfit', 'DM Sans', system-ui, sans-serif;
+}
+
+.desktop-nav {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.desktop-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.875rem;
+  border-radius: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--text-tertiary);
+  transition: all 0.15s ease;
+  text-decoration: none;
+}
+
+.desktop-nav-item:hover {
+  color: var(--text-secondary);
+  background: var(--bg-surface);
+}
+
+.desktop-nav-item--active {
+  color: var(--text-primary);
+  background: var(--bg-surface);
+}
+
+.desktop-nav-item--active:hover {
+  color: var(--text-primary);
+  background: var(--bg-elevated);
+}
+
+/* ---- Main content ---- */
+.main-content {
+  flex: 1;
+  max-width: 80rem;
+  width: 100%;
+  margin: 0 auto;
+  /* mobile: bottom padding for PlayerBar + tabs */
+  padding: 0 1rem 10.5rem;
+}
+
+@media (min-width: 768px) {
+  .main-content {
+    padding: 1.25rem 1.5rem 8rem;
+  }
+}
+
+.main-content--player {
+  padding: 0;
+  overflow: hidden;
+  max-width: none;
+}
+
+@media (min-width: 768px) {
+  .main-content--player {
+    padding: 0;
+  }
+}
+
+/* ---- Mobile bottom tab bar ---- */
+.mobile-tabs {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  display: flex;
+  align-items: stretch;
+  background: var(--bg-primary);
+  border-top: 1px solid var(--border);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+@media (min-width: 768px) {
+  .mobile-tabs {
+    display: none;
+  }
+}
+
+.mobile-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.125rem;
+  padding: 0.5rem 0;
+  color: var(--text-tertiary);
+  text-decoration: none;
+  transition: color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-tab--active {
+  color: var(--accent);
+}
+
+.mobile-tab-icon {
+  font-size: 1.25rem;
+}
+
+.mobile-tab-label {
+  font-size: 0.625rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
 </style>

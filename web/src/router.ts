@@ -8,12 +8,16 @@ const router = createRouter({
       redirect: '/library',
     },
     {
+      path: '/library',
+      component: () => import('./pages/LibraryPage.vue'),
+    },
+    {
       path: '/upload',
       component: () => import('./pages/UploadPage.vue'),
     },
     {
-      path: '/library',
-      component: () => import('./pages/LibraryPage.vue'),
+      path: '/import',
+      component: () => import('./pages/ImportPage.vue'),
     },
     {
       path: '/player',

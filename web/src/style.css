@@ -31,6 +31,10 @@
   box-sizing: border-box;
 }
 
+html {
+  scrollbar-width: none; /* Firefox */
+}
+
 body {
   margin: 0;
   background-color: var(--bg-base);
@@ -46,17 +50,28 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--accent);
 }
 
-::-webkit-scrollbar {
-  width: 4px;
-}
-
-::-webkit-scrollbar-track {
+/* Hide page-level scrollbar only; inner scrollable areas opt-in via .inner-scroll */
+html::-webkit-scrollbar {
+  width: 0;
   background: transparent;
 }
 
-::-webkit-scrollbar-thumb {
-  background: var(--bg-elevated);
+.inner-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.inner-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.inner-scroll::-webkit-scrollbar-thumb {
+  background: var(--bg-hover);
   border-radius: 2px;
+}
+
+.inner-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--bg-hover) transparent;
 }
 
 input[type="search"]::-webkit-search-cancel-button {
@@ -78,3 +93,4 @@ input[type="search"]::-webkit-search-cancel-button {
 @keyframes wave-bar-1 { 0%, 100% { height: 4px; } 50% { height: 14px; } }
 @keyframes wave-bar-2 { 0%, 100% { height: 10px; } 50% { height: 4px; } }
 @keyframes wave-bar-3 { 0%, 100% { height: 6px; } 50% { height: 16px; } }
+

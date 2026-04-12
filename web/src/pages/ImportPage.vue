@@ -1,0 +1,486 @@
+<script setup lang="ts">
+import type { MusicDlSearchResult } from '../api/types.gen'
+import { useQueryClient } from '@tanstack/vue-query'
+import { computed, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import { useImportJobQuery, useImportMusic, useSearchMusicImport } from '../composables/useMusic'
+import { usePlayerState } from '../composables/usePlayerState'
+
+const router = useRouter()
+const queryClient = useQueryClient()
+const searchKeyword = ref('')
+const searchResults = ref<MusicDlSearchResult[]>([])
+const activeImportResultId = ref<string | null>(null)
+const activeImportJobId = ref<string | null>(null)
+const importFormError = ref('')
+const searchMutation = useSearchMusicImport()
+const importMutation = useImportMusic()
+const importJobQuery = useImportJobQuery(activeImportJobId)
+const { selectTrack, setPlaying } = usePlayerState()
+
+const isSearching = computed<boolean>(() => searchMutation.isPending.value)
+const hasSearched = computed(() => searchMutation.isSuccess.value || searchResults.value.length > 0)
+const currentImportJob = computed(() => activeImportJobId.value ? (importJobQuery.data.value ?? null) : null)
+
+const searchErrorMessage = computed(() => {
+  const err = searchMutation.error.value
+  if (!err) return ''
+  return err instanceof Error ? err.message : 'Search failed. Please retry.'
+})
+
+const importErrorMessage = computed(() => {
+  const err = importMutation.error.value
+  if (!err) return ''
+  return err instanceof Error ? err.message : 'Import failed.'
+})
+
+const importJobMessage = computed(() => {
+  const job = currentImportJob.value
+  if (!job) return ''
+  if (job.status === 'queued') return `Queued: ${job.songName}`
+  if (job.status === 'running') return `Importing: ${job.songName}...`
+  if (job.status === 'succeeded') return `Done! Redirecting...`
+  return job.errorMessage || `Failed: ${job.songName}`
+})
+
+const statusMessage = computed(() => {
+  if (importFormError.value) return { text: importFormError.value, type: 'error' }
+  if (searchErrorMessage.value) return { text: searchErrorMessage.value, type: 'error' }
+  if (importErrorMessage.value) return { text: importErrorMessage.value, type: 'error' }
+  if (currentImportJob.value) {
+    const s = currentImportJob.value.status
+    return {
+      text: importJobMessage.value,
+      type: s === 'failed' ? 'error' : s === 'succeeded' ? 'success' : 'info',
+    }
+  }
+  return null
+})
+
+watch(currentImportJob, (job) => {
+  if (!job) return
+  if (job.status === 'succeeded' && job.trackId) {
+    queryClient.invalidateQueries({ queryKey: ['music'] }).catch(() => {})
+    selectTrack(job.trackId)
+    setPlaying(true)
+    setTimeout(() => router.push('/library'), 600)
+  }
+})
+
+function resetImportState(): void {
+  activeImportResultId.value = null
+  activeImportJobId.value = null
+  importMutation.reset()
+}
+
+function handleSearch(): void {
+  const keyword = searchKeyword.value.trim()
+  if (!keyword) {
+    importFormError.value = 'Enter a keyword to search.'
+    return
+  }
+  importFormError.value = ''
+  searchResults.value = []
+  resetImportState()
+  searchMutation.mutate({ keyword }, {
+    onSuccess: (results) => { searchResults.value = results },
+  })
+}
+
+function handleImport(result: MusicDlSearchResult): void {
+  if (!result.downloadable) return
+  importFormError.value = ''
+  activeImportResultId.value = result.id
+  activeImportJobId.value = null
+  importMutation.mutate(result.id, {
+    onSuccess: (job) => { activeImportJobId.value = job.id },
+    onError: () => { activeImportResultId.value = null },
+  })
+}
+
+function isImporting(id: string): boolean {
+  if (activeImportResultId.value !== id) return false
+  if (importMutation.isPending.value) return true
+  const status = currentImportJob.value?.status
+  return status === 'queued' || status === 'running'
+}
+</script>
+
+<template>
+  <section class="import-page">
+    <!-- Search bar -->
+    <div class="search-area">
+      <div class="search-bar">
+        <span class="i-tabler-search search-bar-icon" />
+        <input
+          v-model="searchKeyword"
+          class="search-bar-input"
+          placeholder="Search songs, artists..."
+          type="text"
+          @keydown.enter.prevent="handleSearch"
+        >
+        <button
+          v-if="searchKeyword"
+          class="search-bar-action"
+          :disabled="isSearching"
+          type="button"
+          @click="handleSearch"
+        >
+          <span
+            :class="isSearching ? 'i-tabler-loader-2 animate-spin' : 'i-tabler-arrow-right'"
+          />
+        </button>
+      </div>
+
+      <!-- Status -->
+      <div
+        v-if="statusMessage"
+        class="status-pill"
+        :class="{
+          'status-pill--error': statusMessage.type === 'error',
+          'status-pill--success': statusMessage.type === 'success',
+          'status-pill--info': statusMessage.type === 'info',
+        }"
+      >
+        {{ statusMessage.text }}
+      </div>
+    </div>
+
+    <!-- Idle state: before any search -->
+    <div
+      v-if="!isSearching && !hasSearched"
+      class="idle-state"
+    >
+      <span class="i-tabler-world-search text-4xl text-[var(--text-tertiary)]/30" />
+      <p class="idle-text">
+        Search across multiple music sources
+      </p>
+    </div>
+
+    <!-- Loading -->
+    <div
+      v-else-if="isSearching"
+      class="result-list"
+    >
+      <div
+        v-for="i in 6"
+        :key="i"
+        class="result-row"
+      >
+        <div class="skeleton result-cover-skel" />
+        <div class="flex-1 space-y-1.5">
+          <div
+            class="skeleton rounded h-3.5"
+            :style="{ width: `${100 + Math.random() * 100}px` }"
+          />
+          <div
+            class="skeleton rounded h-3"
+            :style="{ width: `${60 + Math.random() * 60}px` }"
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div
+      v-else-if="searchResults.length > 0"
+      class="result-list"
+    >
+      <button
+        v-for="result in searchResults"
+        :key="result.id"
+        type="button"
+        class="result-row"
+        :class="{
+          'result-row--importing': isImporting(result.id),
+          'result-row--disabled': !result.downloadable,
+        }"
+        :disabled="isImporting(result.id) || !result.downloadable"
+        @click="handleImport(result)"
+      >
+        <div class="result-cover">
+          <img
+            v-if="result.coverUrl"
+            :src="result.coverUrl"
+            :alt="result.songName"
+            class="result-cover-img"
+          >
+          <span
+            v-else
+            class="i-tabler-music result-cover-icon"
+          />
+        </div>
+
+        <div class="result-meta">
+          <p class="result-name">
+            {{ result.songName }}
+          </p>
+          <p class="result-sub">
+            {{ result.singers }}
+            <template v-if="result.album"> · {{ result.album }}</template>
+          </p>
+        </div>
+
+        <div class="result-right">
+          <span class="result-tag">{{ result.source }}</span>
+          <span
+            v-if="isImporting(result.id)"
+            class="i-tabler-loader-2 text-base text-[var(--accent)] animate-spin"
+          />
+          <span
+            v-else-if="result.downloadable"
+            class="i-tabler-download text-base result-dl-icon"
+          />
+          <span
+            v-else
+            class="text-[10px] text-[var(--text-tertiary)]"
+          >N/A</span>
+        </div>
+      </button>
+    </div>
+
+    <!-- No results -->
+    <div
+      v-else-if="searchMutation.isSuccess.value"
+      class="idle-state"
+    >
+      <span class="i-tabler-mood-empty text-4xl text-[var(--text-tertiary)]/30" />
+      <p class="idle-text">
+        No results found
+      </p>
+    </div>
+  </section>
+</template>
+
+<style scoped>
+.import-page {
+  padding-top: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .import-page {
+    padding-top: 0;
+  }
+}
+
+/* ---- Search ---- */
+.search-area {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.search-bar {
+  display: flex;
+  align-items: center;
+  height: 2.75rem;
+  border-radius: 1.375rem;
+  background: var(--bg-surface);
+  padding: 0 0.5rem 0 0;
+  transition: background 0.15s ease;
+  position: relative;
+}
+
+.search-bar:focus-within {
+  background: var(--bg-elevated);
+}
+
+.search-bar-icon {
+  position: absolute;
+  left: 0.875rem;
+  font-size: 0.875rem;
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+
+.search-bar-input {
+  flex: 1;
+  height: 100%;
+  padding: 0 0.5rem 0 2.5rem;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+}
+
+.search-bar-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.search-bar-action {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: var(--accent);
+  color: white;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  flex-shrink: 0;
+  transition: background 0.15s ease;
+}
+
+.search-bar-action:hover {
+  background: var(--accent-hover);
+}
+
+.status-pill {
+  font-size: 0.75rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.5rem;
+  text-align: center;
+}
+
+.status-pill--error {
+  color: var(--danger);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.status-pill--success {
+  color: var(--success);
+  background: rgba(52, 211, 153, 0.08);
+}
+
+.status-pill--info {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* ---- Idle state ---- */
+.idle-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 5rem 1rem;
+  text-align: center;
+}
+
+.idle-text {
+  font-size: 0.8125rem;
+  color: var(--text-tertiary);
+  margin-top: 0.75rem;
+}
+
+/* ---- Result list ---- */
+.result-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.result-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem;
+  border-radius: 0.75rem;
+  transition: background 0.15s ease;
+  cursor: pointer;
+  border: none;
+  background: none;
+  text-align: left;
+  width: 100%;
+}
+
+.result-row:hover {
+  background: var(--bg-surface);
+}
+
+.result-row--importing {
+  background: var(--accent-soft);
+}
+
+.result-row--disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.result-cover {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--bg-elevated);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.result-cover-skel {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 0.5rem;
+  flex-shrink: 0;
+}
+
+.result-cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.result-cover-icon {
+  color: var(--text-tertiary);
+}
+
+.result-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.result-name {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: 'Outfit', 'DM Sans', system-ui, sans-serif;
+}
+
+.result-sub {
+  font-size: 0.6875rem;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 0.125rem;
+}
+
+.result-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.result-tag {
+  font-size: 0.625rem;
+  color: var(--text-tertiary);
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  background: var(--bg-elevated);
+  display: none;
+}
+
+@media (min-width: 640px) {
+  .result-tag {
+    display: inline;
+  }
+}
+
+.result-dl-icon {
+  color: var(--text-tertiary);
+  transition: color 0.15s ease;
+}
+
+.result-row:hover .result-dl-icon {
+  color: var(--accent);
+}
+</style>
