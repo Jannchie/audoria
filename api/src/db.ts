@@ -175,15 +175,20 @@ export function getMusicImportCandidateById(id: string): MusicImportCandidate | 
   return db.select().from(musicImportCandidates).where(eq(musicImportCandidates.id, id)).get()
 }
 
-export function createMusicImportJobFromCandidate(candidate: MusicImportCandidate): MusicImportJob {
+export function createMusicImportJobFromCandidate(candidate: MusicImportCandidate, overrides?: {
+  source?: string
+  songName?: string
+  singers?: string
+  songInfoJson?: string
+}): MusicImportJob {
   const now = Date.now()
   const record: MusicImportJob = {
     id: randomUUID(),
-    source: candidate.source,
-    songName: candidate.songName,
-    singers: candidate.singers,
+    source: overrides?.source ?? candidate.source,
+    songName: overrides?.songName ?? candidate.songName,
+    singers: overrides?.singers ?? candidate.singers,
     status: 'queued',
-    songInfoJson: candidate.songInfoJson,
+    songInfoJson: overrides?.songInfoJson ?? candidate.songInfoJson,
     trackId: null,
     errorMessage: null,
     progressBytes: 0,

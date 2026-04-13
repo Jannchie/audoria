@@ -20,7 +20,7 @@ import {
   tracks,
 
 } from './db.js'
-import { MusicDlBridgeError, musicDlSources, MusicDlUnavailableError, searchMusicDl } from './musicdl.js'
+import { MusicDlBridgeError, musicDlSources, MusicDlUnavailableError, resolveMusicDlSongInfo, searchMusicDl } from './musicdl.js'
 import { deleteStoredTrack, storeTrack } from './storage.js'
 
 const s3Client = new S3Client({
@@ -119,8 +119,8 @@ const MusicImportJobSchema = z.object({
   status: z.enum(['queued', 'running', 'succeeded', 'failed']).openapi({ example: 'queued' }),
   trackId: z.string().nullable().openapi({ example: 'c83a85b7-8d29-4fef-b4b2-15a420595b6b' }),
   errorMessage: z.string().nullable().openapi({ example: 'musicdl request timed out' }),
-  progressBytes: z.number().int().nullable().openapi({ example: 5242880 }),
-  totalBytes: z.number().int().nullable().openapi({ example: 10485760 }),
+  progressBytes: z.number().int().nullable().openapi({ example: 5_242_880 }),
+  totalBytes: z.number().int().nullable().openapi({ example: 10_485_760 }),
   progressPercent: z.number().int().min(0).max(100).nullable().openapi({ example: 50 }),
   createdAt: z.string().datetime().openapi({ example: '2024-01-01T12:00:00.000Z' }),
   updatedAt: z.string().datetime().openapi({ example: '2024-01-01T12:00:01.000Z' }),
@@ -330,24 +330,57 @@ const createImportJobRoute = createRoute({
         },
       },
     },
+    502: {
+      description: 'musicdl failed',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+    503: {
+      description: 'musicdl unavailable',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
   },
 })
 
 app.openapi(createImportJobRoute, async (c) => {
-  pruneExpiredMusicImportCandidates()
-  const { resultId } = c.req.valid('json')
-  const candidate = getMusicImportCandidateById(resultId)
+  try {
+    pruneExpiredMusicImportCandidates()
+    const { resultId } = c.req.valid('json')
+    const candidate = getMusicImportCandidateById(resultId)
 
-  if (!candidate) {
-    return c.json({ message: 'Import result expired. Please search again.' }, 404)
+    if (!candidate) {
+      return c.json({ message: 'Import result expired. Please search again.' }, 404)
+    }
+
+    if (!candidate.downloadable) {
+      return c.json({ message: 'This track is not downloadable.' }, 400)
+    }
+
+    const resolvedSongInfo = await resolveMusicDlSongInfo(JSON.parse(candidate.songInfoJson), config.musicdl)
+    const job = createMusicImportJobFromCandidate(candidate, {
+      source: resolvedSongInfo.source ?? candidate.source,
+      songName: resolvedSongInfo.song_name ?? candidate.songName,
+      singers: resolvedSongInfo.singers ?? candidate.singers,
+      songInfoJson: JSON.stringify(resolvedSongInfo),
+    })
+    return c.json(toMusicImportJobResponse(job), 202)
   }
-
-  if (!candidate.downloadable) {
-    return c.json({ message: 'This track is not downloadable.' }, 400)
+  catch (error) {
+    if (error instanceof MusicDlUnavailableError) {
+      return c.json({ message: error.message }, 503)
+    }
+    if (error instanceof MusicDlBridgeError) {
+      return c.json({ message: error.message }, 502)
+    }
+    throw error
   }
-
-  const job = createMusicImportJobFromCandidate(candidate)
-  return c.json(toMusicImportJobResponse(job), 202)
 })
 
 const getImportJobRoute = createRoute({

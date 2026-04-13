@@ -38,7 +38,6 @@ const sourceOptions: Array<{ value: MusicDlSource | null, label: string }> = [
   { value: 'QQMusicClient', label: 'QQ' },
   { value: 'KuwoMusicClient', label: 'Kuwo' },
   { value: 'MiguMusicClient', label: 'Migu' },
-  { value: 'QianqianMusicClient', label: 'Qianqian' },
   { value: 'JamendoMusicClient', label: 'Jamendo' },
 ]
 
@@ -47,9 +46,12 @@ const sourceDisplayMap = {
   QQMusicClient: { label: 'QQ', icon: 'i-arcticons-qq-music' },
   KuwoMusicClient: { label: 'Kuwo', icon: 'i-tabler-disc' },
   MiguMusicClient: { label: 'Migu', icon: 'i-arcticons-migu' },
-  QianqianMusicClient: { label: 'Qianqian', icon: 'i-tabler-wave-sine' },
   JamendoMusicClient: { label: 'Jamendo', icon: 'i-arcticons-jamendo' },
 } satisfies Record<MusicDlSource, { label: string, icon: string }>
+
+function isMusicDlSource(value: string): value is MusicDlSource {
+  return value in sourceDisplayMap
+}
 
 function getSourceDisplay(source: string): { label: string, icon: string } {
   if (source in sourceDisplayMap) {
@@ -64,7 +66,11 @@ function getSourceDisplay(source: string): { label: string, icon: string } {
 
 const queryClient = useQueryClient()
 const searchKeyword = ref(persistedState?.searchKeyword ?? '')
-const selectedSource = ref<MusicDlSource | null>(persistedState?.selectedSource ?? null)
+const selectedSource = ref<MusicDlSource | null>(
+  persistedState?.selectedSource && isMusicDlSource(persistedState.selectedSource)
+    ? persistedState.selectedSource
+    : null,
+)
 const searchResults = ref<MusicDlSearchResult[]>(persistedState?.searchResults ?? [])
 const activeImportResultId = ref<string | null>(persistedState?.activeImportResultId ?? null)
 const activeImportJobId = ref<string | null>(persistedState?.activeImportJobId ?? null)
@@ -81,14 +87,24 @@ const currentImportJob = computed(() => activeImportJobId.value ? (importJobQuer
 const searchErrorMessage = computed(() => {
   const err = searchMutation.error.value
   if (!err) return ''
-  return err instanceof Error ? err.message : 'Search failed. Please retry.'
+  return extractErrorMessage(err, 'Search failed. Please retry.')
 })
 
 const importErrorMessage = computed(() => {
   const err = importMutation.error.value
   if (!err) return ''
-  return err instanceof Error ? err.message : 'Import failed.'
+  return extractErrorMessage(err, 'Import failed.')
 })
+
+function extractErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) {
+    return error.message
+  }
+  if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
+    return error.message
+  }
+  return fallback
+}
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`

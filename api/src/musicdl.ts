@@ -1,6 +1,7 @@
+import type { OpenedTrackStream, TrackDetail, TrackLookup, TrackSummary } from '@jannchie/mdl-sdk'
 import type { MusicDlConfig } from './config.js'
 import path from 'node:path'
-import { createClient, type OpenedTrackStream, type Track } from '@jannchie/mdl-sdk'
+import { createClient } from '@jannchie/mdl-sdk'
 
 const musicClient = createClient()
 
@@ -9,14 +10,14 @@ export const musicDlSources = [
   'QQMusicClient',
   'KuwoMusicClient',
   'MiguMusicClient',
-  'QianqianMusicClient',
   'JamendoMusicClient',
 ] as const
 
 const aggregateMusicDlSources = musicDlSources
 
 const searchSizePerSource = 5
-const searchSizePerPage = 20
+// Use a small page size so paginated sources fetch results with multiple upstream requests.
+const searchSizePerPage = 2
 
 export type MusicDlSource = (typeof musicDlSources)[number]
 
@@ -40,6 +41,7 @@ export interface MusicDlSongInfo {
   chunk_size: number | null
   protocol: string | null
   identifier: string | number | null
+  raw_data: Record<string, unknown> | null
 }
 
 export interface MusicDlSearchItem {
@@ -117,31 +119,36 @@ function toBridgeError(error: unknown): MusicDlBridgeError | MusicDlUnavailableE
   return new MusicDlBridgeError('Unknown musicdl error')
 }
 
-function toMusicDlSongInfo(track: Track): MusicDlSongInfo {
+function toMusicDlSongInfo(track: TrackSummary | TrackDetail): MusicDlSongInfo {
   return {
     source: track.source ?? null,
     root_source: track.rootSource ?? null,
     song_name: track.songName ?? null,
     singers: track.singers ?? null,
     album: track.album ?? null,
-    ext: track.ext ?? null,
-    file_size_bytes: track.fileSizeBytes ?? null,
-    file_size: track.fileSize ?? null,
+    ext: 'ext' in track ? track.ext ?? null : null,
+    file_size_bytes: 'fileSizeBytes' in track ? track.fileSizeBytes ?? null : null,
+    file_size: 'fileSize' in track ? track.fileSize ?? null : null,
     duration_s: track.durationS ?? null,
     duration: track.duration ?? null,
-    lyric: track.lyric ?? null,
+    lyric: 'lyric' in track ? track.lyric ?? null : null,
     cover_url: track.coverUrl ?? null,
     download_url: track.downloadUrl ?? null,
     download_url_status: null,
-    default_download_headers: track.downloadHeaders ?? {},
+    default_download_headers: 'downloadHeaders' in track ? track.downloadHeaders ?? {} : {},
     downloaded_contents: null,
     chunk_size: null,
-    protocol: track.protocol ?? null,
+    protocol: 'protocol' in track ? track.protocol ?? null : null,
     identifier: track.identifier ?? null,
+    raw_data: track.rawData ?? null,
   }
 }
 
-function toMusicDlSearchItem(track: Track): MusicDlSearchItem {
+function toMusicDlSearchItem(track: TrackSummary | TrackDetail): MusicDlSearchItem {
+  const ext = 'ext' in track ? track.ext ?? null : null
+  const fileSize = 'fileSize' in track ? track.fileSize ?? null : null
+  const downloadable = Boolean(track.source && track.identifier)
+
   return {
     songInfo: toMusicDlSongInfo(track),
     display: {
@@ -149,16 +156,16 @@ function toMusicDlSearchItem(track: Track): MusicDlSearchItem {
       singers: track.singers ?? null,
       album: track.album ?? null,
       source: track.source ?? null,
-      ext: track.ext ?? null,
-      fileSize: track.fileSize ?? null,
+      ext,
+      fileSize,
       duration: track.duration ?? null,
       coverUrl: track.coverUrl ?? null,
-      downloadable: Boolean(track.downloadUrl),
+      downloadable,
     },
   }
 }
 
-function toSdkTrack(songInfo: MusicDlSongInfo): Track {
+function toTrackLookup(songInfo: MusicDlSongInfo): TrackLookup {
   const identifier = songInfo.identifier === null || songInfo.identifier === undefined
     ? ''
     : String(songInfo.identifier)
@@ -166,14 +173,16 @@ function toSdkTrack(songInfo: MusicDlSongInfo): Track {
     throw new MusicDlBridgeError('Import result is missing source information.')
   }
 
-  const track: Track = {
+  const track: TrackLookup = {
     source: songInfo.source,
     identifier,
-    songName: songInfo.song_name || 'Imported Track',
   }
 
   if (songInfo.root_source) {
     track.rootSource = songInfo.root_source
+  }
+  if (songInfo.song_name) {
+    track.songName = songInfo.song_name
   }
   if (songInfo.singers) {
     track.singers = songInfo.singers
@@ -181,23 +190,8 @@ function toSdkTrack(songInfo: MusicDlSongInfo): Track {
   if (songInfo.album) {
     track.album = songInfo.album
   }
-  if (songInfo.ext) {
-    track.ext = songInfo.ext
-  }
-  if (typeof songInfo.file_size_bytes === 'number') {
-    track.fileSizeBytes = songInfo.file_size_bytes
-  }
-  if (songInfo.file_size) {
-    track.fileSize = songInfo.file_size
-  }
   if (typeof songInfo.duration_s === 'number') {
     track.durationS = songInfo.duration_s
-  }
-  if (songInfo.duration) {
-    track.duration = songInfo.duration
-  }
-  if (songInfo.lyric) {
-    track.lyric = songInfo.lyric
   }
   if (songInfo.cover_url) {
     track.coverUrl = songInfo.cover_url
@@ -205,6 +199,25 @@ function toSdkTrack(songInfo: MusicDlSongInfo): Track {
   if (typeof songInfo.download_url === 'string' && songInfo.download_url) {
     track.downloadUrl = songInfo.download_url
   }
+  if (songInfo.raw_data && typeof songInfo.raw_data === 'object') {
+    track.rawData = songInfo.raw_data
+  }
+
+  return track
+}
+
+function toSdkTrack(songInfo: MusicDlSongInfo): TrackDetail {
+  const downloadUrl = typeof songInfo.download_url === 'string' ? songInfo.download_url : ''
+  if (!downloadUrl) {
+    throw new MusicDlBridgeError('Import result is missing a downloadable audio URL.')
+  }
+
+  const track: TrackDetail = {
+    ...toTrackLookup(songInfo),
+    songName: songInfo.song_name || 'Imported Track',
+    downloadUrl,
+  }
+
   if (songInfo.protocol === 'http' || songInfo.protocol === 'hls') {
     track.protocol = songInfo.protocol
   }
@@ -216,28 +229,47 @@ function toSdkTrack(songInfo: MusicDlSongInfo): Track {
   return track
 }
 
+function buildRequestOptions(source: string, timeoutMs: number) {
+  return {
+    requestOptions: {
+      [source]: {
+        timeoutMs,
+      },
+    },
+  }
+}
+
+async function fetchTrackDetail(track: TrackLookup, config: Required<MusicDlConfig>): Promise<TrackDetail> {
+  return await withTimeout(
+    musicClient.fetchDetail(
+      track,
+      buildRequestOptions(track.source, config.searchTimeoutMs),
+    ),
+    config.searchTimeoutMs,
+    'musicdl request timed out',
+  )
+}
+
 async function searchSingleSource(keyword: string, source: MusicDlSource, config: Required<MusicDlConfig>): Promise<MusicDlSearchItem[]> {
   try {
     ensureSourceAvailable(source)
 
     const result = await withTimeout(
-      musicClient.search({
+      musicClient.search(
         keyword,
-        sources: [source],
-        searchSizePerSource,
-        searchSizePerPage,
-        requestOverrides: {
-          [source]: {
-            timeoutMs: config.searchTimeoutMs,
-          },
+        {
+          sources: [source],
+          limit: searchSizePerSource,
+          pageSize: searchSizePerPage,
+          ...buildRequestOptions(source, config.searchTimeoutMs),
         },
-      }),
+      ),
       config.searchTimeoutMs,
       'musicdl request timed out',
     )
 
     return (result[source] ?? [])
-      .filter(track => !(track.episodes && track.episodes.length > 0))
+      .filter(track => !('episodes' in track && Array.isArray(track.episodes) && track.episodes.length > 0))
       .map(toMusicDlSearchItem)
   }
   catch (error) {
@@ -328,6 +360,24 @@ export async function searchMusicDl(keyword: string, source: MusicDlSource | und
   })
 }
 
+export async function resolveMusicDlSongInfo(songInfo: MusicDlSongInfo, config: MusicDlConfig = {}): Promise<MusicDlSongInfo> {
+  const resolvedConfig = resolveConfig(config)
+  const trackLookup = toTrackLookup(songInfo)
+
+  try {
+    ensureSourceAvailable(trackLookup.source)
+
+    const trackDetail = await fetchTrackDetail(trackLookup, resolvedConfig)
+    if (!trackDetail.downloadUrl) {
+      throw new MusicDlBridgeError('This track is not downloadable.')
+    }
+    return toMusicDlSongInfo(trackDetail)
+  }
+  catch (error) {
+    throw toBridgeError(error)
+  }
+}
+
 function toOpenedTrack(songInfo: MusicDlSongInfo, stream: OpenedTrackStream): MusicDlOpenedTrack {
   return {
     filename: buildImportedFilename(songInfo, stream.ext),
@@ -347,9 +397,10 @@ export async function openMusicDlStream(songInfo: MusicDlSongInfo, config: Music
     ensureSourceAvailable(songInfo.source)
 
     const response = await withTimeout(
-      musicClient.openTrackStream({
-        track: toSdkTrack(songInfo),
-      }),
+      musicClient.openTrackStream(
+        toSdkTrack(songInfo),
+        buildRequestOptions(songInfo.source, resolvedConfig.downloadTimeoutMs),
+      ),
       resolvedConfig.downloadTimeoutMs,
       'musicdl request timed out',
     )

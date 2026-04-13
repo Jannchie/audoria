@@ -33,7 +33,7 @@ export type MusicDlSearchResult = {
     downloadable: boolean;
 };
 
-export type MusicDlSource = 'NeteaseMusicClient' | 'QQMusicClient' | 'KuwoMusicClient' | 'MiguMusicClient' | 'QianqianMusicClient' | 'JamendoMusicClient';
+export type MusicDlSource = 'NeteaseMusicClient' | 'QQMusicClient' | 'KuwoMusicClient' | 'MiguMusicClient' | 'JamendoMusicClient';
 
 export type MusicDlSearchRequest = {
     keyword: string;
