@@ -298,6 +298,32 @@ function commitSeekByRatio(ratio: number): void {
   scrubPreviewTime.value = null
 }
 
+function handleProgressKeydown(event: KeyboardEvent): void {
+  const audio = audioRef.value
+  const total = audio?.duration || duration.value || 0
+  if (!total) {
+    return
+  }
+  const step = event.shiftKey ? 10 : 5
+  let next: number | null = null
+  switch (event.key) {
+    case 'ArrowLeft':
+    case 'ArrowDown': { next = currentTime.value - step; break
+    }
+    case 'ArrowRight':
+    case 'ArrowUp': { next = currentTime.value + step; break
+    }
+    case 'Home': { next = 0; break
+    }
+    case 'End': { next = total; break
+    }
+    default: { return
+    }
+  }
+  event.preventDefault()
+  commitSeekByRatio(Math.min(1, Math.max(0, next / total)))
+}
+
 function handleProgressPointerDown(event: PointerEvent): void {
   isScrubbing.value = true
   isProgressHovered.value = true
@@ -450,10 +476,18 @@ onUnmounted(() => {
     <div
       ref="progressTrack"
       class="py-2 w-full cursor-pointer relative"
+      role="slider"
+      tabindex="0"
+      aria-label="Seek"
+      :aria-valuemin="0"
+      :aria-valuemax="Math.max(1, Math.round(duration))"
+      :aria-valuenow="Math.round(displayedCurrentTime)"
+      :aria-valuetext="`${formattedTime(displayedCurrentTime)} of ${formattedTime(duration)}`"
       @pointerenter="handleProgressPointerEnter"
       @pointerdown.prevent="handleProgressPointerDown"
       @pointerleave="clearProgressPreview"
       @pointermove="handleProgressHoverMove"
+      @keydown="handleProgressKeydown"
     >
       <div class="bg-[var(--bg-surface)] h-0.5 w-full relative">
         <div
@@ -475,6 +509,7 @@ onUnmounted(() => {
       <button
         type="button"
         class="playerbar-track text-left flex flex-1 gap-3 min-w-0 transition-colors items-center"
+        :aria-label="currentTrack ? `Open player · ${currentTrack.title ?? currentTrack.filename}` : 'Open player'"
         @click="goToPlayer"
       >
         <div class="rounded-lg bg-[var(--bg-elevated)] flex shrink-0 h-11 w-11 items-center justify-center overflow-hidden">
@@ -555,6 +590,7 @@ onUnmounted(() => {
         <input
           ref="volumeSlider"
           class="volume-slider"
+          aria-label="Volume"
           max="100"
           min="0"
           step="1"

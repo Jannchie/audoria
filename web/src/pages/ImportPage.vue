@@ -19,6 +19,8 @@ interface PersistedImportPageState {
 
 const initialLimitPerSource = 10
 const loadMoreStep = 10
+const skeletonTitleWidths = [70, 55, 80, 48, 66, 60]
+const skeletonMetaWidths = [38, 30, 44, 26, 40, 34]
 
 function loadPersistedImportPageState(): PersistedImportPageState | null {
   try {
@@ -85,9 +87,41 @@ const activeImportResultId = ref<string | null>(persistedState?.activeImportResu
 const activeImportJobId = ref<string | null>(persistedState?.activeImportJobId ?? null)
 const importFormError = ref(persistedState?.importFormError ?? '')
 const hasSearchedOnce = ref(persistedState?.hasSearchedOnce ?? false)
+const pendingImports = ref<Set<string>>(new Set())
 const searchMutation = useSearchMusicImport()
 const importMutation = useImportMusic()
 const importJobQuery = useImportJobQuery(activeImportJobId)
+
+function normalizePart(value: string | null | undefined): string {
+  return (value ?? '')
+    .toLowerCase()
+    .replaceAll(/\(.*?\)|（.*?）|\[.*?\]/g, '')
+    .replaceAll(/[^a-z0-9\u4E00-\u9FFF]+/g, '')
+}
+
+function normalizeTrackKey(title: string | null | undefined, artists: string | null | undefined): string {
+  const t = normalizePart(title)
+  if (!t) {
+    return ''
+  }
+  return `${t}|${normalizePart(artists)}`
+}
+
+const libraryTrackKeys = computed<Set<string>>(() => {
+  const set = new Set<string>()
+  for (const track of tracks.value ?? []) {
+    const key = normalizeTrackKey(track.title ?? track.filename, track.artists)
+    if (key) {
+      set.add(key)
+    }
+  }
+  return set
+})
+
+function isAlreadyImported(result: MusicDlSearchResult): boolean {
+  const key = normalizeTrackKey(result.songName, result.singers)
+  return key ? libraryTrackKeys.value.has(key) : false
+}
 
 const isSearching = computed<boolean>(() => searchMutation.isPending.value)
 const hasSearched = computed(() => hasSearchedOnce.value || searchMutation.isSuccess.value || searchResults.value.length > 0)
@@ -186,6 +220,9 @@ const statusMessage = computed(() => {
   if (importErrorMessage.value) {
     return { text: importErrorMessage.value, type: 'error' }
   }
+  if (pendingImports.value.size > 1) {
+    return { text: `Importing ${pendingImports.value.size} tracks…`, type: 'info' }
+  }
   if (currentImportJob.value) {
     const s = currentImportJob.value.status
     return {
@@ -202,6 +239,27 @@ watch(currentImportJob, (job) => {
   }
   if (job.status === 'succeeded' && job.trackId) {
     queryClient.invalidateQueries({ queryKey: ['music'] }).catch(() => {})
+  }
+  if (job.status === 'failed' && activeImportResultId.value) {
+    markPending(activeImportResultId.value, false)
+  }
+})
+
+watch(tracks, () => {
+  if (pendingImports.value.size === 0) {
+    return
+  }
+  const next = new Set(pendingImports.value)
+  let changed = false
+  for (const id of pendingImports.value) {
+    const result = searchResults.value.find(r => r.id === id)
+    if (result && isAlreadyImported(result)) {
+      next.delete(id)
+      changed = true
+    }
+  }
+  if (changed) {
+    pendingImports.value = next
   }
 })
 
@@ -263,32 +321,42 @@ function handleLoadMore(): void {
   runSearch(limitPerSource.value + loadMoreStep, false)
 }
 
+function markPending(id: string, pending: boolean): void {
+  const next = new Set(pendingImports.value)
+  if (pending) {
+    next.add(id)
+  }
+  else {
+    next.delete(id)
+  }
+  pendingImports.value = next
+}
+
 function handleImport(result: MusicDlSearchResult): void {
-  if (!result.downloadable) {
+  if (!result.downloadable || isAlreadyImported(result) || pendingImports.value.has(result.id)) {
     return
   }
   importFormError.value = ''
   activeImportResultId.value = result.id
   activeImportJobId.value = null
+  markPending(result.id, true)
   importMutation.mutate(result.id, {
     onSuccess: (job) => {
-      activeImportJobId.value = job.id
+      if (activeImportResultId.value === result.id) {
+        activeImportJobId.value = job.id
+      }
     },
     onError: () => {
-      activeImportResultId.value = null
+      markPending(result.id, false)
+      if (activeImportResultId.value === result.id) {
+        activeImportResultId.value = null
+      }
     },
   })
 }
 
 function isImporting(id: string): boolean {
-  if (activeImportResultId.value !== id) {
-    return false
-  }
-  if (importMutation.isPending.value) {
-    return true
-  }
-  const status = currentImportJob.value?.status
-  return status === 'queued' || status === 'running'
+  return pendingImports.value.has(id)
 }
 </script>
 
@@ -297,12 +365,16 @@ function isImporting(id: string): boolean {
     <!-- Search bar -->
     <div class="search-area">
       <div class="search-bar">
-        <span class="i-tabler-search search-bar-icon" />
+        <span
+          class="i-tabler-search search-bar-icon"
+          aria-hidden="true"
+        />
         <input
           v-model="searchKeyword"
           class="search-bar-input"
           placeholder="Search songs, artists..."
           type="text"
+          aria-label="Search songs or artists"
           @keydown.enter.prevent="handleSearch"
         >
         <button
@@ -310,20 +382,27 @@ function isImporting(id: string): boolean {
           class="search-bar-action"
           :disabled="isSearching"
           type="button"
+          :aria-label="isSearching ? 'Searching' : 'Search'"
           @click="handleSearch"
         >
           <span
             :class="isSearching ? 'i-tabler-loader-2 animate-spin' : 'i-tabler-arrow-right'"
+            aria-hidden="true"
           />
         </button>
       </div>
-      <div class="source-filter">
+      <div
+        class="source-filter"
+        role="group"
+        aria-label="Source filter"
+      >
         <button
           v-for="option in sourceOptions"
           :key="option.label"
           type="button"
           class="source-chip"
           :class="{ 'source-chip--active': selectedSource === option.value }"
+          :aria-pressed="selectedSource === option.value"
           @click="selectedSource = option.value"
         >
           {{ option.label }}
@@ -339,6 +418,8 @@ function isImporting(id: string): boolean {
           'status-pill--success': statusMessage.type === 'success',
           'status-pill--info': statusMessage.type === 'info',
         }"
+        role="status"
+        aria-live="polite"
       >
         {{ statusMessage.text }}
       </div>
@@ -367,10 +448,10 @@ function isImporting(id: string): boolean {
     <!-- Idle state: before any search -->
     <div
       v-if="!isSearching && !hasSearched"
-      class="idle-state"
+      class="empty-state"
     >
       <span class="i-tabler-world-search text-4xl text-[var(--text-tertiary)]/30" />
-      <p class="idle-text">
+      <p class="empty-text">
         Search across multiple music sources
       </p>
     </div>
@@ -389,11 +470,11 @@ function isImporting(id: string): boolean {
         <div class="flex-1 space-y-1.5">
           <div
             class="skeleton rounded h-3.5"
-            :style="{ width: `${100 + Math.random() * 100}px` }"
+            :style="{ width: `${skeletonTitleWidths[i % skeletonTitleWidths.length]}%` }"
           />
           <div
             class="skeleton rounded h-3"
-            :style="{ width: `${60 + Math.random() * 60}px` }"
+            :style="{ width: `${skeletonMetaWidths[i % skeletonMetaWidths.length]}%` }"
           />
         </div>
       </div>
@@ -412,8 +493,10 @@ function isImporting(id: string): boolean {
         :class="{
           'result-row--importing': isImporting(result.id),
           'result-row--disabled': !result.downloadable,
+          'result-row--imported': isAlreadyImported(result),
         }"
-        :disabled="isImporting(result.id) || !result.downloadable"
+        :disabled="isImporting(result.id) || !result.downloadable || isAlreadyImported(result)"
+        :title="isAlreadyImported(result) ? 'Already in your library' : undefined"
         @click="handleImport(result)"
       >
         <div class="result-cover">
@@ -451,16 +534,32 @@ function isImporting(id: string): boolean {
           </span>
           <span
             v-if="isImporting(result.id)"
-            class="i-tabler-loader-2 text-base text-[var(--accent)] animate-spin"
-          />
+            class="result-badge result-badge--importing"
+          >
+            <span class="i-tabler-loader-2 text-sm animate-spin" />
+            <span>Importing</span>
+          </span>
+          <span
+            v-else-if="isAlreadyImported(result)"
+            class="result-badge result-badge--imported"
+          >
+            <span class="i-tabler-check text-sm" />
+            <span>In library</span>
+          </span>
           <span
             v-else-if="result.downloadable"
-            class="i-tabler-download result-dl-icon text-base"
-          />
+            class="result-badge result-badge--download"
+          >
+            <span class="i-tabler-download text-sm" />
+            <span>Download</span>
+          </span>
           <span
             v-else
-            class="text-[10px] text-[var(--text-tertiary)]"
-          >N/A</span>
+            class="result-badge result-badge--unavailable"
+          >
+            <span class="i-tabler-ban text-sm" />
+            <span>Unavailable</span>
+          </span>
         </div>
       </button>
       <button
@@ -484,10 +583,10 @@ function isImporting(id: string): boolean {
     <!-- No results -->
     <div
       v-else-if="searchMutation.isSuccess.value"
-      class="idle-state"
+      class="empty-state"
     >
       <span class="i-tabler-mood-empty text-4xl text-[var(--text-tertiary)]/30" />
-      <p class="idle-text">
+      <p class="empty-text">
         No results found
       </p>
     </div>
@@ -627,12 +726,12 @@ function isImporting(id: string): boolean {
 
 .status-pill--error {
   color: var(--danger);
-  background: rgba(239, 68, 68, 0.08);
+  background: var(--danger-soft);
 }
 
 .status-pill--success {
   color: var(--success);
-  background: rgba(52, 211, 153, 0.08);
+  background: var(--success-soft);
 }
 
 .status-pill--info {
@@ -681,21 +780,7 @@ function isImporting(id: string): boolean {
   }
 }
 
-/* ---- Idle state ---- */
-.idle-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 5rem 1rem;
-  text-align: center;
-}
-
-.idle-text {
-  font-size: 0.8125rem;
-  color: var(--text-tertiary);
-  margin-top: 0.75rem;
-}
+/* Idle state uses shared .empty-state classes from style.css */
 
 /* ---- Result list ---- */
 .result-list {
@@ -754,6 +839,55 @@ function isImporting(id: string): boolean {
 .result-row--disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+.result-row--imported {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.result-row--imported:hover {
+  background: var(--bg-surface);
+}
+
+.result-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  min-width: 6.25rem;
+  padding: 0.3rem 0.625rem;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.result-badge--download {
+  color: var(--text-tertiary);
+  background: var(--bg-elevated);
+}
+
+.result-row:hover .result-badge--download {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.result-badge--imported {
+  color: var(--success);
+  background: var(--success-soft);
+}
+
+.result-badge--importing {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.result-badge--unavailable {
+  color: var(--text-tertiary);
+  background: var(--bg-elevated);
 }
 
 .result-cover {
@@ -836,14 +970,5 @@ function isImporting(id: string): boolean {
   .result-source-label {
     display: inline;
   }
-}
-
-.result-dl-icon {
-  color: var(--text-tertiary);
-  transition: color 0.15s ease;
-}
-
-.result-row:hover .result-dl-icon {
-  color: var(--accent);
 }
 </style>

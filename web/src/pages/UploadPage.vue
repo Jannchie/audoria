@@ -94,6 +94,7 @@ function formatFileSize(bytes: number): string {
         <span
           class="text-3xl"
           :class="selectedFile ? 'i-tabler-music' : isDragOver ? 'i-tabler-upload' : 'i-tabler-cloud-upload'"
+          aria-hidden="true"
         />
       </div>
 
@@ -141,7 +142,7 @@ function formatFileSize(bytes: number): string {
       id="file-input"
       ref="fileInputRef"
       accept="audio/*"
-      class="hidden"
+      class="sr-only"
       type="file"
       @change="handleFileChange"
     >
@@ -150,12 +151,16 @@ function formatFileSize(bytes: number): string {
     <div
       v-if="formError || uploadErrorMessage"
       class="status-toast status-toast--error"
+      role="alert"
+      aria-live="assertive"
     >
       {{ formError || uploadErrorMessage }}
     </div>
     <div
       v-else-if="uploadSuccess"
       class="status-toast status-toast--success"
+      role="status"
+      aria-live="polite"
     >
       Upload successful!
     </div>
@@ -295,11 +300,11 @@ function formatFileSize(bytes: number): string {
 
 .status-toast--error {
   color: var(--danger);
-  background: rgba(239, 68, 68, 0.08);
+  background: var(--danger-soft);
 }
 
 .status-toast--success {
   color: var(--success);
-  background: rgba(52, 211, 153, 0.08);
+  background: var(--success-soft);
 }
 </style>

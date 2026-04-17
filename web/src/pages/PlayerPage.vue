@@ -259,6 +259,31 @@ function commitSeekByRatio(ratio: number): void {
   }
 }
 
+function handleProgressKeydown(event: KeyboardEvent): void {
+  const total = duration.value || getAudioElement()?.duration || 0
+  if (!total) {
+    return
+  }
+  const step = event.shiftKey ? 10 : 5
+  let next: number | null = null
+  switch (event.key) {
+    case 'ArrowLeft':
+    case 'ArrowDown': { next = currentTime.value - step; break
+    }
+    case 'ArrowRight':
+    case 'ArrowUp': { next = currentTime.value + step; break
+    }
+    case 'Home': { next = 0; break
+    }
+    case 'End': { next = total; break
+    }
+    default: { return
+    }
+  }
+  event.preventDefault()
+  commitSeekByRatio(Math.min(1, Math.max(0, next / total)))
+}
+
 function handleProgressPointerDown(event: PointerEvent): void {
   isScrubbing.value = true
   isProgressHovered.value = true
@@ -520,6 +545,8 @@ onUnmounted(() => {
                         ? 'lyric-line--past'
                         : 'lyric-line--future',
                   ]"
+                  :aria-label="`Play from ${formattedTime(line.time)}`"
+                  :aria-current="i === currentLineIndex ? 'true' : undefined"
                   @click="handleLyricClick(line)"
                 >
                   {{ line.text || '···' }}
@@ -555,10 +582,18 @@ onUnmounted(() => {
         <div
           ref="progressTrack"
           class="progress-hit"
+          role="slider"
+          tabindex="0"
+          aria-label="Seek"
+          :aria-valuemin="0"
+          :aria-valuemax="Math.max(1, Math.round(duration))"
+          :aria-valuenow="Math.round(displayedCurrentTime)"
+          :aria-valuetext="`${formattedTime(displayedCurrentTime)} of ${formattedTime(duration)}`"
           @pointerenter="handleProgressPointerEnter"
           @pointerdown.prevent="handleProgressPointerDown"
           @pointerleave="clearProgressPreview"
           @pointermove="handleProgressHoverMove"
+          @keydown="handleProgressKeydown"
         >
           <div class="progress-track">
             <div
@@ -587,17 +622,26 @@ onUnmounted(() => {
               type="button"
               class="ctrl-btn ctrl-btn--sm"
               :class="{ 'ctrl-btn--active': shuffle }"
+              aria-label="Shuffle"
+              :aria-pressed="shuffle"
               @click="toggleShuffle"
             >
-              <span class="i-tabler-arrows-shuffle" />
+              <span
+                class="i-tabler-arrows-shuffle"
+                aria-hidden="true"
+              />
             </button>
             <button
               type="button"
               class="ctrl-btn ctrl-btn--sm"
               :class="{ 'ctrl-btn--active': repeatMode !== 'off' }"
+              :aria-label="`Repeat: ${repeatMode}`"
               @click="cycleRepeat"
             >
-              <span :class="repeatIcon" />
+              <span
+                :class="repeatIcon"
+                aria-hidden="true"
+              />
             </button>
           </div>
 
@@ -605,23 +649,35 @@ onUnmounted(() => {
             <button
               type="button"
               class="ctrl-btn ctrl-btn--md"
+              aria-label="Previous track"
               @click="handlePrev"
             >
-              <span class="i-tabler-player-skip-back-filled" />
+              <span
+                class="i-tabler-player-skip-back-filled"
+                aria-hidden="true"
+              />
             </button>
             <button
               type="button"
               class="ctrl-btn-play"
+              :aria-label="isPlaying ? 'Pause' : 'Play'"
               @click="togglePlayPause"
             >
-              <span :class="isPlaying ? 'i-tabler-player-pause-filled' : 'i-tabler-player-play-filled'" />
+              <span
+                :class="isPlaying ? 'i-tabler-player-pause-filled' : 'i-tabler-player-play-filled'"
+                aria-hidden="true"
+              />
             </button>
             <button
               type="button"
               class="ctrl-btn ctrl-btn--md"
+              aria-label="Next track"
               @click="handleNext"
             >
-              <span class="i-tabler-player-skip-forward-filled" />
+              <span
+                class="i-tabler-player-skip-forward-filled"
+                aria-hidden="true"
+              />
             </button>
           </div>
 
@@ -629,13 +685,19 @@ onUnmounted(() => {
             <button
               type="button"
               class="ctrl-btn ctrl-btn--sm"
+              :aria-label="muted ? 'Unmute' : 'Mute'"
+              :aria-pressed="muted"
               @click="toggleMute"
             >
-              <span :class="volumeIcon" />
+              <span
+                :class="volumeIcon"
+                aria-hidden="true"
+              />
             </button>
             <input
               ref="volumeSlider"
               class="volume-slider"
+              aria-label="Volume"
               max="100"
               min="0"
               step="1"
@@ -658,6 +720,13 @@ onUnmounted(() => {
 .player-page {
   position: relative;
   height: 100vh;
+  overflow: hidden;
+}
+
+@media (min-width: 768px) {
+  .player-page {
+    height: calc(100vh - 3.5rem);
+  }
 }
 
 /* ---- Background ---- */
@@ -668,12 +737,19 @@ onUnmounted(() => {
   z-index: 0;
   pointer-events: none;
   background: #0e0e10;
+  animation: bg-shader-fade 700ms ease-out;
 }
 .shader-canvas {
   position: absolute !important;
   inset: 0;
   width: 100%;
   height: 100%;
+  animation: bg-shader-fade 900ms ease-out 120ms both;
+}
+
+@keyframes bg-shader-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 .bg-cover-image {
   position: absolute;
@@ -711,13 +787,13 @@ onUnmounted(() => {
 
 @media (min-width: 768px) {
   .player-layout {
-    padding: 5rem 3rem 2.5rem;
+    padding: 2.5rem 3rem;
   }
 }
 
 @media (min-width: 1200px) {
   .player-layout {
-    padding: 5rem 4rem 2.5rem;
+    padding: 2.5rem 4rem;
   }
 }
 
@@ -868,7 +944,7 @@ onUnmounted(() => {
 }
 
 .lyrics-pad {
-  padding: 2.5rem 0;
+  padding: 2.5rem 0 40vh;
 }
 
 .lyric-line {

@@ -5,7 +5,10 @@ defineProps<{
 </script>
 
 <template>
-  <div class="flex gap-0.5 h-4 items-end">
+  <div
+    class="flex gap-0.5 h-4 items-end"
+    aria-hidden="true"
+  >
     <span
       class="rounded-full bg-[var(--accent)] w-0.75"
       :style="{

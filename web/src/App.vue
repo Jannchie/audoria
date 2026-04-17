@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, watchEffect } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
 import AudoriaLogo from './components/AudoriaLogo.vue'
 import PlayerBar from './components/PlayerBar.vue'
@@ -15,6 +15,13 @@ const navItems = [
 
 const currentPath = computed(() => route.path)
 const isPlayerPage = computed(() => route.path === '/player')
+
+watchEffect(() => {
+  if (typeof document === 'undefined') {
+    return
+  }
+  document.body.classList.toggle('no-scroll', isPlayerPage.value)
+})
 </script>
 
 <template>
@@ -42,8 +49,12 @@ const isPlayerPage = computed(() => route.path === '/player')
             class="desktop-nav-item"
             :class="{ 'desktop-nav-item--active': currentPath.startsWith(item.path) }"
             :to="item.path"
+            :aria-current="currentPath.startsWith(item.path) ? 'page' : undefined"
           >
-            <span :class="[item.icon]" />
+            <span
+              :class="[item.icon]"
+              aria-hidden="true"
+            />
             <span>{{ item.name }}</span>
           </RouterLink>
         </nav>
@@ -73,11 +84,16 @@ const isPlayerPage = computed(() => route.path === '/player')
           class="mobile-tab"
           :class="{ 'mobile-tab--active': currentPath.startsWith(item.path) }"
           :to="item.path"
+          :aria-current="currentPath.startsWith(item.path) ? 'page' : undefined"
         >
-          <span class="mobile-tab-indicator" />
+          <span
+            class="mobile-tab-indicator"
+            aria-hidden="true"
+          />
           <span
             class="mobile-tab-icon"
             :class="[item.icon]"
+            aria-hidden="true"
           />
           <span class="mobile-tab-label">{{ item.name }}</span>
         </RouterLink>
@@ -111,14 +127,10 @@ const isPlayerPage = computed(() => route.path === '/player')
   }
 }
 
-/* Floating/translucent mode on Player page — integrates with shader background */
+/* Floating/translucent mode on Player page — keeps sticky flow, only fades background/border */
 .topbar--floating {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
   background: transparent;
-  border-bottom: none;
+  border-bottom-color: transparent;
 }
 
 .topbar-inner {
@@ -214,7 +226,7 @@ const isPlayerPage = computed(() => route.path === '/player')
 
 @media (min-width: 768px) {
   .main-content {
-    padding: 1.25rem 1.5rem 8rem;
+    padding: 0 1.5rem 8rem;
   }
 }
 

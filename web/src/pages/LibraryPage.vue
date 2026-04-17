@@ -7,6 +7,8 @@ import { usePlayerState } from '../composables/usePlayerState'
 import { formatTrackSpecs } from '../utils/audio'
 
 const librarySearchStateKey = 'audoria.library-search'
+const skeletonTitleWidths = [72, 56, 80, 48, 68, 60, 76, 52]
+const skeletonMetaWidths = [38, 30, 44, 26, 40, 34, 48, 32]
 
 const router = useRouter()
 const { data: tracks, isPending, isError, error } = useMusicQuery()
@@ -103,11 +105,11 @@ async function handleDelete(id: string): Promise<void> {
           <div class="flex-1 space-y-1.5">
             <div
               class="skeleton rounded h-3.5"
-              :style="{ width: `${120 + Math.random() * 80}px` }"
+              :style="{ width: `${skeletonTitleWidths[i % skeletonTitleWidths.length]}%` }"
             />
             <div
               class="skeleton rounded h-3"
-              :style="{ width: `${60 + Math.random() * 60}px` }"
+              :style="{ width: `${skeletonMetaWidths[i % skeletonMetaWidths.length]}%` }"
             />
           </div>
         </div>
@@ -139,6 +141,8 @@ async function handleDelete(id: string): Promise<void> {
         type="button"
         class="track-row"
         :class="{ 'track-row--active': currentTrackId === track.id }"
+        :aria-label="`${currentTrackId === track.id && isPlaying ? 'Pause' : 'Play'} ${track.title || track.filename}`"
+        :aria-current="currentTrackId === track.id ? 'true' : undefined"
         @click="handleTrackClick(track.id)"
       >
         <div class="track-cover">
@@ -151,9 +155,13 @@ async function handleDelete(id: string): Promise<void> {
           <span
             v-else
             class="i-tabler-music track-cover-placeholder"
+            aria-hidden="true"
           />
           <!-- Play overlay on hover -->
-          <div class="track-cover-overlay">
+          <div
+            class="track-cover-overlay"
+            aria-hidden="true"
+          >
             <span
               v-if="currentTrackId === track.id && isPlaying"
               class="i-tabler-player-pause-filled"
@@ -209,10 +217,12 @@ async function handleDelete(id: string): Promise<void> {
             <span
               v-if="isDeleting(track.id)"
               class="i-tabler-loader-2 animate-spin"
+              aria-hidden="true"
             />
             <span
               v-else
               class="i-tabler-trash"
+              aria-hidden="true"
             />
           </button>
         </div>
@@ -439,33 +449,5 @@ async function handleDelete(id: string): Promise<void> {
   opacity: 0.6;
 }
 
-/* ---- Empty state ---- */
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 5rem 1rem;
-  text-align: center;
-}
-
-.empty-title {
-  font-size: 0.9375rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  margin-top: 1rem;
-  font-family: 'Outfit', 'DM Sans', system-ui, sans-serif;
-}
-
-.empty-text {
-  font-size: 0.8125rem;
-  color: var(--text-tertiary);
-  margin-top: 0.5rem;
-}
-
-.empty-hint {
-  font-size: 0.75rem;
-  color: var(--text-tertiary);
-  margin-top: 0.375rem;
-}
+/* Empty state uses shared .empty-state classes from style.css */
 </style>
