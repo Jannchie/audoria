@@ -38,6 +38,7 @@ export type MusicDlSource = 'NeteaseMusicClient' | 'QQMusicClient' | 'KuwoMusicC
 export type MusicDlSearchRequest = {
     keyword: string;
     source?: MusicDlSource;
+    limitPerSource?: number;
 };
 
 export type MusicImportJob = {

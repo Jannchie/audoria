@@ -38,6 +38,23 @@ export function isLrcFormat(raw: string): boolean {
   return timestampCount >= 2
 }
 
+export function findLyricLineAtTime(lines: LyricLine[] | null | undefined, time: number): LyricLine | null {
+  if (!lines || lines.length === 0) {
+    return null
+  }
+
+  let currentLine: LyricLine | null = null
+  for (const line of lines) {
+    if (line.time <= time) {
+      currentLine = line
+      continue
+    }
+    return currentLine ?? line
+  }
+
+  return currentLine
+}
+
 export function useLyrics(lyricsRaw: () => string | null | undefined) {
   const { currentTime } = usePlayerState()
 
@@ -72,10 +89,11 @@ export function useLyrics(lyricsRaw: () => string | null | undefined) {
     }
     const t = currentTime.value
     let idx = -1
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].time <= t) {
+    for (const [i, line] of lines.entries()) {
+      if (line.time <= t) {
         idx = i
-      } else {
+      }
+      else {
         break
       }
     }

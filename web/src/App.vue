@@ -20,11 +20,14 @@ const isPlayerPage = computed(() => route.path === '/player')
 <template>
   <div class="app-shell">
     <!-- Desktop top bar (hidden on mobile) -->
-    <header class="topbar">
+    <header
+      class="topbar"
+      :class="{ 'topbar--floating': isPlayerPage }"
+    >
       <div class="topbar-inner">
         <RouterLink
           to="/"
-          class="flex gap-2.5 items-center"
+          class="logo-link flex gap-2.5 items-center"
         >
           <AudoriaLogo :size="32" />
           <span class="logo-text">
@@ -99,12 +102,23 @@ const isPlayerPage = computed(() => route.path === '/player')
   z-index: 30;
   background: var(--bg-primary);
   border-bottom: 1px solid var(--border);
+  transition: background 0.3s ease, border-color 0.3s ease;
 }
 
 @media (min-width: 768px) {
   .topbar {
     display: block;
   }
+}
+
+/* Floating/translucent mode on Player page — integrates with shader background */
+.topbar--floating {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: transparent;
+  border-bottom: none;
 }
 
 .topbar-inner {
@@ -117,6 +131,10 @@ const isPlayerPage = computed(() => route.path === '/player')
   justify-content: space-between;
 }
 
+.logo-link {
+  text-decoration: none;
+}
+
 .logo-text {
   font-size: 0.75rem;
   font-weight: 600;
@@ -124,6 +142,12 @@ const isPlayerPage = computed(() => route.path === '/player')
   letter-spacing: 0.15em;
   text-transform: uppercase;
   font-family: 'Outfit', 'DM Sans', system-ui, sans-serif;
+  transition: color 0.25s ease;
+}
+
+.topbar--floating .logo-text {
+  color: rgba(255, 255, 255, 0.82);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
 }
 
 .desktop-nav {
@@ -137,7 +161,7 @@ const isPlayerPage = computed(() => route.path === '/player')
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 0.875rem;
-  border-radius: 0.5rem;
+  border-radius: 999px;
   font-size: 0.8125rem;
   color: var(--text-tertiary);
   transition: all 0.15s ease;
@@ -157,6 +181,25 @@ const isPlayerPage = computed(() => route.path === '/player')
 .desktop-nav-item--active:hover {
   color: var(--text-primary);
   background: var(--bg-elevated);
+}
+
+.topbar--floating .desktop-nav-item {
+  color: rgba(255, 255, 255, 0.58);
+}
+
+.topbar--floating .desktop-nav-item:hover {
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.topbar--floating .desktop-nav-item--active {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.topbar--floating .desktop-nav-item--active:hover {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 /* ---- Main content ---- */
@@ -272,5 +315,4 @@ const isPlayerPage = computed(() => route.path === '/player')
   opacity: 1;
   font-weight: 600;
 }
-
 </style>

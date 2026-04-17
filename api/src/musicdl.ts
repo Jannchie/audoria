@@ -15,7 +15,7 @@ export const musicDlSources = [
 
 const aggregateMusicDlSources = musicDlSources
 
-const searchSizePerSource = 5
+const defaultSearchSizePerSource = 10
 // Use a small page size so paginated sources fetch results with multiple upstream requests.
 const searchSizePerPage = 2
 
@@ -117,6 +117,14 @@ function toBridgeError(error: unknown): MusicDlBridgeError | MusicDlUnavailableE
     return new MusicDlBridgeError(error.message)
   }
   return new MusicDlBridgeError('Unknown musicdl error')
+}
+
+function normalizeMatchText(value: string | null | undefined): string {
+  return (value ?? '')
+    .trim()
+    .toLowerCase()
+    .replaceAll(/\(.*?\)|（.*?）/g, '')
+    .replaceAll(/[^a-z0-9\u4E00-\u9FFF]+/g, '')
 }
 
 function toMusicDlSongInfo(track: TrackSummary | TrackDetail): MusicDlSongInfo {
@@ -250,26 +258,100 @@ async function fetchTrackDetail(track: TrackLookup, config: Required<MusicDlConf
   )
 }
 
-async function searchSingleSource(keyword: string, source: MusicDlSource, config: Required<MusicDlConfig>): Promise<MusicDlSearchItem[]> {
+async function searchSourceTracks(
+  keyword: string,
+  source: MusicDlSource,
+  config: Required<MusicDlConfig>,
+  limitPerSource: number,
+): Promise<TrackSummary[]> {
+  const result = await withTimeout(
+    musicClient.search(
+      keyword,
+      {
+        sources: [source],
+        limit: limitPerSource,
+        pageSize: searchSizePerPage,
+        ...buildRequestOptions(source, config.searchTimeoutMs),
+      },
+    ),
+    config.searchTimeoutMs,
+    'musicdl request timed out',
+  )
+
+  return (result[source] ?? [])
+    .filter(track => !('episodes' in track && Array.isArray(track.episodes) && track.episodes.length > 0))
+}
+
+function buildQqFallbackKeywords(songInfo: MusicDlSongInfo): string[] {
+  const songName = songInfo.song_name?.trim() ?? ''
+  const singers = songInfo.singers?.trim() ?? ''
+  const firstSinger = singers
+    .split(',')
+    .map(name => name.trim())
+    .find(Boolean) ?? ''
+
+  return [...new Set([
+    [songName, singers].filter(Boolean).join(' ').trim(),
+    [songName, firstSinger].filter(Boolean).join(' ').trim(),
+    songName,
+  ].filter(Boolean))]
+}
+
+function pickBestQqTrackMatch(songInfo: MusicDlSongInfo, tracks: TrackSummary[]): TrackSummary | null {
+  const identifier = songInfo.identifier === null || songInfo.identifier === undefined
+    ? ''
+    : String(songInfo.identifier)
+  const exactIdentifierMatch = tracks.find(track => track.identifier === identifier)
+  if (exactIdentifierMatch) {
+    return exactIdentifierMatch
+  }
+
+  const normalizedSongName = normalizeMatchText(songInfo.song_name)
+  const normalizedSingers = normalizeMatchText(songInfo.singers)
+  const exactMetadataMatch = tracks.find((track) => {
+    return normalizeMatchText(track.songName) === normalizedSongName
+      && normalizeMatchText(track.singers) === normalizedSingers
+  })
+  if (exactMetadataMatch) {
+    return exactMetadataMatch
+  }
+
+  const titleMatch = tracks.find(track => normalizeMatchText(track.songName) === normalizedSongName)
+  if (titleMatch) {
+    return titleMatch
+  }
+
+  return tracks[0] ?? null
+}
+
+async function fetchQqTrackDetailFallback(songInfo: MusicDlSongInfo, config: Required<MusicDlConfig>): Promise<TrackDetail | null> {
+  for (const keyword of buildQqFallbackKeywords(songInfo)) {
+    const tracks = await searchSourceTracks(keyword, 'QQMusicClient', config, defaultSearchSizePerSource)
+    const matchedTrack = pickBestQqTrackMatch(songInfo, tracks)
+    if (!matchedTrack) {
+      continue
+    }
+
+    try {
+      return await fetchTrackDetail(matchedTrack, config)
+    }
+    catch {
+      continue
+    }
+  }
+
+  return null
+}
+
+async function searchSingleSource(
+  keyword: string,
+  source: MusicDlSource,
+  config: Required<MusicDlConfig>,
+  limitPerSource: number,
+): Promise<MusicDlSearchItem[]> {
   try {
     ensureSourceAvailable(source)
-
-    const result = await withTimeout(
-      musicClient.search(
-        keyword,
-        {
-          sources: [source],
-          limit: searchSizePerSource,
-          pageSize: searchSizePerPage,
-          ...buildRequestOptions(source, config.searchTimeoutMs),
-        },
-      ),
-      config.searchTimeoutMs,
-      'musicdl request timed out',
-    )
-
-    return (result[source] ?? [])
-      .filter(track => !('episodes' in track && Array.isArray(track.episodes) && track.episodes.length > 0))
+    return (await searchSourceTracks(keyword, source, config, limitPerSource))
       .map(toMusicDlSearchItem)
   }
   catch (error) {
@@ -322,12 +404,18 @@ function buildImportedFilename(songInfo: MusicDlSongInfo, extensionHint?: string
   return `${baseName}${ext}`
 }
 
-export async function searchMusicDl(keyword: string, source: MusicDlSource | undefined, config: MusicDlConfig = {}): Promise<MusicDlSearchItem[]> {
+export async function searchMusicDl(
+  keyword: string,
+  source: MusicDlSource | undefined,
+  config: MusicDlConfig = {},
+  limitPerSource = defaultSearchSizePerSource,
+): Promise<MusicDlSearchItem[]> {
   const resolvedConfig = resolveConfig(config)
   let results: MusicDlSearchItem[]
+  const normalizedLimitPerSource = Math.max(1, Math.floor(limitPerSource))
 
   if (source) {
-    results = await searchSingleSource(keyword, source, resolvedConfig)
+    results = await searchSingleSource(keyword, source, resolvedConfig, normalizedLimitPerSource)
   }
   else {
     const settledResults = await Promise.allSettled(
@@ -336,7 +424,7 @@ export async function searchMusicDl(keyword: string, source: MusicDlSource | und
         items: await searchSingleSource(keyword, currentSource, {
           ...resolvedConfig,
           searchTimeoutMs: Math.min(resolvedConfig.searchTimeoutMs, 20_000),
-        }),
+        }, normalizedLimitPerSource),
       })),
     )
 
@@ -367,7 +455,21 @@ export async function resolveMusicDlSongInfo(songInfo: MusicDlSongInfo, config: 
   try {
     ensureSourceAvailable(trackLookup.source)
 
-    const trackDetail = await fetchTrackDetail(trackLookup, resolvedConfig)
+    let trackDetail: TrackDetail
+    try {
+      trackDetail = await fetchTrackDetail(trackLookup, resolvedConfig)
+    }
+    catch (error) {
+      if (trackLookup.source !== 'QQMusicClient') {
+        throw error
+      }
+
+      const fallbackDetail = await fetchQqTrackDetailFallback(songInfo, resolvedConfig)
+      if (!fallbackDetail) {
+        throw error
+      }
+      trackDetail = fallbackDetail
+    }
     if (!trackDetail.downloadUrl) {
       throw new MusicDlBridgeError('This track is not downloadable.')
     }

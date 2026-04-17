@@ -1,10 +1,23 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
-import { useLyrics } from '../composables/useLyrics'
+import { ShaderGradient, ShaderGradientCanvas } from '@shader-gradient/vue'
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
+import ProgressPreviewTooltip from '../components/ProgressPreviewTooltip.vue'
+import { useCoverPalette } from '../composables/useCoverPalette'
+import { findLyricLineAtTime, useLyrics } from '../composables/useLyrics'
 import { resolveApiUrl, useMusicQuery } from '../composables/useMusic'
 import { usePlayerState } from '../composables/usePlayerState'
+import { formatTrackSpecs } from '../utils/audio'
 
 const { data: tracks } = useMusicQuery()
+const progressTrack = ref<HTMLDivElement | null>(null)
+const volumeSlider = ref<HTMLInputElement | null>(null)
+const isScrubbing = ref(false)
+const isVolumeDragging = ref(false)
+const isProgressHovered = ref(false)
+const previewRatio = ref<number | null>(null)
+const hoverPreviewTime = ref<number | null>(null)
+const scrubPreviewTime = ref<number | null>(null)
+const volumePreview = ref<number | null>(null)
 const {
   currentTrackId,
   isPlaying,
@@ -42,9 +55,61 @@ const currentTrackCoverUrl = computed(() => {
   return resolveApiUrl(currentTrack.value.coverUrl)
 })
 
+const { colors: paletteColors } = useCoverPalette(currentTrackCoverUrl)
+
+const canvasProps = {
+  pixelDensity: 1.5,
+  fov: 45,
+  preserveDrawingBuffer: false,
+} as const
+
+const gradientProps = computed(() => ({
+  preset: 'deepOcean' as const,
+  type: 'sphere' as const,
+  animate: 'on' as const,
+  uTime: 0,
+  uSpeed: 0.15,
+  uStrength: 1.8,
+  uDensity: 0.9,
+  uFrequency: 4,
+  uAmplitude: 2.5,
+  range: false,
+  rangeStart: 0,
+  rangeEnd: 40,
+  loop: false,
+  loopDuration: 8,
+  positionX: 0,
+  positionY: 0,
+  positionZ: 0,
+  rotationX: 0,
+  rotationY: 0,
+  rotationZ: 120,
+  color1: paletteColors.value[0],
+  color2: paletteColors.value[1],
+  color3: paletteColors.value[2],
+  reflection: 0.4,
+  wireframe: false,
+  shader: 'aurora',
+  cAzimuthAngle: 200,
+  cPolarAngle: 110,
+  cDistance: 1.8,
+  cameraZoom: 13.5,
+  lightType: '3d' as const,
+  brightness: 1.4,
+  envPreset: 'city' as const,
+  grain: 'on' as const,
+  grainBlending: 0.6,
+  toggleAxis: false,
+  smoothTime: 0.18,
+  enableTransition: true,
+  enableCameraControls: true,
+  enableCameraUpdate: true,
+}))
+
 const title = computed(() => currentTrack.value?.title || currentTrack.value?.filename || 'No track selected')
 const artist = computed(() => currentTrack.value?.artists || 'Unknown Artist')
 const album = computed(() => currentTrack.value?.album || '')
+const trackSpecs = computed(() => currentTrack.value ? formatTrackSpecs(currentTrack.value) : '')
 
 const { parsed, isTimeSynced, plainText, currentLineIndex } = useLyrics(
   () => currentTrack.value?.lyrics,
@@ -53,6 +118,9 @@ const { parsed, isTimeSynced, plainText, currentLineIndex } = useLyrics(
 const hasLyrics = computed(() => Boolean(currentTrack.value?.lyrics?.trim()))
 
 const progress = computed(() => {
+  if (isScrubbing.value && scrubPreviewTime.value !== null && duration.value) {
+    return Math.min(100, (scrubPreviewTime.value / duration.value) * 100)
+  }
   if (!duration.value) {
     return 0
   }
@@ -79,7 +147,36 @@ const volumeIcon = computed(() => {
   return 'i-tabler-volume'
 })
 
-const effectiveVolume = computed(() => muted.value ? 0 : volume.value)
+const displayedCurrentTime = computed(() => {
+  if (isScrubbing.value && scrubPreviewTime.value !== null) {
+    return scrubPreviewTime.value
+  }
+  return currentTime.value
+})
+const previewTooltipVisible = computed(() =>
+  previewRatio.value !== null
+  && (hoverPreviewTime.value !== null || scrubPreviewTime.value !== null)
+  && (isScrubbing.value || isProgressHovered.value),
+)
+const previewTooltipLyric = computed(() => {
+  const previewTime = isScrubbing.value
+    ? scrubPreviewTime.value
+    : hoverPreviewTime.value
+  const line = findLyricLineAtTime(parsed.value, previewTime ?? currentTime.value)
+  return line?.text || 'No synced lyric'
+})
+const previewTooltipTimeLabel = computed(() => {
+  const previewTime = isScrubbing.value
+    ? scrubPreviewTime.value
+    : hoverPreviewTime.value
+  return formattedTime(previewTime ?? currentTime.value)
+})
+const effectiveVolume = computed(() => {
+  if (volumePreview.value !== null) {
+    return volumePreview.value
+  }
+  return muted.value ? 0 : volume.value
+})
 const volumeSliderStyle = computed(() => {
   const percent = Math.round(effectiveVolume.value * 100)
   return {
@@ -96,21 +193,123 @@ function formattedTime(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, '0')}`
 }
 
-function handleProgressClick(event: MouseEvent): void {
-  const target = event.currentTarget as HTMLElement
-  const rect = target.getBoundingClientRect()
-  const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width))
-  const newTime = ratio * (duration.value || 0)
+function getAudioElement(): HTMLAudioElement | null {
+  return document.querySelector('audio')
+}
+
+function ratioFromPointer(event: PointerEvent | MouseEvent): number {
+  const track = progressTrack.value
+  if (!track) {
+    return 0
+  }
+  const rect = track.getBoundingClientRect()
+  if (rect.width === 0) {
+    return 0
+  }
+  return Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width))
+}
+
+function setPreviewByRatio(ratio: number): void {
+  const total = duration.value || getAudioElement()?.duration || 0
+  if (!total) {
+    previewRatio.value = null
+    return
+  }
+  const clamped = Math.min(1, Math.max(0, ratio))
+  previewRatio.value = clamped
+  const previewTime = clamped * total
+  if (isScrubbing.value) {
+    scrubPreviewTime.value = previewTime
+    hoverPreviewTime.value = null
+  }
+  else {
+    hoverPreviewTime.value = previewTime
+  }
+}
+
+function clearProgressPreview(): void {
+  if (isScrubbing.value) {
+    return
+  }
+  isProgressHovered.value = false
+  previewRatio.value = null
+  hoverPreviewTime.value = null
+}
+
+function isPointerWithinTrack(event: PointerEvent): boolean {
+  const track = progressTrack.value
+  if (!track) {
+    return false
+  }
+  const rect = track.getBoundingClientRect()
+  return event.clientX >= rect.left
+    && event.clientX <= rect.right
+    && event.clientY >= rect.top
+    && event.clientY <= rect.bottom
+}
+
+function commitSeekByRatio(ratio: number): void {
+  const total = duration.value || getAudioElement()?.duration || 0
+  const newTime = Math.min(1, Math.max(0, ratio)) * total
   seekTo(newTime)
-  const audio = document.querySelector('audio')
+  scrubPreviewTime.value = null
+  const audio = getAudioElement()
   if (audio) {
     audio.currentTime = newTime
   }
 }
 
+function handleProgressPointerDown(event: PointerEvent): void {
+  isScrubbing.value = true
+  isProgressHovered.value = true
+  setPreviewByRatio(ratioFromPointer(event))
+  globalThis.addEventListener('pointermove', handleProgressPointerMove)
+  globalThis.addEventListener('pointerup', handleProgressPointerUp)
+  globalThis.addEventListener('pointercancel', handleProgressPointerUp)
+}
+
+function handleProgressPointerMove(event: PointerEvent): void {
+  if (!isScrubbing.value) {
+    return
+  }
+  setPreviewByRatio(ratioFromPointer(event))
+}
+
+function handleProgressPointerUp(event: PointerEvent): void {
+  if (!isScrubbing.value) {
+    return
+  }
+  commitSeekByRatio(ratioFromPointer(event))
+  isScrubbing.value = false
+  if (isPointerWithinTrack(event)) {
+    isProgressHovered.value = true
+    hoverPreviewTime.value = null
+    setPreviewByRatio(ratioFromPointer(event))
+  }
+  else {
+    clearProgressPreview()
+  }
+  globalThis.removeEventListener('pointermove', handleProgressPointerMove)
+  globalThis.removeEventListener('pointerup', handleProgressPointerUp)
+  globalThis.removeEventListener('pointercancel', handleProgressPointerUp)
+}
+
+function handleProgressPointerEnter(event: PointerEvent): void {
+  isProgressHovered.value = true
+  setPreviewByRatio(ratioFromPointer(event))
+}
+
+function handleProgressHoverMove(event: PointerEvent): void {
+  if (isScrubbing.value) {
+    return
+  }
+  isProgressHovered.value = true
+  setPreviewByRatio(ratioFromPointer(event))
+}
+
 function handleLyricClick(line: { time: number }): void {
   seekTo(line.time)
-  const audio = document.querySelector('audio')
+  const audio = getAudioElement()
   if (audio) {
     audio.currentTime = line.time
   }
@@ -121,7 +320,28 @@ function handleLyricClick(line: { time: number }): void {
 
 function handleVolumeInput(event: Event): void {
   const slider = event.target as HTMLInputElement
+  const nextVolume = Number(slider.value) / 100
+  if (isVolumeDragging.value) {
+    volumePreview.value = nextVolume
+    return
+  }
+  setVolume(nextVolume)
+}
+
+function handleVolumePointerDown(): void {
+  isVolumeDragging.value = true
+}
+
+function handleVolumeCommit(event?: Event): void {
+  const slider = event?.target instanceof HTMLInputElement
+    ? event.target
+    : volumeSlider.value
+  if (!slider) {
+    return
+  }
   setVolume(Number(slider.value) / 100)
+  volumePreview.value = null
+  isVolumeDragging.value = false
 }
 
 function pickNextId(direction: 'next' | 'prev'): string | null {
@@ -154,7 +374,7 @@ function pickNextId(direction: 'next' | 'prev'): string | null {
 
 function handleNext(): void {
   if (repeatMode.value === 'one') {
-    const audio = document.querySelector('audio')
+    const audio = getAudioElement()
     if (audio) {
       audio.currentTime = 0
       audio.play().catch(() => setPlaying(false))
@@ -175,7 +395,7 @@ function handlePrev(): void {
 }
 
 function togglePlayPause(): void {
-  const audio = document.querySelector('audio')
+  const audio = getAudioElement()
   if (!audio) {
     return
   }
@@ -208,12 +428,25 @@ watch(currentLineIndex, async (idx) => {
   const targetScroll = activeLine.offsetTop - container.offsetTop - containerRect.height / 2 + activeLine.offsetHeight / 2
   container.scrollTo({ top: targetScroll, behavior: 'smooth' })
 })
+
+onUnmounted(() => {
+  globalThis.removeEventListener('pointermove', handleProgressPointerMove)
+  globalThis.removeEventListener('pointerup', handleProgressPointerUp)
+  globalThis.removeEventListener('pointercancel', handleProgressPointerUp)
+})
 </script>
 
 <template>
   <section class="player-page">
-    <!-- Background blur -->
-    <div class="bg-cover-blur">
+    <!-- Animated shader gradient background -->
+    <div class="bg-shader">
+      <ShaderGradientCanvas
+        v-bind="canvasProps"
+        class="shader-canvas"
+        pointer-events="none"
+      >
+        <ShaderGradient v-bind="gradientProps" />
+      </ShaderGradientCanvas>
       <div
         v-if="currentTrackCoverUrl"
         class="bg-cover-image"
@@ -257,6 +490,12 @@ watch(currentLineIndex, async (idx) => {
               <template v-if="album">
                 · {{ album }}
               </template>
+            </p>
+            <p
+              v-if="trackSpecs"
+              class="track-specs"
+            >
+              {{ trackSpecs }}
             </p>
           </div>
 
@@ -314,8 +553,12 @@ watch(currentLineIndex, async (idx) => {
       <!-- Bottom controls -->
       <div class="player-bottom">
         <div
+          ref="progressTrack"
           class="progress-hit"
-          @click="handleProgressClick"
+          @pointerenter="handleProgressPointerEnter"
+          @pointerdown.prevent="handleProgressPointerDown"
+          @pointerleave="clearProgressPreview"
+          @pointermove="handleProgressHoverMove"
         >
           <div class="progress-track">
             <div
@@ -325,9 +568,16 @@ watch(currentLineIndex, async (idx) => {
               <div class="progress-thumb" />
             </div>
           </div>
+          <ProgressPreviewTooltip
+            :lyric="previewTooltipLyric"
+            :ratio="previewRatio"
+            :time-label="previewTooltipTimeLabel"
+            :track-element="progressTrack"
+            :visible="previewTooltipVisible"
+          />
         </div>
         <div class="progress-time">
-          <span>{{ formattedTime(currentTime) }}</span>
+          <span>{{ formattedTime(displayedCurrentTime) }}</span>
           <span>{{ formattedTime(duration) }}</span>
         </div>
 
@@ -384,14 +634,18 @@ watch(currentLineIndex, async (idx) => {
               <span :class="volumeIcon" />
             </button>
             <input
+              ref="volumeSlider"
               class="volume-slider"
               max="100"
               min="0"
               step="1"
               type="range"
-              :value="muted ? 0 : Math.round(volume * 100)"
+              :value="Math.round(effectiveVolume * 100)"
               :style="volumeSliderStyle"
               @input="handleVolumeInput"
+              @change="handleVolumeCommit"
+              @pointerdown="handleVolumePointerDown"
+              @pointerup="handleVolumeCommit"
             >
           </div>
         </div>
@@ -406,19 +660,20 @@ watch(currentLineIndex, async (idx) => {
   height: 100vh;
 }
 
-@media (min-width: 768px) {
-  .player-page {
-    height: calc(100vh - 3.5rem);
-  }
-}
-
 /* ---- Background ---- */
-.bg-cover-blur {
+.bg-shader {
   position: fixed;
   inset: 0;
   overflow: hidden;
   z-index: 0;
   pointer-events: none;
+  background: #0e0e10;
+}
+.shader-canvas {
+  position: absolute !important;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 .bg-cover-image {
   position: absolute;
@@ -426,17 +681,18 @@ watch(currentLineIndex, async (idx) => {
   background-size: cover;
   background-position: center;
   filter: blur(80px) saturate(1.4) brightness(0.6);
-  opacity: 0.5;
+  opacity: 0.18;
   transform: scale(1.3);
+  mix-blend-mode: soft-light;
 }
 .bg-cover-overlay {
   position: absolute;
   inset: 0;
   background: linear-gradient(
     180deg,
-    rgba(14, 14, 16, 0.4) 0%,
-    rgba(14, 14, 16, 0.7) 50%,
-    rgba(14, 14, 16, 0.92) 100%
+    rgba(14, 14, 16, 0.25) 0%,
+    rgba(14, 14, 16, 0.55) 55%,
+    rgba(14, 14, 16, 0.85) 100%
   );
 }
 
@@ -455,13 +711,13 @@ watch(currentLineIndex, async (idx) => {
 
 @media (min-width: 768px) {
   .player-layout {
-    padding: 2.5rem 3rem;
+    padding: 5rem 3rem 2.5rem;
   }
 }
 
 @media (min-width: 1200px) {
   .player-layout {
-    padding: 2.5rem 4rem;
+    padding: 5rem 4rem 2.5rem;
   }
 }
 
@@ -524,6 +780,14 @@ watch(currentLineIndex, async (idx) => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.track-specs {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.36);
+  margin-top: 0.25rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* ---- Right panel ---- */
 .player-right {
@@ -572,6 +836,9 @@ watch(currentLineIndex, async (idx) => {
     font-size: 0.9375rem;
     margin-top: 0.25rem;
   }
+  .track-specs {
+    font-size: 0.8125rem;
+  }
 }
 
 @media (min-width: 1200px) {
@@ -592,6 +859,12 @@ watch(currentLineIndex, async (idx) => {
 .lyrics-scroll {
   height: 100%;
   overflow-y: auto;
+  scrollbar-width: none;
+}
+.lyrics-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 .lyrics-pad {

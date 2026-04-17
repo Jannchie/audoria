@@ -1,16 +1,24 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { findLyricLineAtTime, useLyrics } from '../composables/useLyrics'
 import { buildDownloadUrl, resolveApiUrl, useMusicQuery } from '../composables/useMusic'
 import { usePlayerState } from '../composables/usePlayerState'
 import IconButton from './IconButton.vue'
+import ProgressPreviewTooltip from './ProgressPreviewTooltip.vue'
 
 const router = useRouter()
 const route = useRoute()
 const audioRef = ref<HTMLAudioElement | null>(null)
 const progressTrack = ref<HTMLDivElement | null>(null)
+const volumeSlider = ref<HTMLInputElement | null>(null)
 const isScrubbing = ref(false)
-let shouldResumeAfterScrub = false
+const isVolumeDragging = ref(false)
+const isProgressHovered = ref(false)
+const previewRatio = ref<number | null>(null)
+const hoverPreviewTime = ref<number | null>(null)
+const scrubPreviewTime = ref<number | null>(null)
+const volumePreview = ref<number | null>(null)
 const { data: tracks } = useMusicQuery()
 const {
   currentTrackId,
@@ -32,50 +40,102 @@ const {
 
 const currentTrack = computed(() => {
   const items = tracks.value ?? []
-  if (items.length === 0) return null
+  if (items.length === 0) {
+    return null
+  }
   return items.find(item => item.id === currentTrackId.value) ?? items[0]
 })
 
 const resolvedCurrentTrackId = computed(() => currentTrack.value?.id ?? null)
 
 const audioSrc = computed(() => {
-  if (!currentTrack.value) return ''
+  if (!currentTrack.value) {
+    return ''
+  }
   return buildDownloadUrl(currentTrack.value.id)
 })
 
 const currentTrackCoverUrl = computed(() => {
-  if (!currentTrack.value?.coverUrl) return ''
+  if (!currentTrack.value?.coverUrl) {
+    return ''
+  }
   return resolveApiUrl(currentTrack.value.coverUrl)
 })
 const isPlayerPage = computed(() => route.path === '/player')
+const { parsed } = useLyrics(() => currentTrack.value?.lyrics)
 
 const progress = computed(() => {
-  if (!duration.value) return 0
+  if (isScrubbing.value && scrubPreviewTime.value !== null && duration.value) {
+    return Math.min(100, (scrubPreviewTime.value / duration.value) * 100)
+  }
+  if (!duration.value) {
+    return 0
+  }
   return Math.min(100, (currentTime.value / duration.value) * 100)
 })
 
 const repeatIcon = computed(() => {
-  if (repeatMode.value === 'one') return 'i-tabler-repeat-once'
-  if (repeatMode.value === 'off') return 'i-tabler-repeat-off'
+  if (repeatMode.value === 'one') {
+    return 'i-tabler-repeat-once'
+  }
+  if (repeatMode.value === 'off') {
+    return 'i-tabler-repeat-off'
+  }
   return 'i-tabler-repeat'
 })
 
 const volumeIcon = computed(() => {
-  if (muted.value || volume.value === 0) return 'i-tabler-volume-off'
-  if (volume.value < 0.5) return 'i-tabler-volume-2'
+  if (muted.value || volume.value === 0) {
+    return 'i-tabler-volume-off'
+  }
+  if (volume.value < 0.5) {
+    return 'i-tabler-volume-2'
+  }
   return 'i-tabler-volume'
 })
 
-const effectiveVolume = computed(() => muted.value ? 0 : volume.value)
+const displayedCurrentTime = computed(() => {
+  if (isScrubbing.value && scrubPreviewTime.value !== null) {
+    return scrubPreviewTime.value
+  }
+  return currentTime.value
+})
+const previewTooltipVisible = computed(() =>
+  previewRatio.value !== null
+  && (hoverPreviewTime.value !== null || scrubPreviewTime.value !== null)
+  && (isScrubbing.value || isProgressHovered.value),
+)
+const previewTooltipLyric = computed(() => {
+  const previewTime = isScrubbing.value
+    ? scrubPreviewTime.value
+    : hoverPreviewTime.value
+  const line = findLyricLineAtTime(parsed.value, previewTime ?? currentTime.value)
+  return line?.text || 'No synced lyric'
+})
+const previewTooltipTimeLabel = computed(() => {
+  const previewTime = isScrubbing.value
+    ? scrubPreviewTime.value
+    : hoverPreviewTime.value
+  return formattedTime(previewTime ?? currentTime.value)
+})
+const displayedVolume = computed(() => {
+  if (volumePreview.value !== null) {
+    return volumePreview.value
+  }
+  return muted.value ? 0 : volume.value
+})
+const actualAudioVolume = computed(() => muted.value ? 0 : volume.value)
 const volumeSliderStyle = computed(() => {
-  const percent = Math.round(effectiveVolume.value * 100)
+  const percent = Math.round(displayedVolume.value * 100)
   return {
     background: `linear-gradient(to right, var(--accent) 0%, var(--accent) ${percent}%, var(--bg-surface) ${percent}%, var(--bg-surface) 100%)`,
   }
 })
 
 function formattedTime(seconds: number): string {
-  if (!Number.isFinite(seconds)) return '0:00'
+  if (!Number.isFinite(seconds)) {
+    return '0:00'
+  }
   const mins = Math.floor(seconds / 60)
   const secs = Math.floor(seconds % 60)
   return `${mins}:${secs.toString().padStart(2, '0')}`
@@ -83,13 +143,17 @@ function formattedTime(seconds: number): string {
 
 function handleTimeUpdate(): void {
   const audio = audioRef.value
-  if (!audio) return
+  if (!audio) {
+    return
+  }
   updateProgress(audio.currentTime, audio.duration || duration.value)
 }
 
 function handleLoaded(): void {
   const audio = audioRef.value
-  if (!audio) return
+  if (!audio) {
+    return
+  }
   updateProgress(audio.currentTime, audio.duration || 0)
   if (isPlaying.value) {
     audio.play().catch(() => {})
@@ -98,21 +162,29 @@ function handleLoaded(): void {
 
 function pickNextId(direction: 'next' | 'prev'): string | null {
   const items = tracks.value ?? []
-  if (items.length === 0) return null
+  if (items.length === 0) {
+    return null
+  }
   if (shuffle.value) {
     const others = items.filter(item => item.id !== resolvedCurrentTrackId.value)
     const pool = others.length > 0 ? others : items
     return pool[Math.floor(Math.random() * pool.length)]?.id ?? null
   }
   const index = items.findIndex(item => item.id === resolvedCurrentTrackId.value)
-  if (index === -1) return items[0]?.id ?? null
+  if (index === -1) {
+    return items[0]?.id ?? null
+  }
   if (direction === 'next') {
     const next = items[index + 1]
-    if (next) return next.id
+    if (next) {
+      return next.id
+    }
     return repeatMode.value === 'all' ? items[0]?.id ?? null : null
   }
   const prev = items[index - 1]
-  if (prev) return prev.id
+  if (prev) {
+    return prev.id
+  }
   return repeatMode.value === 'all' ? items.at(-1)?.id ?? null : null
 }
 
@@ -126,18 +198,26 @@ function handleNext(): void {
     return
   }
   const nextId = pickNextId('next')
-  if (nextId) { selectTrack(nextId); setPlaying(true) }
-  else { setPlaying(false) }
+  if (nextId) {
+    selectTrack(nextId); setPlaying(true)
+  }
+  else {
+    setPlaying(false)
+  }
 }
 
 function handlePrev(): void {
   const prevId = pickNextId('prev')
-  if (prevId) { selectTrack(prevId); setPlaying(true) }
+  if (prevId) {
+    selectTrack(prevId); setPlaying(true)
+  }
 }
 
 function togglePlayPause(): void {
   const audio = audioRef.value
-  if (!audio) return
+  if (!audio) {
+    return
+  }
   if (audio.paused) {
     if (!currentTrackId.value && resolvedCurrentTrackId.value) {
       selectTrack(resolvedCurrentTrackId.value)
@@ -150,60 +230,120 @@ function togglePlayPause(): void {
   }
 }
 
-function handleSeek(event: Event): void {
-  const slider = event.target as HTMLInputElement
-  const audio = audioRef.value
-  if (!audio) return
-  const total = audio.duration || duration.value || 0
-  if (!total) return
-  const value = Number(slider.value)
-  const newTime = Math.min(total, Math.max(0, (value / 100) * total))
-  audio.currentTime = newTime
-  updateProgress(newTime, total)
-}
-
 function ratioFromPointer(event: PointerEvent | MouseEvent): number {
   const track = progressTrack.value
-  if (!track) return 0
+  if (!track) {
+    return 0
+  }
   const rect = track.getBoundingClientRect()
-  if (rect.width === 0) return 0
+  if (rect.width === 0) {
+    return 0
+  }
   const clientX = 'clientX' in event ? event.clientX : 0
   return Math.min(1, Math.max(0, (clientX - rect.left) / rect.width))
 }
 
-function seekByRatio(ratio: number, shouldResume: boolean): void {
+function setPreviewByRatio(ratio: number): void {
+  const total = duration.value || audioRef.value?.duration || 0
+  if (!total) {
+    previewRatio.value = null
+    return
+  }
+  const clamped = Math.min(1, Math.max(0, ratio))
+  previewRatio.value = clamped
+  const previewTime = clamped * total
+  if (isScrubbing.value) {
+    scrubPreviewTime.value = previewTime
+    hoverPreviewTime.value = null
+  }
+  else {
+    hoverPreviewTime.value = previewTime
+  }
+}
+
+function clearProgressPreview(): void {
+  if (isScrubbing.value) {
+    return
+  }
+  isProgressHovered.value = false
+  previewRatio.value = null
+  hoverPreviewTime.value = null
+}
+
+function isPointerWithinTrack(event: PointerEvent): boolean {
+  const track = progressTrack.value
+  if (!track) {
+    return false
+  }
+  const rect = track.getBoundingClientRect()
+  return event.clientX >= rect.left
+    && event.clientX <= rect.right
+    && event.clientY >= rect.top
+    && event.clientY <= rect.bottom
+}
+
+function commitSeekByRatio(ratio: number): void {
   const audio = audioRef.value
-  if (!audio) return
+  if (!audio) {
+    return
+  }
   const total = audio.duration || duration.value || 0
-  if (!total) return
+  if (!total) {
+    return
+  }
   const clamped = Math.min(1, Math.max(0, ratio))
   const newTime = clamped * total
   audio.currentTime = newTime
   updateProgress(newTime, total)
-  if (shouldResume) {
-    audio.play().catch(() => setPlaying(false))
-  }
+  scrubPreviewTime.value = null
 }
 
 function handleProgressPointerDown(event: PointerEvent): void {
-  shouldResumeAfterScrub = isPlaying.value
   isScrubbing.value = true
-  seekByRatio(ratioFromPointer(event), shouldResumeAfterScrub)
+  isProgressHovered.value = true
+  setPreviewByRatio(ratioFromPointer(event))
   globalThis.addEventListener('pointermove', handleProgressPointerMove)
   globalThis.addEventListener('pointerup', handleProgressPointerUp)
+  globalThis.addEventListener('pointercancel', handleProgressPointerUp)
 }
 
 function handleProgressPointerMove(event: PointerEvent): void {
-  if (!isScrubbing.value) return
-  seekByRatio(ratioFromPointer(event), false)
+  if (!isScrubbing.value) {
+    return
+  }
+  setPreviewByRatio(ratioFromPointer(event))
 }
 
 function handleProgressPointerUp(event: PointerEvent): void {
-  if (!isScrubbing.value) return
-  seekByRatio(ratioFromPointer(event), shouldResumeAfterScrub)
+  if (!isScrubbing.value) {
+    return
+  }
+  commitSeekByRatio(ratioFromPointer(event))
   isScrubbing.value = false
+  if (isPointerWithinTrack(event)) {
+    isProgressHovered.value = true
+    hoverPreviewTime.value = null
+    setPreviewByRatio(ratioFromPointer(event))
+  }
+  else {
+    clearProgressPreview()
+  }
   globalThis.removeEventListener('pointermove', handleProgressPointerMove)
   globalThis.removeEventListener('pointerup', handleProgressPointerUp)
+  globalThis.removeEventListener('pointercancel', handleProgressPointerUp)
+}
+
+function handleProgressPointerEnter(event: PointerEvent): void {
+  isProgressHovered.value = true
+  setPreviewByRatio(ratioFromPointer(event))
+}
+
+function handleProgressHoverMove(event: PointerEvent): void {
+  if (isScrubbing.value) {
+    return
+  }
+  isProgressHovered.value = true
+  setPreviewByRatio(ratioFromPointer(event))
 }
 
 function handleEnded(): void {
@@ -216,18 +356,43 @@ function goToPlayer(): void {
 
 function handleVolumeInput(event: Event): void {
   const slider = event.target as HTMLInputElement
+  const nextVolume = Number(slider.value) / 100
+  if (isVolumeDragging.value) {
+    volumePreview.value = nextVolume
+    return
+  }
+  setVolume(nextVolume)
+}
+
+function handleVolumePointerDown(): void {
+  isVolumeDragging.value = true
+}
+
+function handleVolumeCommit(event?: Event): void {
+  const slider = event?.target instanceof HTMLInputElement
+    ? event.target
+    : volumeSlider.value
+  if (!slider) {
+    return
+  }
   setVolume(Number(slider.value) / 100)
+  volumePreview.value = null
+  isVolumeDragging.value = false
 }
 
 // Sync volume to audio element
-watch(effectiveVolume, (v) => {
+watch(actualAudioVolume, (v) => {
   const audio = audioRef.value
-  if (audio) audio.volume = v
+  if (audio) {
+    audio.volume = v
+  }
 }, { immediate: true })
 
 watch(audioSrc, (src) => {
   const audio = audioRef.value
-  if (!audio) return
+  if (!audio) {
+    return
+  }
   audio.autoplay = isPlaying.value
   audio.src = src
   audio.load()
@@ -239,7 +404,9 @@ watch(audioSrc, (src) => {
 
 watch(isPlaying, (playing) => {
   const audio = audioRef.value
-  if (!audio) return
+  if (!audio) {
+    return
+  }
   audio.autoplay = playing
   if (playing) {
     audio.play().catch(() => setPlaying(false))
@@ -251,16 +418,23 @@ watch(isPlaying, (playing) => {
 
 onMounted(() => {
   const audio = audioRef.value
-  if (!audio) return
-  audio.volume = effectiveVolume.value
+  if (!audio) {
+    return
+  }
+  audio.volume = actualAudioVolume.value
   audio.addEventListener('timeupdate', handleTimeUpdate)
   audio.addEventListener('loadedmetadata', handleLoaded)
   audio.addEventListener('ended', handleEnded)
 })
 
 onUnmounted(() => {
+  globalThis.removeEventListener('pointermove', handleProgressPointerMove)
+  globalThis.removeEventListener('pointerup', handleProgressPointerUp)
+  globalThis.removeEventListener('pointercancel', handleProgressPointerUp)
   const audio = audioRef.value
-  if (!audio) return
+  if (!audio) {
+    return
+  }
   audio.removeEventListener('timeupdate', handleTimeUpdate)
   audio.removeEventListener('loadedmetadata', handleLoaded)
   audio.removeEventListener('ended', handleEnded)
@@ -276,7 +450,10 @@ onUnmounted(() => {
     <div
       ref="progressTrack"
       class="py-2 w-full cursor-pointer relative"
+      @pointerenter="handleProgressPointerEnter"
       @pointerdown.prevent="handleProgressPointerDown"
+      @pointerleave="clearProgressPreview"
+      @pointermove="handleProgressHoverMove"
     >
       <div class="bg-[var(--bg-surface)] h-0.5 w-full relative">
         <div
@@ -284,6 +461,13 @@ onUnmounted(() => {
           :style="{ width: `${progress}%` }"
         />
       </div>
+      <ProgressPreviewTooltip
+        :lyric="previewTooltipLyric"
+        :ratio="previewRatio"
+        :time-label="previewTooltipTimeLabel"
+        :track-element="progressTrack"
+        :visible="previewTooltipVisible"
+      />
     </div>
 
     <div class="playerbar-content">
@@ -315,7 +499,7 @@ onUnmounted(() => {
               v-if="currentTrack?.artists"
               class="mx-1"
             >·</span>
-            <span class="tabular-nums">{{ formattedTime(currentTime) }} / {{ formattedTime(duration) }}</span>
+            <span class="tabular-nums">{{ formattedTime(displayedCurrentTime) }} / {{ formattedTime(duration) }}</span>
           </p>
         </div>
       </button>
@@ -361,7 +545,7 @@ onUnmounted(() => {
       </div>
 
       <!-- Volume (desktop only) -->
-      <div class="playerbar-volume hidden gap-1 items-center lg:flex">
+      <div class="playerbar-volume gap-1 hidden items-center lg:flex">
         <IconButton
           aria-label="Toggle mute"
           :icon="volumeIcon"
@@ -369,28 +553,22 @@ onUnmounted(() => {
           @click="toggleMute"
         />
         <input
+          ref="volumeSlider"
           class="volume-slider"
           max="100"
           min="0"
           step="1"
           type="range"
-          :value="muted ? 0 : Math.round(volume * 100)"
+          :value="Math.round(displayedVolume * 100)"
           :style="volumeSliderStyle"
           @input="handleVolumeInput"
+          @change="handleVolumeCommit"
+          @pointerdown="handleVolumePointerDown"
+          @pointerup="handleVolumeCommit"
         >
       </div>
     </div>
-
   </footer>
-  <input
-    class="opacity-0 h-px w-px pointer-events-none absolute"
-    max="100"
-    min="0"
-    step="0.1"
-    type="range"
-    :value="progress"
-    @input="handleSeek"
-  >
   <audio
     ref="audioRef"
     class="hidden"

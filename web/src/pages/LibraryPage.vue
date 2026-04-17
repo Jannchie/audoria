@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import SoundWave from '../components/SoundWave.vue'
 import { resolveApiUrl, useDeleteMusic, useMusicQuery } from '../composables/useMusic'
 import { usePlayerState } from '../composables/usePlayerState'
+import { formatTrackSpecs } from '../utils/audio'
 
 const librarySearchStateKey = 'audoria.library-search'
 
@@ -13,16 +13,18 @@ const { data: tracks, isPending, isError, error } = useMusicQuery()
 const deleteMutation = useDeleteMusic()
 const { currentTrackId, isPlaying, selectTrack, setPlaying } = usePlayerState()
 
-const search = ref(window.sessionStorage.getItem(librarySearchStateKey) ?? '')
+const search = ref(globalThis.sessionStorage.getItem(librarySearchStateKey) ?? '')
 
 watch(search, (value) => {
-  window.sessionStorage.setItem(librarySearchStateKey, value)
+  globalThis.sessionStorage.setItem(librarySearchStateKey, value)
 })
 
 const filteredTracks = computed(() => {
   const keyword = search.value.trim().toLowerCase()
   const list = tracks.value ?? []
-  if (!keyword) return list
+  if (!keyword) {
+    return list
+  }
   return list.filter((item) => {
     const searchable = [item.filename, item.title, item.artists, item.album]
       .filter(Boolean)
@@ -173,11 +175,16 @@ async function handleDelete(id: string): Promise<void> {
           <p class="track-sub">
             <template v-if="track.artists">
               {{ track.artists }}
-              <template v-if="track.album"> · {{ track.album }}</template>
+              <template v-if="track.album">
+                · {{ track.album }}
+              </template>
             </template>
             <template v-else>
               {{ track.filename }}
             </template>
+          </p>
+          <p class="track-sub track-sub--secondary">
+            {{ formatTrackSpecs(track) }}
           </p>
         </div>
 
@@ -389,6 +396,10 @@ async function handleDelete(id: string): Promise<void> {
   overflow: hidden;
   text-overflow: ellipsis;
   margin-top: 0.125rem;
+}
+
+.track-sub--secondary {
+  opacity: 0.8;
 }
 
 .track-right {

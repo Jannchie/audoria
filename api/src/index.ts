@@ -96,6 +96,7 @@ const MusicDlSourceSchema = z.enum(musicDlSources).openapi('MusicDlSource')
 const MusicDlSearchRequestSchema = z.object({
   keyword: z.string().trim().min(1).max(120),
   source: MusicDlSourceSchema.optional(),
+  limitPerSource: z.number().int().min(1).max(50).optional(),
 }).openapi('MusicDlSearchRequest')
 
 const MusicDlSearchResultSchema = z.object({
@@ -252,8 +253,8 @@ const searchImportRoute = createRoute({
 app.openapi(searchImportRoute, async (c) => {
   try {
     pruneExpiredMusicImportCandidates()
-    const { keyword, source } = c.req.valid('json')
-    const results = await searchMusicDl(keyword, source, config.musicdl)
+    const { keyword, source, limitPerSource } = c.req.valid('json')
+    const results = await searchMusicDl(keyword, source, config.musicdl, limitPerSource)
 
     const candidateRecords = insertMusicImportCandidates(results.map(item => ({
       source: item.display.source || source || 'UnknownSource',

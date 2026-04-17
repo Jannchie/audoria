@@ -68,11 +68,20 @@ export function useDeleteMusic() {
 
 export function useSearchMusicImport() {
   return useMutation({
-    mutationFn: async ({ keyword, source }: { keyword: string, source?: MusicDlSource }): Promise<MusicDlSearchResult[]> => {
+    mutationFn: async ({
+      keyword,
+      source,
+      limitPerSource,
+    }: {
+      keyword: string
+      source?: MusicDlSource
+      limitPerSource?: number
+    }): Promise<MusicDlSearchResult[]> => {
       const response = await postMusicImportsSearch({
         body: {
           keyword,
           source,
+          limitPerSource,
         },
         throwOnError: true,
       })

@@ -17,7 +17,9 @@ const isUploading = computed<boolean>(() => uploadMutation.isPending.value)
 
 const uploadErrorMessage = computed(() => {
   const err = uploadMutation.error.value
-  if (!err) return ''
+  if (!err) {
+    return ''
+  }
   return err instanceof Error ? err.message : 'Failed to upload. Please retry.'
 })
 
@@ -65,8 +67,12 @@ function handleUpload(): void {
 }
 
 function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  if (bytes < 1024) {
+    return `${bytes} B`
+  }
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`
+  }
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 </script>

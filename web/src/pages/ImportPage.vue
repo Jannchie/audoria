@@ -2,12 +2,14 @@
 import type { MusicDlSearchResult, MusicDlSource } from '../api/types.gen'
 import { useQueryClient } from '@tanstack/vue-query'
 import { computed, ref, watch } from 'vue'
-import { useImportJobQuery, useImportMusic, useSearchMusicImport } from '../composables/useMusic'
+import { useImportJobQuery, useImportMusic, useMusicQuery, useSearchMusicImport } from '../composables/useMusic'
+import { formatTrackSpecs } from '../utils/audio'
 
 const importPageStateKey = 'audoria.import-page-state'
-type PersistedImportPageState = {
+interface PersistedImportPageState {
   searchKeyword: string
   selectedSource: MusicDlSource | null
+  limitPerSource: number
   searchResults: MusicDlSearchResult[]
   activeImportResultId: string | null
   activeImportJobId: string | null
@@ -15,10 +17,15 @@ type PersistedImportPageState = {
   hasSearchedOnce: boolean
 }
 
+const initialLimitPerSource = 10
+const loadMoreStep = 10
+
 function loadPersistedImportPageState(): PersistedImportPageState | null {
   try {
-    const raw = window.sessionStorage.getItem(importPageStateKey)
-    if (!raw) return null
+    const raw = globalThis.sessionStorage.getItem(importPageStateKey)
+    if (!raw) {
+      return null
+    }
     return JSON.parse(raw) as PersistedImportPageState
   }
   catch {
@@ -27,7 +34,7 @@ function loadPersistedImportPageState(): PersistedImportPageState | null {
 }
 
 function savePersistedImportPageState(state: PersistedImportPageState): void {
-  window.sessionStorage.setItem(importPageStateKey, JSON.stringify(state))
+  globalThis.sessionStorage.setItem(importPageStateKey, JSON.stringify(state))
 }
 
 const persistedState = loadPersistedImportPageState()
@@ -65,12 +72,14 @@ function getSourceDisplay(source: string): { label: string, icon: string } {
 }
 
 const queryClient = useQueryClient()
+const { data: tracks } = useMusicQuery()
 const searchKeyword = ref(persistedState?.searchKeyword ?? '')
 const selectedSource = ref<MusicDlSource | null>(
   persistedState?.selectedSource && isMusicDlSource(persistedState.selectedSource)
     ? persistedState.selectedSource
     : null,
 )
+const limitPerSource = ref(Math.max(1, persistedState?.limitPerSource ?? initialLimitPerSource))
 const searchResults = ref<MusicDlSearchResult[]>(persistedState?.searchResults ?? [])
 const activeImportResultId = ref<string | null>(persistedState?.activeImportResultId ?? null)
 const activeImportJobId = ref<string | null>(persistedState?.activeImportJobId ?? null)
@@ -82,17 +91,29 @@ const importJobQuery = useImportJobQuery(activeImportJobId)
 
 const isSearching = computed<boolean>(() => searchMutation.isPending.value)
 const hasSearched = computed(() => hasSearchedOnce.value || searchMutation.isSuccess.value || searchResults.value.length > 0)
+const isLoadingMore = computed(() => isSearching.value && hasSearched.value && searchResults.value.length > 0)
 const currentImportJob = computed(() => activeImportJobId.value ? (importJobQuery.data.value ?? null) : null)
+const completedTrack = computed(() => {
+  const trackId = currentImportJob.value?.trackId
+  if (!trackId) {
+    return null
+  }
+  return (tracks.value ?? []).find(track => track.id === trackId) ?? null
+})
 
 const searchErrorMessage = computed(() => {
   const err = searchMutation.error.value
-  if (!err) return ''
+  if (!err) {
+    return ''
+  }
   return extractErrorMessage(err, 'Search failed. Please retry.')
 })
 
 const importErrorMessage = computed(() => {
   const err = importMutation.error.value
-  if (!err) return ''
+  if (!err) {
+    return ''
+  }
   return extractErrorMessage(err, 'Import failed.')
 })
 
@@ -107,14 +128,20 @@ function extractErrorMessage(error: unknown, fallback: string): string {
 }
 
 function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  if (bytes < 1024) {
+    return `${bytes} B`
+  }
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`
+  }
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 const importProgress = computed(() => {
   const job = currentImportJob.value
-  if (!job || job.status !== 'running') return null
+  if (!job || job.status !== 'running') {
+    return null
+  }
 
   return {
     progressBytes: typeof job.progressBytes === 'number' ? job.progressBytes : 0,
@@ -125,8 +152,12 @@ const importProgress = computed(() => {
 
 const importJobMessage = computed(() => {
   const job = currentImportJob.value
-  if (!job) return ''
-  if (job.status === 'queued') return `Queued: ${job.songName}`
+  if (!job) {
+    return ''
+  }
+  if (job.status === 'queued') {
+    return `Queued: ${job.songName}`
+  }
   if (job.status === 'running') {
     if (importProgress.value?.progressPercent !== null && importProgress.value) {
       return `Importing: ${job.songName}... ${importProgress.value.progressPercent}%`
@@ -136,14 +167,25 @@ const importJobMessage = computed(() => {
     }
     return `Importing: ${job.songName}...`
   }
-  if (job.status === 'succeeded') return `Done!`
+  if (job.status === 'succeeded') {
+    if (completedTrack.value) {
+      return `Done: ${job.songName} · ${formatTrackSpecs(completedTrack.value)}`
+    }
+    return `Done: ${job.songName}`
+  }
   return job.errorMessage || `Failed: ${job.songName}`
 })
 
 const statusMessage = computed(() => {
-  if (importFormError.value) return { text: importFormError.value, type: 'error' }
-  if (searchErrorMessage.value) return { text: searchErrorMessage.value, type: 'error' }
-  if (importErrorMessage.value) return { text: importErrorMessage.value, type: 'error' }
+  if (importFormError.value) {
+    return { text: importFormError.value, type: 'error' }
+  }
+  if (searchErrorMessage.value) {
+    return { text: searchErrorMessage.value, type: 'error' }
+  }
+  if (importErrorMessage.value) {
+    return { text: importErrorMessage.value, type: 'error' }
+  }
   if (currentImportJob.value) {
     const s = currentImportJob.value.status
     return {
@@ -155,18 +197,21 @@ const statusMessage = computed(() => {
 })
 
 watch(currentImportJob, (job) => {
-  if (!job) return
+  if (!job) {
+    return
+  }
   if (job.status === 'succeeded' && job.trackId) {
     queryClient.invalidateQueries({ queryKey: ['music'] }).catch(() => {})
   }
 })
 
 watch(
-  [searchKeyword, selectedSource, searchResults, activeImportResultId, activeImportJobId, importFormError, hasSearchedOnce],
+  [searchKeyword, selectedSource, limitPerSource, searchResults, activeImportResultId, activeImportJobId, importFormError, hasSearchedOnce],
   () => {
     savePersistedImportPageState({
       searchKeyword: searchKeyword.value,
       selectedSource: selectedSource.value,
+      limitPerSource: limitPerSource.value,
       searchResults: searchResults.value,
       activeImportResultId: activeImportResultId.value,
       activeImportJobId: activeImportJobId.value,
@@ -183,7 +228,7 @@ function resetImportState(): void {
   importMutation.reset()
 }
 
-function handleSearch(): void {
+function runSearch(nextLimitPerSource: number, clearExistingResults: boolean): void {
   const keyword = searchKeyword.value.trim()
   if (!keyword) {
     importFormError.value = 'Enter a keyword to search.'
@@ -191,30 +236,57 @@ function handleSearch(): void {
   }
   importFormError.value = ''
   hasSearchedOnce.value = true
-  searchResults.value = []
-  resetImportState()
+  limitPerSource.value = nextLimitPerSource
+  if (clearExistingResults) {
+    searchResults.value = []
+    resetImportState()
+  }
   searchMutation.mutate({
     keyword,
     source: selectedSource.value ?? undefined,
+    limitPerSource: nextLimitPerSource,
   }, {
-    onSuccess: (results) => { searchResults.value = results },
+    onSuccess: (results) => {
+      searchResults.value = results
+    },
   })
 }
 
+function handleSearch(): void {
+  runSearch(initialLimitPerSource, true)
+}
+
+function handleLoadMore(): void {
+  if (isSearching.value) {
+    return
+  }
+  runSearch(limitPerSource.value + loadMoreStep, false)
+}
+
 function handleImport(result: MusicDlSearchResult): void {
-  if (!result.downloadable) return
+  if (!result.downloadable) {
+    return
+  }
   importFormError.value = ''
   activeImportResultId.value = result.id
   activeImportJobId.value = null
   importMutation.mutate(result.id, {
-    onSuccess: (job) => { activeImportJobId.value = job.id },
-    onError: () => { activeImportResultId.value = null },
+    onSuccess: (job) => {
+      activeImportJobId.value = job.id
+    },
+    onError: () => {
+      activeImportResultId.value = null
+    },
   })
 }
 
 function isImporting(id: string): boolean {
-  if (activeImportResultId.value !== id) return false
-  if (importMutation.isPending.value) return true
+  if (activeImportResultId.value !== id) {
+    return false
+  }
+  if (importMutation.isPending.value) {
+    return true
+  }
   const status = currentImportJob.value?.status
   return status === 'queued' || status === 'running'
 }
@@ -363,7 +435,9 @@ function isImporting(id: string): boolean {
           </p>
           <p class="result-sub">
             {{ result.singers }}
-            <template v-if="result.album"> · {{ result.album }}</template>
+            <template v-if="result.album">
+              · {{ result.album }}
+            </template>
           </p>
         </div>
 
@@ -381,13 +455,29 @@ function isImporting(id: string): boolean {
           />
           <span
             v-else-if="result.downloadable"
-            class="i-tabler-download text-base result-dl-icon"
+            class="i-tabler-download result-dl-icon text-base"
           />
           <span
             v-else
             class="text-[10px] text-[var(--text-tertiary)]"
           >N/A</span>
         </div>
+      </button>
+      <button
+        type="button"
+        class="load-more-btn"
+        :disabled="isSearching"
+        @click="handleLoadMore"
+      >
+        <span
+          v-if="isLoadingMore"
+          class="i-tabler-loader-2 animate-spin"
+        />
+        <span
+          v-else
+          class="i-tabler-plus"
+        />
+        {{ isLoadingMore ? 'Loading more...' : `Load more (${limitPerSource + loadMoreStep} per source)` }}
       </button>
     </div>
 
@@ -611,6 +701,32 @@ function isImporting(id: string): boolean {
 .result-list {
   display: flex;
   flex-direction: column;
+}
+
+.load-more-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  min-height: 2.5rem;
+  margin-top: 0.75rem;
+  border: none;
+  border-radius: 0.75rem;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.load-more-btn:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.load-more-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
 }
 
 .result-row {
