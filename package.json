@@ -15,6 +15,6 @@
     "@unocss/eslint-plugin": "^66.6.8",
     "concurrently": "^9.2.1",
     "eslint": "^10.2.0",
-    "typescript": "^6.0.2"
+    "typescript": "^6.0.3"
   }
 }

@@ -9,6 +9,7 @@ const route = useRoute()
 const navItems = [
   { name: 'Library', path: '/library', icon: 'i-tabler-vinyl' },
   { name: 'Explore', path: '/import', icon: 'i-tabler-compass' },
+  { name: 'Parse', path: '/parse', icon: 'i-tabler-link' },
   { name: 'Upload', path: '/upload', icon: 'i-tabler-upload' },
   { name: 'Player', path: '/player', icon: 'i-tabler-wave-sine' },
 ]

@@ -20,7 +20,7 @@ import {
   tracks,
 
 } from './db.js'
-import { MusicDlBridgeError, musicDlSources, MusicDlUnavailableError, resolveMusicDlSongInfo, searchMusicDl } from './musicdl.js'
+import { MusicDlBridgeError, musicDlSources, MusicDlUnavailableError, resolveMusicDlSongInfo, resolveMusicUrl, searchMusicDl } from './musicdl.js'
 import { deleteStoredTrack, storeTrack } from './storage.js'
 
 const s3Client = new S3Client({
@@ -132,6 +132,10 @@ const MusicImportJobSchema = z.object({
 const MusicDlImportRequestSchema = z.object({
   resultId: z.string().min(1),
 }).openapi('MusicDlImportRequest')
+
+const MusicDlParseUrlRequestSchema = z.object({
+  url: z.string().trim().min(1).max(512),
+}).openapi('MusicDlParseUrlRequest')
 
 const app = new OpenAPIHono()
 
@@ -288,6 +292,98 @@ app.openapi(searchImportRoute, async (c) => {
     }
     if (error instanceof MusicDlBridgeError) {
       return c.json({ message: error.message }, 502)
+    }
+    throw error
+  }
+})
+
+const parseUrlImportRoute = createRoute({
+  method: 'post',
+  path: '/music/imports/parse-url',
+  summary: 'Resolve a Bilibili or Youtube URL into an importable candidate',
+  request: {
+    body: {
+      content: {
+        'application/json': {
+          schema: MusicDlParseUrlRequestSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: 'Parsed result',
+      content: {
+        'application/json': {
+          schema: MusicDlSearchResultSchema,
+        },
+      },
+    },
+    400: {
+      description: 'Invalid URL',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+    502: {
+      description: 'musicdl failed',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+    503: {
+      description: 'musicdl unavailable',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+})
+
+app.openapi(parseUrlImportRoute, async (c) => {
+  try {
+    pruneExpiredMusicImportCandidates()
+    const { url } = c.req.valid('json')
+    const item = await resolveMusicUrl(url, config.musicdl)
+
+    const [record] = insertMusicImportCandidates([{
+      source: item.display.source || 'UnknownSource',
+      songName: item.display.songName || 'Unknown Track',
+      singers: item.display.singers || 'Unknown Artist',
+      album: item.display.album || 'Unknown Album',
+      ext: item.display.ext || 'audio',
+      fileSize: item.display.fileSize || '-',
+      duration: item.display.duration || '-',
+      coverUrl: item.display.coverUrl,
+      downloadable: item.display.downloadable ? 1 : 0,
+      songInfoJson: JSON.stringify(item.songInfo),
+    }])
+
+    return c.json({
+      id: record.id,
+      songName: record.songName,
+      singers: record.singers,
+      album: record.album,
+      source: record.source,
+      ext: record.ext,
+      fileSize: record.fileSize,
+      duration: record.duration,
+      coverUrl: record.coverUrl,
+      downloadable: Boolean(record.downloadable),
+    }, 200)
+  }
+  catch (error) {
+    if (error instanceof MusicDlUnavailableError) {
+      return c.json({ message: error.message }, 503)
+    }
+    if (error instanceof MusicDlBridgeError) {
+      return c.json({ message: error.message }, 400)
     }
     throw error
   }

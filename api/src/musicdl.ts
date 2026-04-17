@@ -1,6 +1,9 @@
 import type { OpenedTrackStream, TrackDetail, TrackLookup, TrackSummary } from '@jannchie/mdl-sdk'
 import type { MusicDlConfig } from './config.js'
+import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { Readable } from 'node:stream'
 import { createClient } from '@jannchie/mdl-sdk'
 
 const musicClient = createClient()
@@ -14,6 +17,10 @@ export const musicDlSources = [
 ] as const
 
 const aggregateMusicDlSources = musicDlSources
+
+export const musicDlUrlSources = ['Bilibili', 'Youtube'] as const
+export type MusicDlUrlSource = (typeof musicDlUrlSources)[number]
+const ytdlpSources: ReadonlySet<string> = new Set<MusicDlUrlSource>(musicDlUrlSources)
 
 const defaultSearchSizePerSource = 10
 // Use a small page size so paginated sources fetch results with multiple upstream requests.
@@ -498,6 +505,10 @@ export async function openMusicDlStream(songInfo: MusicDlSongInfo, config: Music
   try {
     ensureSourceAvailable(songInfo.source)
 
+    if (ytdlpSources.has(songInfo.source)) {
+      return await openMusicDlViaDownload(songInfo, resolvedConfig)
+    }
+
     const response = await withTimeout(
       musicClient.openTrackStream(
         toSdkTrack(songInfo),
@@ -507,6 +518,118 @@ export async function openMusicDlStream(songInfo: MusicDlSongInfo, config: Music
       'musicdl request timed out',
     )
     return toOpenedTrack(songInfo, response)
+  }
+  catch (error) {
+    throw toBridgeError(error)
+  }
+}
+
+function toSdkTrackForDownload(songInfo: MusicDlSongInfo): TrackDetail {
+  const lookup = toTrackLookup(songInfo)
+  return {
+    ...lookup,
+    songName: songInfo.song_name || 'Imported Track',
+  }
+}
+
+async function openMusicDlViaDownload(
+  songInfo: MusicDlSongInfo,
+  resolvedConfig: Required<MusicDlConfig>,
+): Promise<MusicDlOpenedTrack> {
+  if (!songInfo.source) {
+    throw new MusicDlBridgeError('Import result is missing source information.')
+  }
+  const outputDir = await mkdtemp(path.join(tmpdir(), 'audoria-dl-'))
+  try {
+    const [result] = await withTimeout(
+      musicClient.download(
+        [toSdkTrackForDownload(songInfo)],
+        {
+          outputDir,
+          ...buildRequestOptions(songInfo.source, resolvedConfig.downloadTimeoutMs),
+        },
+      ),
+      resolvedConfig.downloadTimeoutMs,
+      'musicdl download timed out',
+    )
+    if (!result || result.completed === 0 || result.items.length === 0) {
+      throw new MusicDlBridgeError('Download failed. No output file was produced.')
+    }
+    const filePath = result.items[0].savePath
+    const stats = await stat(filePath)
+    const ext = path.extname(filePath).toLowerCase() || normalizeExtension(songInfo.ext) || '.mp3'
+    const filename = buildImportedFilename(songInfo, ext)
+    const contentType = guessContentType(ext)
+    const buffer = await readFile(filePath)
+    const bytes = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength)
+    const body = Readable.toWeb(Readable.from(Buffer.from(bytes))) as unknown as MusicDlOpenedTrack['body']
+    return {
+      filename,
+      contentType,
+      contentLength: stats.size,
+      body,
+    }
+  }
+  finally {
+    await rm(outputDir, { recursive: true, force: true }).catch(() => {})
+  }
+}
+
+export function parseMusicUrl(rawUrl: string): { source: MusicDlUrlSource, identifier: string } | null {
+  if (!rawUrl) {
+    return null
+  }
+  let url: URL
+  try {
+    url = new URL(rawUrl.trim())
+  }
+  catch {
+    return null
+  }
+  const host = url.hostname.toLowerCase()
+
+  if (host === 'youtu.be') {
+    const id = url.pathname.replace(/^\//, '').split('/')[0]
+    if (id) {
+      return { source: 'Youtube', identifier: id }
+    }
+  }
+  if (host === 'youtube.com' || host.endsWith('.youtube.com')) {
+    const v = url.searchParams.get('v')
+    if (v) {
+      return { source: 'Youtube', identifier: v }
+    }
+    const shortsMatch = url.pathname.match(/^\/shorts\/([\w-]+)/)
+    if (shortsMatch) {
+      return { source: 'Youtube', identifier: shortsMatch[1] }
+    }
+  }
+  if (host === 'bilibili.com' || host.endsWith('.bilibili.com')) {
+    const match = url.pathname.match(/\/video\/(BV[\w-]+|av\d+)/i)
+    if (match) {
+      return { source: 'Bilibili', identifier: match[1] }
+    }
+  }
+  return null
+}
+
+export async function resolveMusicUrl(rawUrl: string, config: MusicDlConfig = {}): Promise<MusicDlSearchItem> {
+  const parsed = parseMusicUrl(rawUrl)
+  if (!parsed) {
+    throw new MusicDlBridgeError('Unsupported URL. Provide a Bilibili or Youtube link.')
+  }
+  const resolvedConfig = resolveConfig(config)
+
+  try {
+    ensureSourceAvailable(parsed.source)
+    const detail = await fetchTrackDetail(
+      { source: parsed.source, identifier: parsed.identifier },
+      resolvedConfig,
+    )
+    const item = toMusicDlSearchItem(detail)
+    item.display.downloadable = true
+    item.songInfo.source = parsed.source
+    return item
   }
   catch (error) {
     throw toBridgeError(error)

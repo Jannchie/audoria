@@ -39,6 +39,11 @@ const router = createRouter({
       component: () => import('./pages/ImportPage.vue'),
     },
     {
+      path: '/parse',
+      name: 'parse',
+      component: () => import('./pages/ParsePage.vue'),
+    },
+    {
       path: '/player',
       name: 'player',
       component: () => import('./pages/PlayerPage.vue'),

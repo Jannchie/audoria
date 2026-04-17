@@ -21,7 +21,7 @@
   },
   "devDependencies": {
     "@hey-api/openapi-ts": "^0.96.0",
-    "@iconify/json": "^2.2.462",
+    "@iconify/json": "^2.2.463",
     "@jannchie/eslint-config": "^3.7.8",
     "@types/node": "^25.6.0",
     "@unocss/eslint-plugin": "^66.6.8",
@@ -29,7 +29,7 @@
     "@unocss/reset": "^66.6.8",
     "@vitejs/plugin-vue": "^6.0.6",
     "eslint": "^10.2.0",
-    "typescript": "^6.0.2",
+    "typescript": "^6.0.3",
     "unocss": "^66.6.8",
     "unplugin-auto-import": "^21.0.0",
     "unplugin-vue-components": "^32.0.0",

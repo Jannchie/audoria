@@ -102,6 +102,27 @@ export function useImportMusic() {
   })
 }
 
+export function useParseMusicUrl() {
+  return useMutation({
+    mutationFn: async (url: string): Promise<MusicDlSearchResult> => {
+      const baseUrl = client.getConfig().baseUrl ?? ''
+      const response = await fetch(`${baseUrl}/music/imports/parse-url`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      })
+      const payload = await response.json().catch(() => null) as unknown
+      if (!response.ok) {
+        const message = payload && typeof payload === 'object' && 'message' in payload && typeof (payload as { message: unknown }).message === 'string'
+          ? (payload as { message: string }).message
+          : `Parse failed (${response.status})`
+        throw new Error(message)
+      }
+      return payload as MusicDlSearchResult
+    },
+  })
+}
+
 export function useImportJobQuery(jobId: Ref<string | null>) {
   return useQuery({
     queryKey: computed(() => ['music-import-job', jobId.value]),
