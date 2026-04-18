@@ -1,7 +1,10 @@
 <script setup lang="ts">
+import type { Music } from '../api/types.gen'
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import MetadataEditDialog from '../components/MetadataEditDialog.vue'
 import SoundWave from '../components/SoundWave.vue'
+import SourceBadge from '../components/SourceBadge.vue'
 import { resolveApiUrl, useDeleteMusic, useMusicQuery } from '../composables/useMusic'
 import { usePlayerState } from '../composables/usePlayerState'
 import { formatTrackSpecs } from '../utils/audio'
@@ -53,6 +56,18 @@ function trackCoverUrl(coverUrl: string | null): string {
 
 function isDeleting(id: string): boolean {
   return deleteMutation.isPending.value && deleteMutation.variables.value === id
+}
+
+const editingTrack = ref<Music | null>(null)
+const isEditOpen = computed(() => editingTrack.value !== null)
+
+function openEdit(track: Music, event: MouseEvent): void {
+  event.stopPropagation()
+  editingTrack.value = track
+}
+
+function closeEdit(): void {
+  editingTrack.value = null
 }
 
 async function handleDelete(id: string): Promise<void> {
@@ -192,7 +207,13 @@ async function handleDelete(id: string): Promise<void> {
             </template>
           </p>
           <p class="track-sub track-sub--secondary">
-            {{ formatTrackSpecs(track) }}
+            <SourceBadge
+              v-if="track.source"
+              :source="track.source"
+              size="xs"
+              class="track-source"
+            />
+            <span>{{ formatTrackSpecs(track) }}</span>
           </p>
         </div>
 
@@ -209,7 +230,18 @@ async function handleDelete(id: string): Promise<void> {
           </span>
           <button
             type="button"
-            class="track-delete"
+            class="track-action"
+            aria-label="Edit metadata"
+            @click="openEdit(track, $event)"
+          >
+            <span
+              class="i-tabler-edit"
+              aria-hidden="true"
+            />
+          </button>
+          <button
+            type="button"
+            class="track-action track-action--danger"
             :disabled="isDeleting(track.id)"
             :aria-label="isDeleting(track.id) ? 'Deleting track' : 'Delete track'"
             @click.stop="handleDelete(track.id)"
@@ -228,6 +260,12 @@ async function handleDelete(id: string): Promise<void> {
         </div>
       </button>
     </div>
+
+    <MetadataEditDialog
+      :open="isEditOpen"
+      :track="editingTrack"
+      @close="closeEdit"
+    />
   </section>
 </template>
 
@@ -410,6 +448,13 @@ async function handleDelete(id: string): Promise<void> {
 
 .track-sub--secondary {
   opacity: 0.8;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.track-source {
+  flex-shrink: 0;
 }
 
 .track-right {
@@ -425,7 +470,7 @@ async function handleDelete(id: string): Promise<void> {
   font-variant-numeric: tabular-nums;
 }
 
-.track-delete {
+.track-action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -439,12 +484,16 @@ async function handleDelete(id: string): Promise<void> {
   transition: background 0.15s ease, color 0.15s ease;
 }
 
-.track-delete:hover:enabled {
+.track-action:hover:enabled {
   background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.track-action--danger:hover:enabled {
   color: var(--danger);
 }
 
-.track-delete:disabled {
+.track-action:disabled {
   cursor: default;
   opacity: 0.6;
 }

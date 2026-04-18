@@ -6,6 +6,7 @@ import { buildDownloadUrl, resolveApiUrl, useMusicQuery } from '../composables/u
 import { usePlayerState } from '../composables/usePlayerState'
 import IconButton from './IconButton.vue'
 import ProgressPreviewTooltip from './ProgressPreviewTooltip.vue'
+import SourceBadge from './SourceBadge.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -528,13 +529,21 @@ onUnmounted(() => {
           <p class="text-[13px] leading-tight font-medium text-heading truncate">
             {{ currentTrack?.title || currentTrack?.filename || 'Select a track' }}
           </p>
-          <p class="text-[11px] text-[var(--text-tertiary)] mt-0.5 truncate">
-            <span v-if="currentTrack?.artists">{{ currentTrack.artists }}</span>
+          <p class="text-[11px] text-[var(--text-tertiary)] mt-0.5 flex gap-1 truncate items-center">
+            <SourceBadge
+              v-if="currentTrack?.source"
+              :source="currentTrack.source"
+              size="xs"
+              :show-label="false"
+            />
             <span
               v-if="currentTrack?.artists"
-              class="mx-1"
+              class="truncate"
+            >{{ currentTrack.artists }}</span>
+            <span
+              v-if="currentTrack?.artists"
             >·</span>
-            <span class="tabular-nums">{{ formattedTime(displayedCurrentTime) }} / {{ formattedTime(duration) }}</span>
+            <span class="shrink-0 tabular-nums">{{ formattedTime(displayedCurrentTime) }} / {{ formattedTime(duration) }}</span>
           </p>
         </div>
       </button>

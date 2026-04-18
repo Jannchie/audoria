@@ -15,13 +15,15 @@ import {
   db,
   getMusicImportCandidateById,
   getMusicImportJobById,
+  getTrackById,
   insertMusicImportCandidates,
   pruneExpiredMusicImportCandidates,
   tracks,
-
+  updateTrackCoverKey,
+  updateTrackEditableMetadata,
 } from './db.js'
 import { MusicDlBridgeError, musicDlSources, MusicDlUnavailableError, resolveMusicDlSongInfo, resolveMusicUrl, searchMusicDl } from './musicdl.js'
-import { deleteStoredTrack, storeTrack } from './storage.js'
+import { deleteStoredTrack, deleteTrackCover, storeTrack, storeTrackCover } from './storage.js'
 
 const s3Client = new S3Client({
   endpoint: config.s3.endpoint,
@@ -133,6 +135,14 @@ const MusicDlImportRequestSchema = z.object({
   resultId: z.string().min(1),
 }).openapi('MusicDlImportRequest')
 
+const UpdateMusicRequestSchema = z.object({
+  title: z.string().max(512).nullable().optional(),
+  artists: z.string().max(512).nullable().optional(),
+  album: z.string().max(512).nullable().optional(),
+  source: z.string().max(128).nullable().optional(),
+  lyrics: z.string().max(200_000).nullable().optional(),
+}).openapi('UpdateMusicRequest')
+
 const MusicDlParseUrlRequestSchema = z.object({
   url: z.string().trim().min(1).max(512),
 }).openapi('MusicDlParseUrlRequest')
@@ -143,7 +153,7 @@ app.use(
   '*',
   cors({
     origin: '*',
-    allowMethods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+    allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization'],
   }),
 )
@@ -790,6 +800,186 @@ app.openapi(deleteRoute, async (c) => {
   db.delete(tracks).where(eq(tracks.id, id)).run()
 
   return c.newResponse(null, 204)
+})
+
+const updateMusicRoute = createRoute({
+  method: 'patch',
+  path: '/music/{id}',
+  summary: 'Update editable track metadata (title/artists/album/source/lyrics)',
+  request: {
+    params: z.object({
+      id: z.string().min(1),
+    }),
+    body: {
+      content: {
+        'application/json': {
+          schema: UpdateMusicRequestSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: 'Updated',
+      content: {
+        'application/json': {
+          schema: MusicSchema,
+        },
+      },
+    },
+    404: {
+      description: 'Not found',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+})
+
+app.openapi(updateMusicRoute, (c) => {
+  const { id } = c.req.valid('param')
+  const record = getTrackById(id)
+  if (!record) {
+    return c.json({ message: 'Music not found' }, 404)
+  }
+  const patch = c.req.valid('json')
+  const next = {
+    title: patch.title === undefined ? record.title : patch.title,
+    artists: patch.artists === undefined ? record.artists : patch.artists,
+    album: patch.album === undefined ? record.album : patch.album,
+    source: patch.source === undefined ? record.source : patch.source,
+    lyrics: patch.lyrics === undefined ? record.lyrics : patch.lyrics,
+  }
+  updateTrackEditableMetadata(id, next)
+  const updated = getTrackById(id)
+  if (!updated) {
+    return c.json({ message: 'Music not found' }, 404)
+  }
+  return c.json(toMusicResponse(updated), 200)
+})
+
+const updateCoverRoute = createRoute({
+  method: 'post',
+  path: '/music/{id}/cover',
+  summary: 'Upload a new cover image for a track',
+  request: {
+    params: z.object({
+      id: z.string().min(1),
+    }),
+    body: {
+      content: {
+        'multipart/form-data': {
+          schema: z.object({
+            file: z.any().openapi({
+              type: 'string',
+              format: 'binary',
+              description: 'Cover image file',
+            }),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: 'Updated',
+      content: {
+        'application/json': {
+          schema: MusicSchema,
+        },
+      },
+    },
+    400: {
+      description: 'Invalid request',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+    404: {
+      description: 'Not found',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+})
+
+app.openapi(updateCoverRoute, async (c) => {
+  const { id } = c.req.valid('param')
+  const record = getTrackById(id)
+  if (!record) {
+    return c.json({ message: 'Music not found' }, 404)
+  }
+  const formData = await c.req.formData()
+  const filePart = formData.get('file')
+  if (!(filePart instanceof File)) {
+    return c.json({ message: 'File part is required' }, 400)
+  }
+  const buffer = new Uint8Array(await filePart.arrayBuffer())
+  const coverS3Key = await storeTrackCover({
+    trackId: id,
+    contentType: filePart.type || 'image/jpeg',
+    size: buffer.byteLength,
+    body: buffer,
+  })
+  updateTrackCoverKey(id, coverS3Key)
+  const updated = getTrackById(id)
+  if (!updated) {
+    return c.json({ message: 'Music not found' }, 404)
+  }
+  return c.json(toMusicResponse(updated), 200)
+})
+
+const deleteCoverRoute = createRoute({
+  method: 'delete',
+  path: '/music/{id}/cover',
+  summary: 'Remove a track cover',
+  request: {
+    params: z.object({
+      id: z.string().min(1),
+    }),
+  },
+  responses: {
+    200: {
+      description: 'Updated',
+      content: {
+        'application/json': {
+          schema: MusicSchema,
+        },
+      },
+    },
+    404: {
+      description: 'Not found',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+})
+
+app.openapi(deleteCoverRoute, async (c) => {
+  const { id } = c.req.valid('param')
+  const record = getTrackById(id)
+  if (!record) {
+    return c.json({ message: 'Music not found' }, 404)
+  }
+  if (record.coverS3Key) {
+    await deleteTrackCover(record.coverS3Key)
+    updateTrackCoverKey(id, null)
+  }
+  const updated = getTrackById(id)
+  if (!updated) {
+    return c.json({ message: 'Music not found' }, 404)
+  }
+  return c.json(toMusicResponse(updated), 200)
 })
 
 app.get('/', c => c.json({ status: 'ok' }))

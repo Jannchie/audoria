@@ -2,8 +2,10 @@
 import type { MusicDlSearchResult, MusicDlSource } from '../api/types.gen'
 import { useQueryClient } from '@tanstack/vue-query'
 import { computed, ref, watch } from 'vue'
+import SourceBadge from '../components/SourceBadge.vue'
 import { useImportJobQuery, useImportMusic, useMusicQuery, useSearchMusicImport } from '../composables/useMusic'
 import { formatTrackSpecs } from '../utils/audio'
+import { isKnownSource } from '../utils/source'
 
 const importPageStateKey = 'audoria.import-page-state'
 interface PersistedImportPageState {
@@ -50,27 +52,8 @@ const sourceOptions: Array<{ value: MusicDlSource | null, label: string }> = [
   { value: 'JamendoMusicClient', label: 'Jamendo' },
 ]
 
-const sourceDisplayMap = {
-  NeteaseMusicClient: { label: 'Netease', icon: 'i-tabler-brand-netease-music' },
-  QQMusicClient: { label: 'QQ', icon: 'i-arcticons-qq-music' },
-  KuwoMusicClient: { label: 'Kuwo', icon: 'i-tabler-disc' },
-  MiguMusicClient: { label: 'Migu', icon: 'i-arcticons-migu' },
-  JamendoMusicClient: { label: 'Jamendo', icon: 'i-arcticons-jamendo' },
-} satisfies Record<MusicDlSource, { label: string, icon: string }>
-
 function isMusicDlSource(value: string): value is MusicDlSource {
-  return value in sourceDisplayMap
-}
-
-function getSourceDisplay(source: string): { label: string, icon: string } {
-  if (source in sourceDisplayMap) {
-    return sourceDisplayMap[source as MusicDlSource]
-  }
-
-  return {
-    label: source || 'Unknown',
-    icon: 'i-tabler-world',
-  }
+  return isKnownSource(value)
 }
 
 const queryClient = useQueryClient()
@@ -525,13 +508,10 @@ function isImporting(id: string): boolean {
         </div>
 
         <div class="result-right">
-          <span class="result-source">
-            <span
-              class="result-source-icon"
-              :class="getSourceDisplay(result.source).icon"
-            />
-            <span class="result-source-label">{{ getSourceDisplay(result.source).label }}</span>
-          </span>
+          <SourceBadge
+            :source="result.source"
+            class="result-source"
+          />
           <span
             v-if="isImporting(result.id)"
             class="result-badge result-badge--importing"
@@ -951,23 +931,15 @@ function isImporting(id: string): boolean {
 }
 
 .result-source {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
   color: var(--text-tertiary);
 }
 
-.result-source-icon {
-  font-size: 0.875rem;
-}
-
-.result-source-label {
+.result-source :deep(.source-badge__label) {
   display: none;
-  font-size: 0.625rem;
 }
 
 @media (min-width: 640px) {
-  .result-source-label {
+  .result-source :deep(.source-badge__label) {
     display: inline;
   }
 }

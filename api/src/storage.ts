@@ -102,6 +102,15 @@ export async function storeTrackCover({
   return key
 }
 
+export async function deleteTrackCover(coverS3Key: string): Promise<void> {
+  await s3Client.send(
+    new DeleteObjectCommand({
+      Bucket: config.s3.bucket,
+      Key: coverS3Key,
+    }),
+  )
+}
+
 export async function deleteStoredTrack(record: Track): Promise<void> {
   await s3Client.send(
     new DeleteObjectCommand({

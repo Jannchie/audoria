@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { ShaderGradient, ShaderGradientCanvas } from '@shader-gradient/vue'
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
+import MetadataEditDialog from '../components/MetadataEditDialog.vue'
 import ProgressPreviewTooltip from '../components/ProgressPreviewTooltip.vue'
+import SourceBadge from '../components/SourceBadge.vue'
 import { useCoverPalette } from '../composables/useCoverPalette'
 import { findLyricLineAtTime, useLyrics } from '../composables/useLyrics'
 import { resolveApiUrl, useMusicQuery } from '../composables/useMusic'
@@ -332,6 +334,17 @@ function handleProgressHoverMove(event: PointerEvent): void {
   setPreviewByRatio(ratioFromPointer(event))
 }
 
+const isEditOpen = ref(false)
+function openEdit(): void {
+  if (!currentTrack.value) {
+    return
+  }
+  isEditOpen.value = true
+}
+function closeEdit(): void {
+  isEditOpen.value = false
+}
+
 function handleLyricClick(line: { time: number }): void {
   seekTo(line.time)
   const audio = getAudioElement()
@@ -517,10 +530,16 @@ onUnmounted(() => {
               </template>
             </p>
             <p
-              v-if="trackSpecs"
+              v-if="trackSpecs || currentTrack?.source"
               class="track-specs"
             >
-              {{ trackSpecs }}
+              <SourceBadge
+                v-if="currentTrack?.source"
+                :source="currentTrack.source"
+                size="xs"
+                class="track-source"
+              />
+              <span v-if="trackSpecs">{{ trackSpecs }}</span>
             </p>
           </div>
 
@@ -685,6 +704,18 @@ onUnmounted(() => {
             <button
               type="button"
               class="ctrl-btn ctrl-btn--sm"
+              aria-label="Edit metadata"
+              :disabled="!currentTrack"
+              @click="openEdit"
+            >
+              <span
+                class="i-tabler-edit"
+                aria-hidden="true"
+              />
+            </button>
+            <button
+              type="button"
+              class="ctrl-btn ctrl-btn--sm"
               :aria-label="muted ? 'Unmute' : 'Mute'"
               :aria-pressed="muted"
               @click="toggleMute"
@@ -713,6 +744,11 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
+    <MetadataEditDialog
+      :open="isEditOpen"
+      :track="currentTrack"
+      @close="closeEdit"
+    />
   </section>
 </template>
 
@@ -863,6 +899,14 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+}
+
+.track-source {
+  color: rgba(255, 255, 255, 0.5);
 }
 
 /* ---- Right panel ---- */

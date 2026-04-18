@@ -123,6 +123,84 @@ export function useParseMusicUrl() {
   })
 }
 
+export interface UpdateMusicPayload {
+  title?: string | null
+  artists?: string | null
+  album?: string | null
+  source?: string | null
+  lyrics?: string | null
+}
+
+async function parseJsonError(response: Response, fallback: string): Promise<never> {
+  const payload = await response.json().catch(() => null) as unknown
+  const message = payload && typeof payload === 'object' && 'message' in payload && typeof (payload as { message: unknown }).message === 'string'
+    ? (payload as { message: string }).message
+    : `${fallback} (${response.status})`
+  throw new Error(message)
+}
+
+export function useUpdateMusic() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, patch }: { id: string, patch: UpdateMusicPayload }): Promise<Music> => {
+      const baseUrl = client.getConfig().baseUrl ?? ''
+      const response = await fetch(`${baseUrl}/music/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      })
+      if (!response.ok) {
+        await parseJsonError(response, 'Update failed')
+      }
+      return await response.json() as Music
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: musicQueryKey }).catch(() => {})
+    },
+  })
+}
+
+export function useUpdateCover() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, file }: { id: string, file: File }): Promise<Music> => {
+      const baseUrl = client.getConfig().baseUrl ?? ''
+      const formData = new FormData()
+      formData.append('file', file)
+      const response = await fetch(`${baseUrl}/music/${encodeURIComponent(id)}/cover`, {
+        method: 'POST',
+        body: formData,
+      })
+      if (!response.ok) {
+        await parseJsonError(response, 'Cover upload failed')
+      }
+      return await response.json() as Music
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: musicQueryKey }).catch(() => {})
+    },
+  })
+}
+
+export function useDeleteCover() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string): Promise<Music> => {
+      const baseUrl = client.getConfig().baseUrl ?? ''
+      const response = await fetch(`${baseUrl}/music/${encodeURIComponent(id)}/cover`, {
+        method: 'DELETE',
+      })
+      if (!response.ok) {
+        await parseJsonError(response, 'Cover delete failed')
+      }
+      return await response.json() as Music
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: musicQueryKey }).catch(() => {})
+    },
+  })
+}
+
 export function useImportJobQuery(jobId: Ref<string | null>) {
   return useQuery({
     queryKey: computed(() => ['music-import-job', jobId.value]),

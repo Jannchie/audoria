@@ -307,6 +307,36 @@ export function markMusicImportJobFailed(id: string, errorMessage: string): void
     .run()
 }
 
+export function updateTrackEditableMetadata(id: string, metadata: {
+  title: string | null
+  artists: string | null
+  album: string | null
+  source: string | null
+  lyrics: string | null
+}): void {
+  db.update(tracks)
+    .set({
+      title: metadata.title,
+      artists: metadata.artists,
+      album: metadata.album,
+      source: metadata.source,
+      lyrics: metadata.lyrics,
+    })
+    .where(eq(tracks.id, id))
+    .run()
+}
+
+export function updateTrackCoverKey(id: string, coverS3Key: string | null): void {
+  db.update(tracks)
+    .set({ coverS3Key })
+    .where(eq(tracks.id, id))
+    .run()
+}
+
+export function getTrackById(id: string): Track | undefined {
+  return db.select().from(tracks).where(eq(tracks.id, id)).get()
+}
+
 export function updateTrackImportedMetadata(id: string, metadata: {
   coverS3Key: string | null
   lyrics: string | null
