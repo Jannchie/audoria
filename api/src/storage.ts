@@ -1,10 +1,10 @@
 import type { Readable } from 'node:stream'
 import type { Track } from './db.js'
 import { randomUUID } from 'node:crypto'
-import { Transform } from 'node:stream'
 import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import { config } from './config.js'
 import { db, tracks } from './db.js'
+import { formatDurationText, probeDurationSeconds } from './probeAudio.js'
 
 const s3Client = new S3Client({
   endpoint: config.s3.endpoint,
@@ -17,10 +17,20 @@ const s3Client = new S3Client({
   },
 })
 
+async function probeAudioDuration(
+  buffer: Buffer,
+  contentType: string | null,
+): Promise<{ durationSeconds: number | null, durationText: string | null }> {
+  const seconds = await probeDurationSeconds(buffer, contentType)
+  if (seconds === null) {
+    return { durationSeconds: null, durationText: null }
+  }
+  return { durationSeconds: seconds, durationText: formatDurationText(seconds) }
+}
+
 export async function storeTrack({
   filename,
   contentType,
-  size,
   body,
   onProgress,
 }: {
@@ -33,28 +43,29 @@ export async function storeTrack({
   const id = randomUUID()
   const key = `music/${id}-${filename || 'audio'}`
   const createdAt = Date.now()
-  let resolvedSize = size ?? null
+
+  const chunks: Buffer[] = []
   let countedBytes = 0
-  const countingStream = new Transform({
-    transform(chunk, _encoding, callback) {
-      countedBytes += Buffer.isBuffer(chunk) ? chunk.byteLength : Buffer.byteLength(String(chunk))
-      onProgress?.(countedBytes)
-      callback(null, chunk)
-    },
-  })
-  body.on('error', error => countingStream.destroy(error))
-  body.pipe(countingStream)
+  for await (const rawChunk of body) {
+    const chunk = Buffer.isBuffer(rawChunk) ? rawChunk : Buffer.from(rawChunk as Uint8Array)
+    chunks.push(chunk)
+    countedBytes += chunk.byteLength
+    onProgress?.(countedBytes)
+  }
+  const buffer = Buffer.concat(chunks)
+  const resolvedSize = buffer.byteLength
+
+  const { durationSeconds, durationText } = await probeAudioDuration(buffer, contentType)
 
   await s3Client.send(
     new PutObjectCommand({
       Bucket: config.s3.bucket,
       Key: key,
-      Body: countingStream,
+      Body: buffer,
       ContentType: contentType || undefined,
-      ContentLength: resolvedSize ?? undefined,
+      ContentLength: resolvedSize,
     }),
   )
-  resolvedSize = countedBytes
   onProgress?.(resolvedSize)
 
   const record: Track = {
@@ -66,8 +77,8 @@ export async function storeTrack({
     artists: null,
     album: null,
     source: null,
-    durationText: null,
-    durationSeconds: null,
+    durationText,
+    durationSeconds,
     size: resolvedSize,
     contentType,
     lyrics: null,

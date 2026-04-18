@@ -5,7 +5,8 @@
     "worker": "tsx watch src/worker.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "start:worker": "node dist/worker.js"
+    "start:worker": "node dist/worker.js",
+    "backfill:duration": "tsx scripts/backfill-duration.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1031.0",
@@ -19,6 +20,7 @@
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.12.14",
+    "music-metadata": "^11.12.3",
     "zod": "^4.3.6"
   },
   "devDependencies": {

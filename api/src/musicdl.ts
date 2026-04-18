@@ -358,8 +358,8 @@ async function searchSingleSource(
 ): Promise<MusicDlSearchItem[]> {
   try {
     ensureSourceAvailable(source)
-    return (await searchSourceTracks(keyword, source, config, limitPerSource))
-      .map(toMusicDlSearchItem)
+    const tracks = await searchSourceTracks(keyword, source, config, limitPerSource)
+    return tracks.map(toMusicDlSearchItem)
   }
   catch (error) {
     throw toBridgeError(error)

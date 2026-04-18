@@ -1,5 +1,5 @@
-import type { MusicDlSongInfo } from './musicdl.js'
 import type { ReadableStream } from 'node:stream/web'
+import type { MusicDlSongInfo } from './musicdl.js'
 import { Readable } from 'node:stream'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { config } from './config.js'
@@ -95,8 +95,8 @@ async function processNextJob(): Promise<boolean> {
       artists: songInfo.singers,
       album: songInfo.album,
       source: songInfo.source,
-      durationText: songInfo.duration,
-      durationSeconds: songInfo.duration_s,
+      durationText: track.durationText ?? songInfo.duration,
+      durationSeconds: track.durationSeconds ?? songInfo.duration_s,
     })
 
     markMusicImportJobSucceeded(job.id, track.id, track.size)
@@ -133,5 +133,4 @@ async function run(): Promise<void> {
   }
 }
 
-// eslint-disable-next-line unicorn/prefer-top-level-await
 void run()
