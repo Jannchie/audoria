@@ -2,45 +2,117 @@
 import type { Music } from '../api/types.gen'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import AddToPlaylistDialog from '../components/AddToPlaylistDialog.vue'
 import MetadataEditDialog from '../components/MetadataEditDialog.vue'
 import SoundWave from '../components/SoundWave.vue'
 import SourceBadge from '../components/SourceBadge.vue'
+import { useContextMenu } from '../composables/useContextMenu'
+import { useListSelection } from '../composables/useListSelection'
 import { resolveApiUrl, useDeleteMusic, useMusicQuery } from '../composables/useMusic'
 import { usePlayerState } from '../composables/usePlayerState'
-import { formatTrackSpecs } from '../utils/audio'
+import { usePlaylistsQuery } from '../composables/usePlaylists'
+import { useTrackContextMenu } from '../composables/useTrackContextMenu'
+import { sortTracks } from '../composables/useTrackSort'
+import type { TrackSortKey } from '../composables/useTrackSort'
+import { formatTrackDuration } from '../utils/audio'
 
 const librarySearchStateKey = 'audoria.library-search'
+const librarySortStateKey = 'audoria.library-sort'
 const skeletonTitleWidths = [72, 56, 80, 48, 68, 60, 76, 52]
 const skeletonMetaWidths = [38, 30, 44, 26, 40, 34, 48, 32]
 
 const { t } = useI18n()
 const { data: tracks, isPending, isError, error } = useMusicQuery()
+const { data: playlists } = usePlaylistsQuery()
 const deleteMutation = useDeleteMusic()
 const { currentTrackId, isPlaying, selectTrack, setPlaying } = usePlayerState()
+const { buildItems } = useTrackContextMenu()
+const { openFromEvent, openFromAnchor } = useContextMenu()
+
+const librarySortKeys: TrackSortKey[] = ['addedDesc', 'nameAsc', 'nameDesc', 'artistAsc', 'durationDesc', 'durationAsc']
+function isLibrarySortKey(value: string): value is TrackSortKey {
+  return (librarySortKeys as string[]).includes(value)
+}
 
 const search = ref(globalThis.sessionStorage.getItem(librarySearchStateKey) ?? '')
+const initialSort = globalThis.sessionStorage.getItem(librarySortStateKey) ?? ''
+const sortKey = ref<TrackSortKey>(isLibrarySortKey(initialSort) ? initialSort : 'addedDesc')
 
 watch(search, (value) => {
   globalThis.sessionStorage.setItem(librarySearchStateKey, value)
 })
 
+watch(sortKey, (value) => {
+  globalThis.sessionStorage.setItem(librarySortStateKey, value)
+})
+
+const playlistNameMap = computed(() => {
+  const map = new Map<string, string>()
+  for (const playlist of playlists.value ?? []) {
+    map.set(playlist.id, playlist.name)
+  }
+  return map
+})
+
+function playlistBadgesFor(track: Music): string[] {
+  const ids = track.playlistIds ?? []
+  const names: string[] = []
+  for (const id of ids) {
+    const name = playlistNameMap.value.get(id)
+    if (name) {
+      names.push(name)
+    }
+  }
+  return names
+}
+
+function playlistSummaryFor(track: Music): string {
+  const names = playlistBadgesFor(track)
+  if (names.length === 0) { return '' }
+  const head = names.slice(0, 2).join(' · ')
+  return names.length > 2 ? `${head} · +${names.length - 2}` : head
+}
+
 const filteredTracks = computed(() => {
   const keyword = search.value.trim().toLowerCase()
   const list = tracks.value ?? []
-  if (!keyword) {
-    return list
-  }
-  return list.filter((item) => {
-    const searchable = [item.filename, item.title, item.artists, item.album]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase()
-    return searchable.includes(keyword)
-  })
+  const searched = keyword
+    ? list.filter((item) => {
+      const searchable = [item.filename, item.title, item.artists, item.album]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+      return searchable.includes(keyword)
+    })
+    : list
+  return sortTracks(searched, sortKey.value)
 })
 
-function handleTrackClick(id: string): void {
+function openSortMenu(event: MouseEvent): void {
+  event.stopPropagation()
+  const anchor = event.currentTarget as HTMLElement | null
+  if (!anchor) { return }
+  openFromAnchor(anchor, librarySortKeys.map(key => ({
+    id: `sort:${key}`,
+    label: t(`library.sort.${key}`),
+    icon: sortKey.value === key ? 'i-tabler-check' : 'i-tabler-point',
+    onSelect: () => {
+      sortKey.value = key
+    },
+  })))
+}
+
+const selection = useListSelection(() => filteredTracks.value.map(item => item.id))
+
+watch(filteredTracks, (list) => {
+  selection.prune(new Set(list.map(item => item.id)))
+})
+
+function handleTrackClick(id: string, event: MouseEvent): void {
+  const { handled } = selection.handleClick(id, event)
+  if (handled) {
+    return
+  }
+  selection.clear()
   if (currentTrackId.value === id) {
     setPlaying(!isPlaying.value)
   }
@@ -61,25 +133,13 @@ function isDeleting(id: string): boolean {
 
 const editingTrack = ref<Music | null>(null)
 const isEditOpen = computed(() => editingTrack.value !== null)
-const playlistTrack = ref<Music | null>(null)
-const isPlaylistDialogOpen = computed(() => playlistTrack.value !== null)
 
-function openEdit(track: Music, event: MouseEvent): void {
-  event.stopPropagation()
+function openEdit(track: Music): void {
   editingTrack.value = track
 }
 
 function closeEdit(): void {
   editingTrack.value = null
-}
-
-function openPlaylistDialog(track: Music, event: MouseEvent): void {
-  event.stopPropagation()
-  playlistTrack.value = track
-}
-
-function closePlaylistDialog(): void {
-  playlistTrack.value = null
 }
 
 async function handleDelete(id: string): Promise<void> {
@@ -94,19 +154,131 @@ async function handleDelete(id: string): Promise<void> {
     selectTrack(null, { history: 'skip' })
   }
 }
+
+function resolveTracks(ids: string[]): Music[] {
+  const byId = new Map((tracks.value ?? []).map(item => [item.id, item]))
+  const result: Music[] = []
+  for (const id of ids) {
+    const track = byId.get(id)
+    if (track) {
+      result.push(track)
+    }
+  }
+  return result
+}
+
+function menuItemsFor(track: Music) {
+  const selectedIds = selection.toArray()
+  const useBatch = selectedIds.length > 1 && selectedIds.includes(track.id)
+  const targetTracks = useBatch ? resolveTracks(selectedIds) : [track]
+
+  return buildItems({
+    tracks: targetTracks,
+    onEditMetadata: useBatch ? undefined : openEdit,
+    onDelete: async (items) => {
+      for (const t_ of items) {
+        await handleDelete(t_.id)
+      }
+      selection.clear()
+    },
+  })
+}
+
+function handleContextMenu(track: Music, event: MouseEvent): void {
+  if (!selection.isSelected(track.id) && selection.hasSelection.value) {
+    selection.selectOne(track.id)
+  }
+  openFromEvent(event, menuItemsFor(track))
+}
+
+function openMoreMenu(track: Music, event: MouseEvent): void {
+  event.stopPropagation()
+  const anchor = event.currentTarget as HTMLElement | null
+  if (anchor) {
+    openFromAnchor(anchor, menuItemsFor(track))
+  }
+}
+
+function openBatchMenu(event: MouseEvent): void {
+  event.stopPropagation()
+  const ids = selection.toArray()
+  if (ids.length === 0) {
+    return
+  }
+  const targetTracks = resolveTracks(ids)
+  const items = buildItems({
+    tracks: targetTracks,
+    onDelete: async (xs) => {
+      for (const t_ of xs) {
+        await handleDelete(t_.id)
+      }
+      selection.clear()
+    },
+  })
+  const anchor = event.currentTarget as HTMLElement | null
+  if (anchor) {
+    openFromAnchor(anchor, items)
+  }
+}
 </script>
 
 <template>
   <section class="library">
-    <!-- Search bar -->
+    <!-- Search bar + sort -->
     <div class="search-wrapper">
-      <span class="i-tabler-search search-icon" />
-      <input
-        v-model="search"
-        class="search-input"
-        :placeholder="t('library.searchPlaceholder')"
-        type="search"
+      <div class="search-field">
+        <span class="i-tabler-search search-icon" />
+        <input
+          v-model="search"
+          class="search-input"
+          :placeholder="t('library.searchPlaceholder')"
+          type="search"
+        >
+      </div>
+      <button
+        type="button"
+        class="sort-button"
+        :aria-label="t('library.sort.label')"
+        @click="openSortMenu($event)"
       >
+        <span
+          class="i-tabler-arrows-sort"
+          aria-hidden="true"
+        />
+        <span class="sort-button-text">{{ t(`library.sort.${sortKey}`) }}</span>
+      </button>
+    </div>
+
+    <!-- Selection toolbar -->
+    <div
+      v-if="selection.hasSelection.value"
+      class="selection-toolbar"
+    >
+      <span class="selection-count">
+        {{ t('library.selectedCount', { n: selection.size.value }) }}
+      </span>
+      <button
+        type="button"
+        class="selection-action"
+        @click="openBatchMenu($event)"
+      >
+        <span
+          class="i-tabler-dots"
+          aria-hidden="true"
+        />
+        <span>{{ t('common.actions.moreOptions') }}</span>
+      </button>
+      <button
+        type="button"
+        class="selection-action"
+        @click="selection.clear"
+      >
+        <span
+          class="i-tabler-x"
+          aria-hidden="true"
+        />
+        <span>{{ t('common.actions.cancel') }}</span>
+      </button>
     </div>
 
     <!-- Error -->
@@ -126,16 +298,16 @@ async function handleDelete(id: string): Promise<void> {
         <div
           v-for="i in 8"
           :key="i"
-          class="track-row"
+          class="tr tr--skeleton"
         >
-          <div class="skeleton track-cover-skeleton" />
-          <div class="flex-1 space-y-1.5">
+          <div class="skeleton tr-cover-skeleton" />
+          <div class="tr-primary">
             <div
-              class="skeleton rounded h-3.5"
+              class="skeleton tr-skel-title"
               :style="{ width: `${skeletonTitleWidths[i % skeletonTitleWidths.length]}%` }"
             />
             <div
-              class="skeleton rounded h-3"
+              class="skeleton tr-skel-sub"
               :style="{ width: `${skeletonMetaWidths[i % skeletonMetaWidths.length]}%` }"
             />
           </div>
@@ -166,125 +338,92 @@ async function handleDelete(id: string): Promise<void> {
         v-for="track in filteredTracks"
         :key="track.id"
         type="button"
-        class="track-row"
-        :class="{ 'track-row--active': currentTrackId === track.id }"
+        class="tr"
+        :class="{
+          'tr--active': currentTrackId === track.id,
+          'tr--selected': selection.isSelected(track.id),
+        }"
         :aria-label="currentTrackId === track.id && isPlaying ? t('library.pauseTrack', { title: track.title || track.filename }) : t('library.playTrack', { title: track.title || track.filename })"
         :aria-current="currentTrackId === track.id ? 'true' : undefined"
-        @click="handleTrackClick(track.id)"
+        @click="handleTrackClick(track.id, $event)"
+        @contextmenu="handleContextMenu(track, $event)"
       >
-        <div class="track-cover">
+        <div class="tr-cover">
           <img
             v-if="track.coverUrl"
             :src="trackCoverUrl(track)"
             :alt="track.title || track.filename"
-            class="track-cover-img"
-            width="52"
-            height="52"
+            width="44"
+            height="44"
             loading="lazy"
             decoding="async"
           >
           <span
             v-else
-            class="i-tabler-music track-cover-placeholder"
+            class="i-tabler-music tr-cover-placeholder"
             aria-hidden="true"
           />
-          <!-- Play overlay on hover -->
-          <div
-            class="track-cover-overlay"
+          <span
+            class="tr-cover-overlay"
             aria-hidden="true"
           >
-            <span
-              v-if="currentTrackId === track.id && isPlaying"
-              class="i-tabler-player-pause-filled"
+            <SoundWave
+              v-if="currentTrackId === track.id"
+              :playing="isPlaying"
             />
             <span
               v-else
-              class="i-tabler-player-play-filled"
+              class="i-tabler-player-play-filled tr-cover-play"
             />
-          </div>
+          </span>
         </div>
 
-        <div class="track-meta">
-          <p
-            class="track-name"
-            :class="{ 'track-name--active': currentTrackId === track.id }"
-          >
+        <div class="tr-primary">
+          <p class="tr-title">
             {{ track.title || track.filename }}
           </p>
-          <p class="track-sub">
-            <template v-if="track.artists">
-              {{ track.artists }}
-              <template v-if="track.album">
-                · {{ track.album }}
-              </template>
-            </template>
-            <template v-else>
-              {{ track.filename }}
-            </template>
-          </p>
-          <p class="track-sub track-sub--secondary">
+          <p class="tr-artist">
             <SourceBadge
               v-if="track.source"
               :source="track.source"
               size="xs"
-              class="track-source"
+              class="tr-source"
             />
-            <span>{{ formatTrackSpecs(track) }}</span>
+            <span class="tr-artist-name">{{ track.artists || track.filename }}</span>
           </p>
         </div>
 
-        <div class="track-right">
-          <SoundWave
-            v-if="currentTrackId === track.id"
-            :playing="isPlaying"
+        <div class="tr-secondary">
+          <span
+            v-if="track.album"
+            class="tr-album"
+          >{{ track.album }}</span>
+          <span
+            v-if="playlistBadgesFor(track).length"
+            class="tr-in"
+            :title="t('library.inPlaylists', { names: playlistBadgesFor(track).join(', ') })"
+          >{{ playlistSummaryFor(track) }}</span>
+        </div>
+
+        <span class="tr-duration">{{ formatTrackDuration(track.durationSeconds) }}</span>
+
+        <button
+          type="button"
+          class="tr-action"
+          :aria-label="t('common.actions.moreOptions')"
+          @click="openMoreMenu(track, $event)"
+        >
+          <span
+            v-if="isDeleting(track.id)"
+            class="i-tabler-loader-2 animate-spin"
+            aria-hidden="true"
           />
           <span
-            v-else-if="track.durationText"
-            class="track-duration"
-          >
-            {{ track.durationText }}
-          </span>
-          <button
-            type="button"
-            class="track-action"
-            aria-label="Add to playlist"
-            @click="openPlaylistDialog(track, $event)"
-          >
-            <span
-              class="i-tabler-playlist-add"
-              aria-hidden="true"
-            />
-          </button>
-          <button
-            type="button"
-            class="track-action"
-            :aria-label="t('common.actions.editMetadata')"
-            @click="openEdit(track, $event)"
-          >
-            <span
-              class="i-tabler-edit"
-              aria-hidden="true"
-            />
-          </button>
-          <button
-            type="button"
-            class="track-action track-action--danger"
-            :disabled="isDeleting(track.id)"
-            :aria-label="isDeleting(track.id) ? t('common.actions.deletingTrack') : t('common.actions.deleteTrack')"
-            @click.stop="handleDelete(track.id)"
-          >
-            <span
-              v-if="isDeleting(track.id)"
-              class="i-tabler-loader-2 animate-spin"
-              aria-hidden="true"
-            />
-            <span
-              v-else
-              class="i-tabler-trash"
-              aria-hidden="true"
-            />
-          </button>
-        </div>
+            v-else
+            class="i-tabler-dots"
+            aria-hidden="true"
+          />
+        </button>
       </button>
     </div>
 
@@ -292,12 +431,6 @@ async function handleDelete(id: string): Promise<void> {
       :open="isEditOpen"
       :track="editingTrack"
       @close="closeEdit"
-    />
-
-    <AddToPlaylistDialog
-      :open="isPlaylistDialogOpen"
-      :track="playlistTrack"
-      @close="closePlaylistDialog"
     />
   </section>
 </template>
@@ -318,6 +451,9 @@ async function handleDelete(id: string): Promise<void> {
   position: sticky;
   top: 0;
   z-index: 10;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
   padding: 0.5rem 0;
   background: var(--bg-base);
 }
@@ -329,6 +465,11 @@ async function handleDelete(id: string): Promise<void> {
   }
 }
 
+.search-field {
+  position: relative;
+  flex: 1;
+}
+
 .search-icon {
   position: absolute;
   left: 0.875rem;
@@ -337,6 +478,37 @@ async function handleDelete(id: string): Promise<void> {
   font-size: 0.875rem;
   color: var(--text-tertiary);
   pointer-events: none;
+}
+
+.sort-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  height: 2.75rem;
+  padding: 0 0.875rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.sort-button:hover {
+  background: var(--bg-elevated, var(--bg-surface));
+  color: var(--text-primary);
+}
+
+.sort-button-text {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .sort-button-text {
+    display: inline;
+  }
 }
 
 .search-input {
@@ -360,176 +532,316 @@ async function handleDelete(id: string): Promise<void> {
   background: var(--bg-elevated);
 }
 
-/* ---- Track list ---- */
+/* ===========================================================
+ * Track row — "Editorial Quiet" design system
+ * Row: 52px desktop / 56px mobile
+ * Cover: 40px / 44px
+ * Grid columns (desktop):
+ *   [cover] [primary 1fr] [secondary 1fr 0 1fr] [duration] [action]
+ * Grid columns (mobile): only cover + primary + duration + action
+ * =========================================================== */
+
 .track-list {
   display: flex;
   flex-direction: column;
+  gap: 2px;
+  margin-top: 0.25rem;
 }
 
-.track-row {
-  display: flex;
+.tr {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 40px 28px;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.5rem;
-  border-radius: 0.75rem;
-  transition: background 0.15s ease;
-  cursor: pointer;
-  border: none;
-  background: none;
-  text-align: left;
+  gap: 12px;
   width: 100%;
+  height: 56px;
+  padding: 0 10px;
+  border: none;
+  background: transparent;
+  border-radius: 10px;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  position: relative;
+  transition: background 120ms ease;
 }
 
-.track-row:hover {
+/* Secondary column hidden on small screens */
+.tr-secondary {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .tr {
+    grid-template-columns: 40px minmax(0, 1.1fr) minmax(0, 1fr) 44px 28px;
+    height: 52px;
+    padding: 0 12px;
+  }
+  .tr-secondary {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    min-width: 0;
+    color: var(--text-tertiary);
+    font-size: 0.75rem;
+    line-height: 1.3;
+    overflow: hidden;
+  }
+  .tr-in {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-display);
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: var(--text-secondary);
+    transition: color 120ms ease;
+  }
+  .tr:hover .tr-in {
+    color: var(--text-primary);
+  }
+}
+
+.tr:hover {
   background: var(--bg-surface);
 }
 
-.track-row--active {
-  background: var(--accent-soft);
+/* Now-playing: coral left bar + title colored — no background fill. */
+.tr--active {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.tr--active:hover {
+  background: color-mix(in srgb, var(--accent) 6%, var(--bg-surface));
+}
+.tr--active .tr-title {
+  color: var(--accent);
+}
+.tr--active .tr-cover-overlay {
+  opacity: 1;
+  background: color-mix(in srgb, var(--accent) 40%, rgba(0, 0, 0, 0.55));
 }
 
-.track-cover {
+/* Selection: inset outline, soft bg; layers cleanly with --active */
+.tr--selected {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 36%, transparent);
+}
+.tr--active.tr--selected {
+  box-shadow:
+    inset 3px 0 0 var(--accent),
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 36%, transparent);
+}
+
+/* --- Cover --- */
+.tr-cover {
   position: relative;
-  width: 3rem;
-  height: 3rem;
-  border-radius: 0.5rem;
+  width: 44px;
+  height: 44px;
+  border-radius: 5px;
   overflow: hidden;
-  flex-shrink: 0;
   background: var(--bg-elevated);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  place-items: center;
 }
 
 @media (min-width: 768px) {
-  .track-cover {
-    width: 3.25rem;
-    height: 3.25rem;
+  .tr-cover {
+    width: 40px;
+    height: 40px;
   }
 }
 
-.track-cover-skeleton {
-  width: 3rem;
-  height: 3rem;
-  border-radius: 0.5rem;
-  flex-shrink: 0;
-}
-
-@media (min-width: 768px) {
-  .track-cover-skeleton {
-    width: 3.25rem;
-    height: 3.25rem;
-  }
-}
-
-.track-cover-img {
+.tr-cover img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
 }
 
-.track-cover-placeholder {
-  font-size: 1rem;
+.tr-cover-placeholder {
+  font-size: 1.125rem;
   color: var(--text-tertiary);
 }
 
-.track-cover-overlay {
+.tr-cover-overlay {
   position: absolute;
   inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.45);
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.55);
   color: white;
-  font-size: 1rem;
   opacity: 0;
-  transition: opacity 0.15s ease;
+  transition: opacity 120ms ease, background 120ms ease;
+  pointer-events: none;
 }
 
-.track-row:hover .track-cover-overlay {
+.tr:hover .tr-cover-overlay {
   opacity: 1;
 }
 
-.track-meta {
-  flex: 1;
-  min-width: 0;
+.tr-cover-play {
+  font-size: 1rem;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
 }
 
-.track-name {
-  font-size: 0.8125rem;
+.tr-cover-skeleton {
+  width: 44px;
+  height: 44px;
+  border-radius: 5px;
+}
+
+@media (min-width: 768px) {
+  .tr-cover-skeleton {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+.tr-skel-title,
+.tr-skel-sub {
+  height: 11px;
+  border-radius: 3px;
+}
+.tr-skel-title { width: 60% }
+.tr-skel-sub { width: 38%; margin-top: 6px }
+
+/* --- Primary (title + artist) --- */
+.tr-primary {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tr-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 0.875rem;
   font-weight: 500;
+  letter-spacing: -0.005em;
+  line-height: 1.3;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.tr-artist {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 0.75rem;
   line-height: 1.3;
-  font-family: var(--font-display);
-}
-
-.track-name--active {
-  color: var(--accent);
-}
-
-.track-sub {
-  font-size: 0.6875rem;
   color: var(--text-tertiary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin-top: 0.125rem;
+}
+.tr-artist > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.track-sub--secondary {
-  opacity: 0.8;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.track-source {
+.tr-source {
   flex-shrink: 0;
 }
 
-.track-right {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+/* --- Album column --- */
+.tr-album {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.track-duration {
-  font-size: 0.6875rem;
+
+/* --- Duration --- */
+.tr-duration {
+  justify-self: end;
+  font-size: 0.75rem;
   color: var(--text-tertiary);
   font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
 }
 
-.track-action {
+.tr--active .tr-duration {
+  color: var(--accent);
+  opacity: 0.85;
+}
+
+/* --- Action (more menu) --- */
+.tr-action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.75rem;
-  height: 1.75rem;
+  width: 28px;
+  height: 28px;
   border: none;
   border-radius: 999px;
-  background: none;
+  background: transparent;
   color: var(--text-tertiary);
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  opacity: 0;
+  transition: opacity 120ms ease, background 120ms ease, color 120ms ease;
 }
 
-.track-action:hover:enabled {
+.tr:hover .tr-action,
+.tr:focus-within .tr-action,
+.tr--active .tr-action,
+.tr--selected .tr-action {
+  opacity: 1;
+}
+
+.tr-action:hover {
   background: var(--bg-elevated);
   color: var(--text-primary);
 }
 
-.track-action--danger:hover:enabled {
-  color: var(--danger);
+/* Touch: always show actions */
+@media (hover: none) {
+  .tr-action { opacity: 1 }
+  .tr-cover-overlay { opacity: 0 }
 }
 
-.track-action:disabled {
-  cursor: default;
-  opacity: 0.6;
+/* ---- Selection toolbar ---- */
+.selection-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  margin: 0.25rem 0;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg-surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
+  font-size: 0.8125rem;
 }
 
-/* Empty state uses shared .empty-state classes from style.css */
+.selection-count {
+  flex: 1;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.selection-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.75rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 0.75rem;
+}
+
+.selection-action:hover {
+  background: var(--bg-elevated);
+}
 </style>

@@ -19,6 +19,7 @@ export type Music = {
     sourceIdentifier: string;
     durationText: string;
     durationSeconds: number;
+    playlistIds: Array<string>;
     createdAt: string;
 };
 
@@ -72,9 +73,10 @@ export type MusicDlImportRequest = {
 export type Playlist = {
     id: string;
     name: string;
-    description: string;
+    description: string | null;
     trackCount: number;
     totalDurationSeconds: number;
+    previewCoverUrls: Array<string>;
     createdAt: string;
     updatedAt: string;
 };

@@ -107,8 +107,10 @@ async function processNextJob(): Promise<boolean> {
       album: songInfo.album,
       source: songInfo.source,
       sourceIdentifier: toSourceIdentifier(songInfo.identifier),
-      durationText: track.durationText ?? songInfo.duration,
-      durationSeconds: track.durationSeconds ?? songInfo.duration_s,
+      durationText: track.durationText ?? (track.durationSeconds ? songInfo.duration : null),
+      durationSeconds: typeof track.durationSeconds === 'number' && track.durationSeconds > 0
+        ? track.durationSeconds
+        : (typeof songInfo.duration_s === 'number' && songInfo.duration_s > 0 ? songInfo.duration_s : null),
     })
 
     markMusicImportJobSucceeded(job.id, track.id, track.size)

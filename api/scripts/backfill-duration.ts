@@ -1,13 +1,20 @@
-import { eq, isNull, or } from 'drizzle-orm'
+import { eq, isNull, lt, or } from 'drizzle-orm'
 import { db, tracks } from '../src/db.js'
 import { formatDurationText, probeDurationSeconds } from '../src/probeAudio.js'
 import { readStoredTrackBuffer } from '../src/storage.js'
+
+// Tracks shorter than 10s are almost always a mis-probed file; re-probe them.
+const SUSPICIOUS_DURATION_THRESHOLD_SECONDS = 10
 
 async function main(): Promise<void> {
   const pending = db
     .select()
     .from(tracks)
-    .where(or(isNull(tracks.durationSeconds), isNull(tracks.durationText)))
+    .where(or(
+      isNull(tracks.durationSeconds),
+      isNull(tracks.durationText),
+      lt(tracks.durationSeconds, SUSPICIOUS_DURATION_THRESHOLD_SECONDS),
+    ))
     .all()
 
   if (pending.length === 0) {
@@ -25,7 +32,7 @@ async function main(): Promise<void> {
     const label = `[${index + 1}/${pending.length}] ${track.title ?? track.filename} (${track.id})`
     try {
       const buffer = await readStoredTrackBuffer(track)
-      const durationSeconds = await probeDurationSeconds(buffer, track.contentType)
+      const durationSeconds = await probeDurationSeconds(buffer)
       if (durationSeconds === null) {
         console.warn(`${label}: duration unavailable, skipped`)
         skipped += 1

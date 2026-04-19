@@ -3,14 +3,17 @@ import { computed, watchEffect } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
 import AudoriaLogo from './components/AudoriaLogo.vue'
+import ContextMenu from './components/ContextMenu.vue'
+import InputPromptDialog from './components/InputPromptDialog.vue'
 import PlayerBar from './components/PlayerBar.vue'
+import QueueDrawer from './components/QueueDrawer.vue'
 
 const { t } = useI18n()
 const route = useRoute()
 
 const navItems = computed(() => [
   { name: t('nav.library'), path: '/library', icon: 'i-tabler-vinyl' },
-  { name: 'Playlists', path: '/playlists', icon: 'i-tabler-playlist' },
+  { name: t('nav.playlists'), path: '/playlists', icon: 'i-tabler-playlist' },
   { name: t('nav.explore'), path: '/import', icon: 'i-tabler-compass' },
   { name: t('nav.parse'), path: '/parse', icon: 'i-tabler-link' },
   { name: t('nav.upload'), path: '/upload', icon: 'i-tabler-upload' },
@@ -76,6 +79,15 @@ watchEffect(() => {
 
     <!-- Player bar -->
     <PlayerBar />
+
+    <!-- Global context menu singleton -->
+    <ContextMenu />
+
+    <!-- Global playback queue drawer -->
+    <QueueDrawer />
+
+    <!-- Global input prompt dialog -->
+    <InputPromptDialog />
 
     <!-- Mobile bottom tab bar (hidden on desktop and player page) -->
     <nav

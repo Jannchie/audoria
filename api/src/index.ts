@@ -17,10 +17,12 @@ import {
   getMusicImportCandidateById,
   getMusicImportJobById,
   getPlaylistById,
+  getPlaylistIdsForTracks,
   getPlaylistTrackIds,
   getPlaylistTracks,
   getTrackById,
   insertMusicImportCandidates,
+  listAllTrackPlaylistPairs,
   listPlaylists,
   pruneExpiredMusicImportCandidates,
   removeTrackFromAllPlaylists,
@@ -41,7 +43,7 @@ function buildCoverPath(id: string, variant: 'cover' | 'thumb' = 'cover'): strin
   return `/music/${id}/cover`
 }
 
-function toMusicResponse(row: Track) {
+function toMusicResponse(row: Track, playlistIds: string[] = []) {
   return {
     id: row.id,
     filename: row.filename,
@@ -57,6 +59,7 @@ function toMusicResponse(row: Track) {
     sourceIdentifier: row.sourceIdentifier,
     durationText: row.durationText,
     durationSeconds: row.durationSeconds,
+    playlistIds,
     createdAt: new Date(row.createdAt).toISOString(),
   }
 }
@@ -87,6 +90,7 @@ function toPlaylistSummaryResponse(playlist: PlaylistSummary) {
     description: playlist.description,
     trackCount: playlist.trackCount,
     totalDurationSeconds: playlist.totalDurationSeconds,
+    previewCoverUrls: playlist.previewTrackIds.map(id => buildCoverPath(id, 'thumb')),
     createdAt: new Date(playlist.createdAt).toISOString(),
     updatedAt: new Date(playlist.updatedAt).toISOString(),
   }
@@ -94,6 +98,11 @@ function toPlaylistSummaryResponse(playlist: PlaylistSummary) {
 
 function toPlaylistDetailResponse(playlist: Playlist, playlistTracks: Track[]) {
   const totalDurationSeconds = playlistTracks.reduce((sum, track) => sum + (track.durationSeconds ?? 0), 0)
+  const previewCoverUrls = playlistTracks
+    .filter(track => track.coverThumbStorageKey || track.coverStorageKey)
+    .slice(0, 4)
+    .map(track => buildCoverPath(track.id, 'thumb'))
+  const trackIdToPlaylistIds = getPlaylistIdsForTracks(playlistTracks.map(track => track.id))
 
   return {
     id: playlist.id,
@@ -101,9 +110,10 @@ function toPlaylistDetailResponse(playlist: Playlist, playlistTracks: Track[]) {
     description: playlist.description,
     trackCount: playlistTracks.length,
     totalDurationSeconds,
+    previewCoverUrls,
     createdAt: new Date(playlist.createdAt).toISOString(),
     updatedAt: new Date(playlist.updatedAt).toISOString(),
-    tracks: playlistTracks.map(track => toMusicResponse(track)),
+    tracks: playlistTracks.map(track => toMusicResponse(track, trackIdToPlaylistIds.get(track.id) ?? [])),
   }
 }
 
@@ -122,6 +132,10 @@ const MusicSchema = z.object({
   sourceIdentifier: z.string().nullable().openapi({ example: '1901371647' }),
   durationText: z.string().nullable().openapi({ example: '00:03:43' }),
   durationSeconds: z.number().int().nullable().openapi({ example: 223 }),
+  playlistIds: z.array(z.string()).openapi({
+    example: ['3d4fe5c7-280f-4b32-bf8d-7571466ae1a3'],
+    description: 'Ids of playlists this track is part of',
+  }),
   createdAt: z.string().datetime().openapi({ example: '2024-01-01T12:00:00.000Z' }),
 }).openapi('Music')
 
@@ -135,6 +149,9 @@ const PlaylistSchema = z.object({
   description: z.string().nullable().openapi({ example: 'Tracks for focused listening' }),
   trackCount: z.number().int().nonnegative().openapi({ example: 12 }),
   totalDurationSeconds: z.number().int().nonnegative().openapi({ example: 2765 }),
+  previewCoverUrls: z.array(z.string()).max(4).openapi({
+    example: ['/music/a3f9d3d1-9c9d-4a40-a54d-0e4cb7acb8a0/cover/thumb'],
+  }),
   createdAt: z.string().datetime().openapi({ example: '2024-01-01T12:00:00.000Z' }),
   updatedAt: z.string().datetime().openapi({ example: '2024-01-02T08:30:00.000Z' }),
 }).openapi('Playlist')
@@ -614,7 +631,8 @@ const listMusicRoute = createRoute({
 
 app.openapi(listMusicRoute, (c) => {
   const items = db.select().from(tracks).orderBy(desc(tracks.createdAt)).all()
-  return c.json(items.map(item => toMusicResponse(item)))
+  const playlistMap = listAllTrackPlaylistPairs()
+  return c.json(items.map(item => toMusicResponse(item, playlistMap.get(item.id) ?? [])))
 })
 
 const playlistParamsSchema = z.object({
@@ -1332,7 +1350,7 @@ app.openapi(updateMusicRoute, (c) => {
   if (!updated) {
     return c.json({ message: 'Music not found' }, 404)
   }
-  return c.json(toMusicResponse(updated), 200)
+  return c.json(toMusicResponse(updated, getPlaylistIdsForTracks([updated.id]).get(updated.id) ?? []), 200)
 })
 
 const updateCoverRoute = createRoute({
@@ -1413,7 +1431,7 @@ app.openapi(updateCoverRoute, async (c) => {
   if (!updated) {
     return c.json({ message: 'Music not found' }, 404)
   }
-  return c.json(toMusicResponse(updated), 200)
+  return c.json(toMusicResponse(updated, getPlaylistIdsForTracks([updated.id]).get(updated.id) ?? []), 200)
 })
 
 const deleteCoverRoute = createRoute({
@@ -1466,7 +1484,7 @@ app.openapi(deleteCoverRoute, async (c) => {
   if (!updated) {
     return c.json({ message: 'Music not found' }, 404)
   }
-  return c.json(toMusicResponse(updated), 200)
+  return c.json(toMusicResponse(updated, getPlaylistIdsForTracks([updated.id]).get(updated.id) ?? []), 200)
 })
 
 app.get('/', c => c.json({ status: 'ok' }))

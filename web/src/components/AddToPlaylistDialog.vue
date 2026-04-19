@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import type { Music, PlaylistDetail } from '../api/types.gen'
 import { computed, ref, watch } from 'vue'
-import { useAddTrackToPlaylist, useCreatePlaylist, usePlaylistsQuery } from '../composables/usePlaylists'
 import { usePlayerState } from '../composables/usePlayerState'
+import { useAddTrackToPlaylist, useCreatePlaylist, usePlaylistsQuery } from '../composables/usePlaylists'
 
 const props = defineProps<{
   open: boolean

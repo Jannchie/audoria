@@ -23,6 +23,7 @@ interface PersistedPlayerState {
   isPlaying: boolean
   muted: boolean
   playMode: PlayMode
+  upNextQueue: string[]
   volume: number
 }
 
@@ -30,11 +31,13 @@ interface SelectTrackOptions {
   contextTracks?: TrackLike[]
   context?: PlaybackContextInput
   history?: 'push' | 'skip'
+  consumeUpNext?: boolean
 }
 
 const playModeOrder: PlayMode[] = ['sequence', 'repeat-all', 'repeat-one', 'shuffle']
 const playerStateStorageKey = 'audoria.player-state'
 const historyLimit = 100
+const upNextLimit = 500
 const resumeEndThresholdSeconds = 5
 
 function isPlayMode(value: unknown): value is PlayMode {
@@ -49,37 +52,39 @@ function normalizeTrackIds(trackIds: string[]): string[] {
   return [...new Set(trackIds.filter(id => typeof id === 'string' && id.length > 0))]
 }
 
+function normalizeQueueIds(trackIds: string[]): string[] {
+  // upNext allows the same track to be enqueued multiple times deliberately,
+  // but we still keep only valid string ids. We do NOT de-dup across the queue.
+  return trackIds.filter(id => typeof id === 'string' && id.length > 0).slice(0, upNextLimit)
+}
+
 function canUseStorage(): boolean {
   return typeof globalThis !== 'undefined' && 'localStorage' in globalThis
 }
 
+function defaultPersistedState(): PersistedPlayerState {
+  return {
+    context: null,
+    currentTime: 0,
+    currentTrackId: null,
+    history: [],
+    isPlaying: false,
+    muted: false,
+    playMode: 'repeat-all',
+    upNextQueue: [],
+    volume: 1,
+  }
+}
+
 function readPersistedState(): PersistedPlayerState {
   if (!canUseStorage()) {
-    return {
-      context: null,
-      currentTime: 0,
-      currentTrackId: null,
-      history: [],
-      isPlaying: false,
-      muted: false,
-      playMode: 'repeat-all',
-      volume: 1,
-    }
+    return defaultPersistedState()
   }
 
   try {
     const raw = globalThis.localStorage.getItem(playerStateStorageKey)
     if (!raw) {
-      return {
-        context: null,
-        currentTime: 0,
-        currentTrackId: null,
-        history: [],
-        isPlaying: false,
-        muted: false,
-        playMode: 'repeat-all',
-        volume: 1,
-      }
+      return defaultPersistedState()
     }
 
     const parsed = JSON.parse(raw) as Partial<PersistedPlayerState>
@@ -118,22 +123,16 @@ function readPersistedState(): PersistedPlayerState {
       isPlaying: Boolean(parsed.isPlaying),
       muted: Boolean(parsed.muted),
       playMode: isPlayMode(parsed.playMode) ? parsed.playMode : 'repeat-all',
+      upNextQueue: Array.isArray(parsed.upNextQueue)
+        ? normalizeQueueIds(parsed.upNextQueue)
+        : [],
       volume: typeof parsed.volume === 'number'
         ? Math.min(1, Math.max(0, parsed.volume))
         : 1,
     }
   }
   catch {
-    return {
-      context: null,
-      currentTime: 0,
-      currentTrackId: null,
-      history: [],
-      isPlaying: false,
-      muted: false,
-      playMode: 'repeat-all',
-      volume: 1,
-    }
+    return defaultPersistedState()
   }
 }
 
@@ -148,6 +147,7 @@ const volume = ref(persistedState.volume)
 const muted = ref(persistedState.muted)
 const playHistory = ref<string[]>(persistedState.history)
 const playbackContext = ref<PlaybackContext | null>(persistedState.context)
+const upNextQueue = ref<string[]>(persistedState.upNextQueue)
 
 function persistState(): void {
   if (!canUseStorage()) {
@@ -163,6 +163,7 @@ function persistState(): void {
       isPlaying: isPlaying.value,
       muted: muted.value,
       playMode: playMode.value,
+      upNextQueue: upNextQueue.value,
       volume: volume.value,
     }
     globalThis.localStorage.setItem(playerStateStorageKey, JSON.stringify(payload))
@@ -191,7 +192,9 @@ function setPlaybackContext(trackIds: string[], input: PlaybackContextInput): vo
   playbackContext.value = normalizePlaybackContext(input, trackIds)
 }
 
-function updateContextFromTracks(tracks: TrackLike[], input: PlaybackContextInput = { type: 'library' }): void {
+const defaultLibraryContext: PlaybackContextInput = Object.freeze({ type: 'library' })
+
+function updateContextFromTracks(tracks: TrackLike[], input: PlaybackContextInput = defaultLibraryContext): void {
   setPlaybackContext(tracks.map(track => track.id), input)
 }
 
@@ -267,6 +270,10 @@ export function usePlayerState() {
       pushHistory(previousTrackId)
     }
 
+    if (options.consumeUpNext && id && upNextQueue.value[0] === id) {
+      upNextQueue.value = upNextQueue.value.slice(1)
+    }
+
     currentTrackId.value = id
     resetProgress()
 
@@ -312,7 +319,7 @@ export function usePlayerState() {
     persistState()
   }
 
-  const syncTrackContext = (tracks: TrackLike[], context: PlaybackContextInput = { type: 'library' }) => {
+  const syncTrackContext = (tracks: TrackLike[], context: PlaybackContextInput = defaultLibraryContext) => {
     if (playbackContext.value && !isSamePlaybackContext(playbackContext.value, context)) {
       return
     }
@@ -397,6 +404,19 @@ export function usePlayerState() {
     if (playMode.value === 'repeat-one') {
       return currentTrackId.value
     }
+    // upNext queue has priority over context when auto-advancing.
+    const upNext = upNextQueue.value[0]
+    if (upNext) {
+      return upNext
+    }
+    return getAdjacentTrackId(tracks, 'next')
+  }
+
+  const getNextTrackId = (tracks: TrackLike[]) => {
+    const upNext = upNextQueue.value[0]
+    if (upNext) {
+      return upNext
+    }
     return getAdjacentTrackId(tracks, 'next')
   }
 
@@ -411,19 +431,98 @@ export function usePlayerState() {
     return total > 0 ? Math.min(savedTime, Math.max(0, total - 0.25)) : savedTime
   }
 
+  const enqueueNext = (trackIds: string[]) => {
+    const incoming = normalizeQueueIds(trackIds)
+    if (incoming.length === 0) {
+      return
+    }
+    upNextQueue.value = normalizeQueueIds([...incoming, ...upNextQueue.value])
+    persistState()
+  }
+
+  const enqueueLast = (trackIds: string[]) => {
+    const incoming = normalizeQueueIds(trackIds)
+    if (incoming.length === 0) {
+      return
+    }
+    upNextQueue.value = normalizeQueueIds([...upNextQueue.value, ...incoming])
+    persistState()
+  }
+
+  const removeFromQueueAt = (index: number) => {
+    if (index < 0 || index >= upNextQueue.value.length) {
+      return
+    }
+    const next = [...upNextQueue.value]
+    next.splice(index, 1)
+    upNextQueue.value = next
+    persistState()
+  }
+
+  const moveInQueue = (fromIndex: number, toIndex: number) => {
+    const queue = upNextQueue.value
+    if (
+      fromIndex < 0 || fromIndex >= queue.length
+      || toIndex < 0 || toIndex >= queue.length
+      || fromIndex === toIndex
+    ) {
+      return
+    }
+    const next = [...queue]
+    const [moved] = next.splice(fromIndex, 1)
+    next.splice(toIndex, 0, moved)
+    upNextQueue.value = next
+    persistState()
+  }
+
+  const clearQueue = () => {
+    if (upNextQueue.value.length === 0) {
+      return
+    }
+    upNextQueue.value = []
+    persistState()
+  }
+
+  const pruneQueue = (availableIds: Set<string>) => {
+    if (upNextQueue.value.length === 0) {
+      return
+    }
+    const filtered = upNextQueue.value.filter(id => availableIds.has(id))
+    if (filtered.length !== upNextQueue.value.length) {
+      upNextQueue.value = filtered
+      persistState()
+    }
+  }
+
+  const consumeUpNextHead = (expected: string) => {
+    if (upNextQueue.value[0] === expected) {
+      upNextQueue.value = upNextQueue.value.slice(1)
+      persistState()
+    }
+  }
+
   return {
+    clearQueue,
+    consumeUpNextHead,
     currentTime,
     currentTrackId,
+    cyclePlayMode,
     duration,
+    enqueueLast,
+    enqueueNext,
     getAdjacentTrackId,
     getAutoAdvanceTrackId,
+    getNextTrackId,
     getPreviousTrackId,
     getResumeTime,
     isPlaying,
+    moveInQueue,
     muted,
     playHistory,
     playMode,
     playbackContext,
+    pruneQueue,
+    removeFromQueueAt,
     seekTo,
     selectTrack,
     setPlaying,
@@ -431,7 +530,7 @@ export function usePlayerState() {
     syncTrackContext,
     toggleMute,
     updateProgress,
+    upNextQueue,
     volume,
-    cyclePlayMode,
   }
 }

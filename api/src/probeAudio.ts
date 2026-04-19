@@ -3,7 +3,6 @@ import { spawn } from 'node:child_process'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { parseBuffer } from 'music-metadata'
 
 export function formatDurationText(seconds: number): string {
   const total = Math.max(0, Math.floor(seconds))
@@ -15,25 +14,7 @@ export function formatDurationText(seconds: number): string {
     .join(':')
 }
 
-async function probeWithMusicMetadata(buffer: Buffer, contentType: string | null): Promise<number | null> {
-  try {
-    const metadata = await parseBuffer(
-      buffer,
-      { mimeType: contentType ?? undefined, size: buffer.byteLength },
-      { duration: true },
-    )
-    const duration = metadata.format.duration
-    if (typeof duration === 'number' && Number.isFinite(duration) && duration > 0) {
-      return Math.round(duration)
-    }
-  }
-  catch {
-    // fall through
-  }
-  return null
-}
-
-async function probeWithFfprobe(buffer: Buffer): Promise<number | null> {
+export async function probeDurationSeconds(buffer: Buffer): Promise<number | null> {
   let dir: string | null = null
   try {
     dir = await mkdtemp(path.join(tmpdir(), 'audoria-probe-'))
@@ -73,7 +54,7 @@ async function probeWithFfprobe(buffer: Buffer): Promise<number | null> {
     }
   }
   catch {
-    // ffprobe missing or failed; give up
+    // ffprobe missing or failed; caller must treat this as "duration unknown".
   }
   finally {
     if (dir) {
@@ -81,15 +62,4 @@ async function probeWithFfprobe(buffer: Buffer): Promise<number | null> {
     }
   }
   return null
-}
-
-export async function probeDurationSeconds(
-  buffer: Buffer,
-  contentType: string | null,
-): Promise<number | null> {
-  const fromLib = await probeWithMusicMetadata(buffer, contentType)
-  if (fromLib !== null) {
-    return fromLib
-  }
-  return await probeWithFfprobe(buffer)
 }

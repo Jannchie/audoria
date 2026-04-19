@@ -1,7 +1,7 @@
 import type { InferSelectModel } from 'drizzle-orm'
 import { randomUUID } from 'node:crypto'
 import Database from 'better-sqlite3'
-import { and, asc, desc, eq, lt, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, lt, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { config } from './config.js'
@@ -91,6 +91,7 @@ export type PlaylistTrack = InferSelectModel<typeof playlistTracks>
 export interface PlaylistSummary extends Playlist {
   totalDurationSeconds: number
   trackCount: number
+  previewTrackIds: string[]
 }
 
 const sqlite = new Database(config.dbPath)
@@ -392,10 +393,24 @@ export function listPlaylists(): PlaylistSummary[] {
       .where(eq(playlistTracks.playlistId, playlist.id))
       .get()
 
+    const previewTrackIds = db
+      .select({ trackId: playlistTracks.trackId })
+      .from(playlistTracks)
+      .innerJoin(tracks, eq(playlistTracks.trackId, tracks.id))
+      .where(and(
+        eq(playlistTracks.playlistId, playlist.id),
+        sql`(${tracks.coverThumbStorageKey} IS NOT NULL OR ${tracks.coverStorageKey} IS NOT NULL)`,
+      ))
+      .orderBy(asc(playlistTracks.position), asc(playlistTracks.createdAt))
+      .limit(4)
+      .all()
+      .map(row => row.trackId)
+
     return {
       ...playlist,
       trackCount: Number(aggregates?.trackCount ?? 0),
       totalDurationSeconds: Number(aggregates?.totalDurationSeconds ?? 0),
+      previewTrackIds,
     }
   })
 }
@@ -530,6 +545,52 @@ export function reorderPlaylistTracks(playlistId: string, orderedTrackIds: strin
       .where(eq(playlists.id, playlistId))
       .run()
   })
+}
+
+export function getPlaylistIdsForTracks(trackIds: string[]): Map<string, string[]> {
+  const map = new Map<string, string[]>()
+  if (trackIds.length === 0) {
+    return map
+  }
+  const rows = db
+    .select({
+      trackId: playlistTracks.trackId,
+      playlistId: playlistTracks.playlistId,
+    })
+    .from(playlistTracks)
+    .where(inArray(playlistTracks.trackId, trackIds))
+    .all()
+  for (const row of rows) {
+    const list = map.get(row.trackId)
+    if (list) {
+      list.push(row.playlistId)
+    }
+    else {
+      map.set(row.trackId, [row.playlistId])
+    }
+  }
+  return map
+}
+
+export function listAllTrackPlaylistPairs(): Map<string, string[]> {
+  const rows = db
+    .select({
+      trackId: playlistTracks.trackId,
+      playlistId: playlistTracks.playlistId,
+    })
+    .from(playlistTracks)
+    .all()
+  const map = new Map<string, string[]>()
+  for (const row of rows) {
+    const list = map.get(row.trackId)
+    if (list) {
+      list.push(row.playlistId)
+    }
+    else {
+      map.set(row.trackId, [row.playlistId])
+    }
+  }
+  return map
 }
 
 export function removeTrackFromAllPlaylists(trackId: string): void {

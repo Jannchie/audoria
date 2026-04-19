@@ -35,7 +35,7 @@ async function loadSettings() {
   return await import('../composables/useSettings')
 }
 
-describe('useSettings', () => {
+describe('usesettings', () => {
   beforeEach(() => {
     vi.stubGlobal('localStorage', new MemoryStorage())
     vi.stubGlobal('navigator', { language: 'en-US' })

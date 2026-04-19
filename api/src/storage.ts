@@ -263,9 +263,8 @@ async function readReadableToBuffer(body: Readable): Promise<Buffer> {
 
 async function probeAudioDuration(
   buffer: Buffer,
-  contentType: string | null,
 ): Promise<{ durationSeconds: number | null, durationText: string | null }> {
-  const seconds = await probeDurationSeconds(buffer, contentType)
+  const seconds = await probeDurationSeconds(buffer)
   if (seconds === null) {
     return { durationSeconds: null, durationText: null }
   }
@@ -347,7 +346,7 @@ export async function storeTrack({
   const buffer = Buffer.concat(chunks)
   const resolvedSize = buffer.byteLength
 
-  const { durationSeconds, durationText } = await probeAudioDuration(buffer, contentType)
+  const { durationSeconds, durationText } = await probeAudioDuration(buffer)
 
   const storageBackend = getActiveStorageBackend()
   await getStorageDriver(storageBackend).putObject({

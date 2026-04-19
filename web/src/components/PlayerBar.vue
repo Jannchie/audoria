@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { findLyricLineAtTime, useLyrics } from '../composables/useLyrics'
 import { buildDownloadUrl, resolveApiUrl, useMusicQuery } from '../composables/useMusic'
 import { usePlayerState } from '../composables/usePlayerState'
+import { useQueuePanel } from '../composables/useQueuePanel'
 import IconButton from './IconButton.vue'
 import ProgressPreviewTooltip from './ProgressPreviewTooltip.vue'
 import SourceBadge from './SourceBadge.vue'
@@ -25,6 +26,7 @@ const volumePreview = ref<number | null>(null)
 const pendingResumeTime = ref<number | null>(null)
 const { data: tracks, isPending: isTracksPending } = useMusicQuery()
 const {
+  consumeUpNextHead,
   currentTrackId,
   isPlaying,
   playMode,
@@ -38,13 +40,16 @@ const {
   updateProgress,
   setVolume,
   toggleMute,
-  getAdjacentTrackId,
   getAutoAdvanceTrackId,
+  getNextTrackId,
   getPreviousTrackId,
   playbackContext,
+  pruneQueue,
   getResumeTime,
   syncTrackContext,
+  upNextQueue,
 } = usePlayerState()
+const { toggle: toggleQueuePanel, isOpen: isQueueOpen } = useQueuePanel()
 
 const currentTrack = computed(() => {
   const items = tracks.value ?? []
@@ -108,17 +113,25 @@ const playModeIcon = computed(() => {
 
 const playModeLabel = computed(() => {
   let mode: string
-  if (playMode.value === 'sequence') {
-    mode = t('player.playModes.sequence')
-  }
-  else if (playMode.value === 'repeat-all') {
-    mode = t('player.playModes.repeatAll')
-  }
-  else if (playMode.value === 'repeat-one') {
-    mode = t('player.playModes.repeatOne')
-  }
-  else {
-    mode = t('player.playModes.shuffle')
+  switch (playMode.value) {
+    case 'sequence': {
+      mode = t('player.playModes.sequence')
+
+      break
+    }
+    case 'repeat-all': {
+      mode = t('player.playModes.repeatAll')
+
+      break
+    }
+    case 'repeat-one': {
+      mode = t('player.playModes.repeatOne')
+
+      break
+    }
+    default: {
+      mode = t('player.playModes.shuffle')
+    }
   }
   return t('player.playModeLabel', { mode })
 })
@@ -180,6 +193,20 @@ function formattedTime(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, '0')}`
 }
 
+// Switching tracks rapidly causes audio.play() to reject with an AbortError
+// while the previous load is still in flight. That's expected — handleLoaded
+// will retry once the new src is ready. Only real failures (autoplay blocked,
+// codec not supported, etc.) should flip isPlaying back to false.
+function handlePlayRejection(error: unknown): void {
+  const name = error && typeof error === 'object' && 'name' in error
+    ? (error as { name?: string }).name
+    : null
+  if (name === 'AbortError') {
+    return
+  }
+  setPlaying(false)
+}
+
 function handleTimeUpdate(): void {
   const audio = audioRef.value
   if (!audio) {
@@ -203,21 +230,25 @@ function handleLoaded(): void {
     updateProgress(resumeTime, audio.duration || 0)
     pendingResumeTime.value = null
     if (isPlaying.value) {
-      audio.play().catch(() => setPlaying(false))
+      audio.play().catch(handlePlayRejection)
     }
     return
   }
   pendingResumeTime.value = null
   updateProgress(audio.currentTime, audio.duration || 0)
   if (isPlaying.value) {
-    audio.play().catch(() => setPlaying(false))
+    audio.play().catch(handlePlayRejection)
   }
 }
 
 function handleNext(): void {
-  const nextId = getAdjacentTrackId(tracks.value ?? [], 'next')
+  const nextId = getNextTrackId(tracks.value ?? [])
   if (nextId) {
-    selectTrack(nextId, { contextTracks: tracks.value ?? [] })
+    const isUpNext = upNextQueue.value[0] === nextId
+    selectTrack(nextId, { contextTracks: tracks.value ?? [], consumeUpNext: isUpNext })
+    if (isUpNext) {
+      consumeUpNextHead(nextId)
+    }
     setPlaying(true)
   }
 }
@@ -239,7 +270,7 @@ function togglePlayPause(): void {
     if (!currentTrackId.value && resolvedCurrentTrackId.value) {
       selectTrack(resolvedCurrentTrackId.value, { contextTracks: tracks.value ?? [] })
     }
-    audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false))
+    audio.play().then(() => setPlaying(true)).catch(handlePlayRejection)
   }
   else {
     audio.pause()
@@ -398,10 +429,14 @@ function handleEnded(): void {
   }
   if (nextId === resolvedCurrentTrackId.value && audio) {
     audio.currentTime = 0
-    audio.play().catch(() => setPlaying(false))
+    audio.play().catch(handlePlayRejection)
     return
   }
-  selectTrack(nextId, { contextTracks: tracks.value ?? [] })
+  const isUpNext = upNextQueue.value[0] === nextId
+  selectTrack(nextId, { contextTracks: tracks.value ?? [], consumeUpNext: isUpNext })
+  if (isUpNext) {
+    consumeUpNextHead(nextId)
+  }
   setPlaying(true)
 }
 
@@ -465,7 +500,7 @@ watch(isPlaying, (playing) => {
   }
   audio.autoplay = playing
   if (playing) {
-    audio.play().catch(() => setPlaying(false))
+    audio.play().catch(handlePlayRejection)
   }
   else {
     audio.pause()
@@ -477,6 +512,7 @@ watch([tracks, isTracksPending], ([items, pending]) => {
     return
   }
   syncTrackContext(items ?? [])
+  pruneQueue(new Set((items ?? []).map(item => item.id)))
 }, { immediate: true })
 
 onUnmounted(() => {
@@ -560,10 +596,7 @@ onUnmounted(() => {
             <span
               v-if="currentTrack?.artists"
               class="truncate"
-            >{{ currentTrack.artists }}</span>
-            <span
-              v-if="currentTrack?.artists"
-            >·</span>
+            >{{ currentTrack.artists }} ·</span>
             <span class="shrink-0 tabular-nums">{{ formattedTime(displayedCurrentTime) }} / {{ formattedTime(duration) }}</span>
           </p>
         </div>
@@ -603,6 +636,13 @@ onUnmounted(() => {
 
       <!-- Volume (desktop only) -->
       <div class="playerbar-volume gap-1 hidden items-center lg:flex">
+        <IconButton
+          :active="isQueueOpen"
+          :aria-label="t('player.toggleQueue')"
+          icon="i-tabler-playlist"
+          size="sm"
+          @click="toggleQueuePanel"
+        />
         <IconButton
           :aria-label="muted ? t('common.actions.unmute') : t('common.actions.mute')"
           :icon="volumeIcon"

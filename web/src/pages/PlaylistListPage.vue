@@ -1,17 +1,59 @@
 <script setup lang="ts">
 import type { Playlist } from '../api/types.gen'
 import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
+import PlaylistCover from '../components/PlaylistCover.vue'
 import { useCreatePlaylist, useDeletePlaylist, usePlaylistsQuery } from '../composables/usePlaylists'
 
+type SortKey = 'updated' | 'created' | 'nameAsc' | 'nameDesc' | 'tracks'
+
+const { t } = useI18n()
 const router = useRouter()
 const { data: playlists, isPending, isError, error } = usePlaylistsQuery()
 const createPlaylistMutation = useCreatePlaylist()
 const deletePlaylistMutation = useDeletePlaylist()
 
+const search = ref('')
+const sort = ref<SortKey>('updated')
+const showCreate = ref(false)
 const name = ref('')
 const description = ref('')
 const formError = ref('')
+
+const sortOptions = computed<Array<{ value: SortKey, label: string }>>(() => [
+  { value: 'updated', label: t('playlist.sortUpdatedDesc') },
+  { value: 'created', label: t('playlist.sortCreatedDesc') },
+  { value: 'nameAsc', label: t('playlist.sortNameAsc') },
+  { value: 'nameDesc', label: t('playlist.sortNameDesc') },
+  { value: 'tracks', label: t('playlist.sortTracksDesc') },
+])
+
+const filteredPlaylists = computed(() => {
+  const source = playlists.value ?? []
+  const keyword = search.value.trim().toLowerCase()
+  const filtered = keyword
+    ? source.filter((playlist) => {
+        const fields = [playlist.name, playlist.description].filter(Boolean).join(' ').toLowerCase()
+        return fields.includes(keyword)
+      })
+    : [...source]
+
+  return filtered.sort((a, b) => {
+    switch (sort.value) {
+      case 'nameAsc': { return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+      }
+      case 'nameDesc': { return b.name.localeCompare(a.name, undefined, { sensitivity: 'base' })
+      }
+      case 'tracks': { return b.trackCount - a.trackCount
+      }
+      case 'created': { return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      }
+      default: { return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      }
+    }
+  })
+})
 
 const isCreating = computed(() => createPlaylistMutation.isPending.value)
 
@@ -23,6 +65,19 @@ function formatDuration(seconds: number): string {
     return `${hours}h ${minutes}m`
   }
   return `${minutes}m`
+}
+
+function resetCreateForm(): void {
+  name.value = ''
+  description.value = ''
+  formError.value = ''
+}
+
+function toggleCreate(): void {
+  showCreate.value = !showCreate.value
+  if (!showCreate.value) {
+    resetCreateForm()
+  }
 }
 
 async function handleCreate(): Promise<void> {
@@ -39,8 +94,8 @@ async function handleCreate(): Promise<void> {
       name: trimmedName,
       description: description.value.trim() || null,
     })
-    name.value = ''
-    description.value = ''
+    resetCreateForm()
+    showCreate.value = false
     router.push(`/playlists/${playlist.id}`)
   }
   catch (error_) {
@@ -64,60 +119,82 @@ function openPlaylist(id: string): void {
 
 <template>
   <section class="playlists-page">
-    <div class="playlists-hero">
+    <header class="playlists-hero">
       <div>
         <h1 class="playlists-title">
-          Playlists
+          {{ t('nav.playlists') }}
         </h1>
-        <p class="playlists-subtitle">
-          Build focused queues from your library.
+        <p
+          v-if="playlists?.length"
+          class="playlists-subtitle"
+        >
+          {{ playlists.length }}
         </p>
-      </div>
-    </div>
-
-    <section class="playlist-create">
-      <div class="playlist-create-fields">
-        <label class="playlist-label">
-          <span>Name</span>
-          <input
-            v-model="name"
-            class="playlist-input"
-            type="text"
-            maxlength="120"
-            :disabled="isCreating"
-            placeholder="New playlist"
-          >
-        </label>
-        <label class="playlist-label">
-          <span>Description</span>
-          <textarea
-            v-model="description"
-            class="playlist-textarea"
-            rows="3"
-            maxlength="2000"
-            :disabled="isCreating"
-            placeholder="Optional description"
-          />
-        </label>
       </div>
       <button
         type="button"
-        class="playlist-submit"
+        class="playlists-new-btn"
         :disabled="isCreating"
-        @click="handleCreate"
+        @click="toggleCreate"
       >
         <span
-          v-if="isCreating"
-          class="i-tabler-loader-2 animate-spin"
-          aria-hidden="true"
-        />
-        <span
-          v-else
           class="i-tabler-plus"
           aria-hidden="true"
         />
-        <span>Create playlist</span>
+        <span>{{ t('playlist.newPlaylist') }}</span>
       </button>
+    </header>
+
+    <section
+      v-if="showCreate"
+      class="playlist-create"
+    >
+      <div class="playlist-create-fields">
+        <input
+          v-model="name"
+          class="playlist-input"
+          type="text"
+          maxlength="120"
+          :disabled="isCreating"
+          :placeholder="t('playlist.newPlaylist')"
+        >
+        <textarea
+          v-model="description"
+          class="playlist-textarea"
+          rows="2"
+          maxlength="2000"
+          :disabled="isCreating"
+          :placeholder="t('metadata.placeholders.title')"
+        />
+      </div>
+      <div class="playlist-create-actions">
+        <button
+          type="button"
+          class="playlist-submit"
+          :disabled="isCreating"
+          @click="handleCreate"
+        >
+          <span
+            v-if="isCreating"
+            class="i-tabler-loader-2 animate-spin"
+            aria-hidden="true"
+          />
+          <span
+            v-else
+            class="i-tabler-plus"
+            aria-hidden="true"
+          />
+          <span>{{ t('common.actions.save') }}</span>
+        </button>
+        <button
+          type="button"
+          class="playlist-cancel"
+          :disabled="isCreating"
+          @click="toggleCreate"
+        >
+          {{ t('common.actions.cancel') }}
+        </button>
+      </div>
       <p
         v-if="formError"
         class="playlist-error"
@@ -125,6 +202,37 @@ function openPlaylist(id: string): void {
         {{ formError }}
       </p>
     </section>
+
+    <div class="playlists-toolbar">
+      <div class="playlists-search">
+        <span
+          class="i-tabler-search playlists-search-icon"
+          aria-hidden="true"
+        />
+        <input
+          v-model="search"
+          class="playlists-search-input"
+          :placeholder="t('playlist.searchPlaceholder')"
+          type="search"
+        >
+      </div>
+      <label class="playlists-sort">
+        <span class="i-tabler-sort-descending" />
+        <select
+          v-model="sort"
+          class="playlists-sort-select"
+          :aria-label="t('playlist.sortBy')"
+        >
+          <option
+            v-for="option in sortOptions"
+            :key="option.value"
+            :value="option.value"
+          >
+            {{ option.label }}
+          </option>
+        </select>
+      </label>
+    </div>
 
     <div
       v-if="isError"
@@ -143,26 +251,31 @@ function openPlaylist(id: string): void {
       />
     </div>
     <div
-      v-else-if="!playlists?.length"
+      v-else-if="filteredPlaylists.length === 0"
       class="playlist-empty"
     >
-      No playlists yet.
+      <span v-if="search">{{ t('library.noResultsTitle') }}</span>
+      <span v-else>{{ t('playlist.newPlaylist') }}</span>
     </div>
     <div
       v-else
       class="playlist-grid"
     >
       <article
-        v-for="playlist in playlists"
+        v-for="playlist in filteredPlaylists"
         :key="playlist.id"
         class="playlist-card"
       >
-        <div class="playlist-card-header">
-          <button
-            type="button"
-            class="playlist-card-main"
-            @click="openPlaylist(playlist.id)"
-          >
+        <button
+          type="button"
+          class="playlist-card-main"
+          @click="openPlaylist(playlist.id)"
+        >
+          <PlaylistCover
+            :urls="playlist.previewCoverUrls"
+            size="md"
+          />
+          <div class="playlist-card-body">
             <h2 class="playlist-card-title">
               {{ playlist.name }}
             </h2>
@@ -172,23 +285,24 @@ function openPlaylist(id: string): void {
             >
               {{ playlist.description }}
             </p>
-          </button>
-          <button
-            type="button"
-            class="playlist-card-delete"
-            aria-label="Delete playlist"
-            @click="handleDelete(playlist, $event)"
-          >
-            <span
-              class="i-tabler-trash"
-              aria-hidden="true"
-            />
-          </button>
-        </div>
-        <div class="playlist-card-meta">
-          <span>{{ playlist.trackCount }} tracks</span>
-          <span>{{ formatDuration(playlist.totalDurationSeconds) }}</span>
-        </div>
+            <div class="playlist-card-meta">
+              <span>{{ t('playlist.trackCount', { n: playlist.trackCount }) }}</span>
+              <span>·</span>
+              <span>{{ formatDuration(playlist.totalDurationSeconds) }}</span>
+            </div>
+          </div>
+        </button>
+        <button
+          type="button"
+          class="playlist-card-delete"
+          :aria-label="t('playlist.deletePlaylist')"
+          @click="handleDelete(playlist, $event)"
+        >
+          <span
+            class="i-tabler-trash"
+            aria-hidden="true"
+          />
+        </button>
       </article>
     </div>
   </section>
@@ -213,12 +327,37 @@ function openPlaylist(id: string): void {
   font-size: 1.5rem;
   font-weight: 700;
   color: var(--text-primary);
+  font-family: var(--font-display, inherit);
 }
 
 .playlists-subtitle {
-  margin: 0.375rem 0 0;
-  font-size: 0.875rem;
-  color: var(--text-secondary);
+  margin: 0.25rem 0 0;
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+}
+
+.playlists-new-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--accent);
+  color: white;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.playlists-new-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.playlists-new-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .playlist-create {
@@ -232,14 +371,7 @@ function openPlaylist(id: string): void {
 
 .playlist-create-fields {
   display: grid;
-  gap: 0.75rem;
-}
-
-.playlist-label {
-  display: grid;
-  gap: 0.375rem;
-  font-size: 0.8125rem;
-  color: var(--text-secondary);
+  gap: 0.5rem;
 }
 
 .playlist-input,
@@ -249,8 +381,20 @@ function openPlaylist(id: string): void {
   border-radius: 0.75rem;
   background: var(--bg-base);
   color: var(--text-primary);
-  padding: 0.75rem 0.875rem;
+  padding: 0.625rem 0.875rem;
+  font-size: 0.875rem;
   resize: vertical;
+}
+
+.playlist-input:focus,
+.playlist-textarea:focus {
+  outline: 2px solid color-mix(in srgb, var(--accent) 50%, transparent);
+  outline-offset: 0;
+}
+
+.playlist-create-actions {
+  display: flex;
+  gap: 0.5rem;
 }
 
 .playlist-submit {
@@ -258,13 +402,28 @@ function openPlaylist(id: string): void {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  min-height: 2.75rem;
+  min-height: 2.25rem;
+  padding: 0 1rem;
   border: none;
-  border-radius: 0.875rem;
+  border-radius: 999px;
   background: var(--accent);
   color: white;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 600;
+  cursor: pointer;
+}
+
+.playlist-cancel {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 1rem;
+  min-height: 2.25rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  cursor: pointer;
 }
 
 .playlist-error {
@@ -273,9 +432,73 @@ function openPlaylist(id: string): void {
   color: var(--danger);
 }
 
+.playlists-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.playlists-search {
+  position: relative;
+  flex: 1;
+  min-width: 12rem;
+}
+
+.playlists-search-icon {
+  position: absolute;
+  left: 0.875rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.875rem;
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+
+.playlists-search-input {
+  width: 100%;
+  height: 2.5rem;
+  padding: 0 1rem 0 2.375rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 0.8125rem;
+  outline: none;
+  transition: background 0.15s ease;
+}
+
+.playlists-search-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.playlists-search-input:focus {
+  background: var(--bg-elevated, var(--bg-surface));
+}
+
+.playlists-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0 0.625rem;
+  height: 2.5rem;
+  border-radius: 999px;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.playlists-sort-select {
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
 .playlist-grid {
   display: grid;
-  gap: 0.875rem;
+  gap: 0.75rem;
 }
 
 @media (min-width: 768px) {
@@ -285,67 +508,97 @@ function openPlaylist(id: string): void {
 }
 
 .playlist-card {
-  display: grid;
-  gap: 1rem;
-  padding: 1rem;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
   border: 1px solid var(--border);
   border-radius: 1rem;
   background: var(--bg-surface);
   text-align: left;
+  transition: background 0.15s ease;
+}
+
+.playlist-card:hover {
+  background: var(--bg-base);
 }
 
 .playlist-card--skeleton {
-  min-height: 8.5rem;
-}
-
-.playlist-card-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
+  min-height: 5.75rem;
 }
 
 .playlist-card-main {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
   min-width: 0;
   flex: 1;
   padding: 0;
   border: none;
   background: none;
   text-align: left;
+  cursor: pointer;
+}
+
+.playlist-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  flex: 1;
 }
 
 .playlist-card-title {
   margin: 0;
-  font-size: 1rem;
+  font-size: 0.9375rem;
   font-weight: 600;
   color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .playlist-card-description {
-  margin: 0.375rem 0 0;
-  font-size: 0.8125rem;
+  margin: 0;
+  font-size: 0.75rem;
   color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .playlist-card-meta {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  font-size: 0.8125rem;
-  color: var(--text-secondary);
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
 }
 
 .playlist-card-delete {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   width: 2rem;
   height: 2rem;
   border: none;
   border-radius: 999px;
   background: none;
   color: var(--text-tertiary);
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease;
+  cursor: pointer;
+}
+
+.playlist-card:hover .playlist-card-delete {
+  opacity: 1;
+}
+
+.playlist-card-delete:hover {
+  background: var(--bg-elevated, var(--bg-surface));
+  color: var(--text-primary);
 }
 
 .playlist-empty {

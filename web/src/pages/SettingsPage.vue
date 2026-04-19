@@ -1,8 +1,9 @@
 <script setup lang="ts">
+import type { LocalePreference } from '../i18n/locales'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useSettings } from '../composables/useSettings'
-import { localeLabels, type LocalePreference } from '../i18n/locales'
+import { localeLabels } from '../i18n/locales'
 
 const { t } = useI18n()
 const { localePreference, effectiveLocale, setLocalePreference } = useSettings()
@@ -63,7 +64,7 @@ const languageOptions = computed<Array<{ value: LocalePreference, label: string,
       <p class="settings-footnote">
         {{
           languageOptions.find(option => option.value === localePreference)?.hint
-          ?? `${t('settings.language.effectiveLocale')}: ${localeLabels[effectiveLocale]}`
+            ?? `${t('settings.language.effectiveLocale')}: ${localeLabels[effectiveLocale]}`
         }}
       </p>
     </section>

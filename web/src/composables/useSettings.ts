@@ -1,5 +1,6 @@
-import { computed, readonly, reactive } from 'vue'
-import { isLocalePreference, type LocalePreference, resolveLocale } from '../i18n/locales'
+import type { LocalePreference } from '../i18n/locales'
+import { computed, reactive, readonly } from 'vue'
+import { isLocalePreference, resolveLocale } from '../i18n/locales'
 
 const settingsStorageKey = 'audoria.settings'
 
