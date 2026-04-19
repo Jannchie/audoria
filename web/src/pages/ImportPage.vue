@@ -74,26 +74,52 @@ const pendingImports = ref<Set<string>>(new Set())
 const searchMutation = useSearchMusicImport()
 const importMutation = useImportMusic()
 const importJobQuery = useImportJobQuery(activeImportJobId)
+type LibraryMatchState = 'confirmed' | 'possible' | null
 
 function normalizePart(value: string | null | undefined): string {
   return (value ?? '')
     .toLowerCase()
-    .replaceAll(/\(.*?\)|（.*?）|\[.*?\]/g, '')
+    .replaceAll(/[()[\]{}（）【】]/g, ' ')
     .replaceAll(/[^a-z0-9\u4E00-\u9FFF]+/g, '')
 }
 
-function normalizeTrackKey(title: string | null | undefined, artists: string | null | undefined): string {
-  const t = normalizePart(title)
-  if (!t) {
-    return ''
-  }
-  return `${t}|${normalizePart(artists)}`
+function splitArtistTokens(value: string | null | undefined): string[] {
+  return (value ?? '')
+    .split(/[,/&、，；;|]| feat\. | ft\. | featuring /i)
+    .map(part => normalizePart(part))
+    .filter(Boolean)
 }
 
-const libraryTrackKeys = computed<Set<string>>(() => {
+function parseDurationSeconds(value: string | null | undefined): number | null {
+  if (!value || value === '-') {
+    return null
+  }
+
+  const parts = value.split(':').map(Number)
+  if (parts.length < 2 || parts.some(part => Number.isNaN(part) || part < 0)) {
+    return null
+  }
+
+  return parts.reduce((total, part) => total * 60 + part, 0)
+}
+
+function normalizeIdentifier(value: string | null | undefined): string {
+  return (value ?? '').trim()
+}
+
+function buildExactMatchKey(source: string | null | undefined, identifier: string | null | undefined): string {
+  const normalizedSource = normalizePart(source)
+  const normalizedIdentifier = normalizeIdentifier(identifier)
+  if (!normalizedSource || !normalizedIdentifier) {
+    return ''
+  }
+  return `${normalizedSource}|${normalizedIdentifier}`
+}
+
+const exactLibraryTrackKeys = computed<Set<string>>(() => {
   const set = new Set<string>()
   for (const track of tracks.value ?? []) {
-    const key = normalizeTrackKey(track.title ?? track.filename, track.artists)
+    const key = buildExactMatchKey(track.source, track.sourceIdentifier)
     if (key) {
       set.add(key)
     }
@@ -101,9 +127,82 @@ const libraryTrackKeys = computed<Set<string>>(() => {
   return set
 })
 
+const libraryMatches = computed(() => {
+  const items: Array<{
+    title: string
+    artists: string[]
+    album: string
+    durationSeconds: number | null
+  }> = []
+  for (const track of tracks.value ?? []) {
+    const title = normalizePart(track.title)
+    const artists = splitArtistTokens(track.artists)
+    if (!title || artists.length === 0) {
+      continue
+    }
+    items.push({
+      title,
+      artists,
+      album: normalizePart(track.album),
+      durationSeconds: track.durationSeconds,
+    })
+  }
+  return items
+})
+
+function getLibraryMatchState(result: MusicDlSearchResult): LibraryMatchState {
+  const exactMatchKey = buildExactMatchKey(result.source, result.sourceIdentifier)
+  if (exactMatchKey && exactLibraryTrackKeys.value.has(exactMatchKey)) {
+    return 'confirmed'
+  }
+
+  const title = normalizePart(result.songName)
+  const artists = splitArtistTokens(result.singers)
+  if (!title || artists.length === 0) {
+    return null
+  }
+
+  const album = normalizePart(result.album)
+  const durationSeconds = parseDurationSeconds(result.duration)
+  let hasPossibleMatch = false
+
+  for (const track of libraryMatches.value) {
+    if (track.title !== title) {
+      continue
+    }
+
+    const sharesArtist = artists.some(artist => track.artists.includes(artist))
+    if (!sharesArtist) {
+      continue
+    }
+
+    if (album && track.album && album !== track.album) {
+      continue
+    }
+
+    if (
+      durationSeconds !== null
+      && track.durationSeconds !== null
+      && Math.abs(durationSeconds - track.durationSeconds) > 3
+    ) {
+      continue
+    }
+
+    const hasAlbumEvidence = Boolean(album && track.album)
+    const hasDurationEvidence = durationSeconds !== null && track.durationSeconds !== null
+
+    if (hasAlbumEvidence || hasDurationEvidence) {
+      return 'confirmed'
+    }
+
+    hasPossibleMatch = true
+  }
+
+  return hasPossibleMatch ? 'possible' : null
+}
+
 function isAlreadyImported(result: MusicDlSearchResult): boolean {
-  const key = normalizeTrackKey(result.songName, result.singers)
-  return key ? libraryTrackKeys.value.has(key) : false
+  return getLibraryMatchState(result) === 'confirmed'
 }
 
 const isSearching = computed<boolean>(() => searchMutation.isPending.value)
@@ -477,9 +576,10 @@ function isImporting(id: string): boolean {
           'result-row--importing': isImporting(result.id),
           'result-row--disabled': !result.downloadable,
           'result-row--imported': isAlreadyImported(result),
+          'result-row--possible': getLibraryMatchState(result) === 'possible',
         }"
         :disabled="isImporting(result.id) || !result.downloadable || isAlreadyImported(result)"
-        :title="isAlreadyImported(result) ? 'Already in your library' : undefined"
+        :title="isAlreadyImported(result) ? 'Already in your library' : getLibraryMatchState(result) === 'possible' ? 'Possibly already in your library' : undefined"
         @click="handleImport(result)"
       >
         <div class="result-cover">
@@ -525,6 +625,13 @@ function isImporting(id: string): boolean {
           >
             <span class="i-tabler-check text-sm" />
             <span>In library</span>
+          </span>
+          <span
+            v-else-if="getLibraryMatchState(result) === 'possible'"
+            class="result-badge result-badge--possible"
+          >
+            <span class="i-tabler-alert-circle text-sm" />
+            <span>Possible match</span>
           </span>
           <span
             v-else-if="result.downloadable"
@@ -830,6 +937,14 @@ function isImporting(id: string): boolean {
   background: var(--bg-surface);
 }
 
+.result-row--possible {
+  background: var(--warning-soft);
+}
+
+.result-row--possible:hover {
+  background: var(--warning-soft);
+}
+
 .result-badge {
   display: inline-flex;
   align-items: center;
@@ -863,6 +978,11 @@ function isImporting(id: string): boolean {
 .result-badge--importing {
   color: var(--accent);
   background: var(--accent-soft);
+}
+
+.result-badge--possible {
+  color: var(--warning);
+  background: var(--warning-soft);
 }
 
 .result-badge--unavailable {

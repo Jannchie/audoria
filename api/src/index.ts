@@ -1,9 +1,7 @@
-import type { GetObjectCommandOutput } from '@aws-sdk/client-s3'
 import type { ApiReferenceConfiguration } from '@scalar/hono-api-reference'
 import type { ReadableStream } from 'node:stream/web'
 import type { MusicImportJob, MusicImportJobStatus, Track } from './db.js'
 import { Readable } from 'node:stream'
-import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import { serve } from '@hono/node-server'
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import { Scalar } from '@scalar/hono-api-reference'
@@ -19,22 +17,11 @@ import {
   insertMusicImportCandidates,
   pruneExpiredMusicImportCandidates,
   tracks,
-  updateTrackCoverKey,
+  updateTrackCover,
   updateTrackEditableMetadata,
 } from './db.js'
 import { MusicDlBridgeError, musicDlSources, MusicDlUnavailableError, resolveMusicDlSongInfo, resolveMusicUrl, searchMusicDl } from './musicdl.js'
-import { deleteStoredTrack, deleteTrackCover, storeTrack, storeTrackCover } from './storage.js'
-
-const s3Client = new S3Client({
-  endpoint: config.s3.endpoint,
-  region: config.s3.region,
-  forcePathStyle: config.s3.forcePathStyle,
-  requestChecksumCalculation: 'WHEN_REQUIRED',
-  credentials: {
-    accessKeyId: config.s3.accessKeyId,
-    secretAccessKey: config.s3.secretAccessKey,
-  },
-})
+import { deleteStoredTrack, deleteTrackCover, getStoredTrack, getStoredTrackCover, storeTrack, storeTrackCover } from './storage.js'
 
 function toMusicResponse(row: Track) {
   return {
@@ -42,12 +29,13 @@ function toMusicResponse(row: Track) {
     filename: row.filename,
     size: row.size,
     contentType: row.contentType,
-    coverUrl: row.coverS3Key ? `/music/${row.id}/cover` : null,
+    coverUrl: row.coverStorageKey ? `/music/${row.id}/cover` : null,
     lyrics: row.lyrics,
     title: row.title,
     artists: row.artists,
     album: row.album,
     source: row.source,
+    sourceIdentifier: row.sourceIdentifier,
     durationText: row.durationText,
     durationSeconds: row.durationSeconds,
     createdAt: new Date(row.createdAt).toISOString(),
@@ -84,6 +72,7 @@ const MusicSchema = z.object({
   artists: z.string().nullable().openapi({ example: '周杰伦' }),
   album: z.string().nullable().openapi({ example: '魔杰座' }),
   source: z.string().nullable().openapi({ example: 'NeteaseMusicClient' }),
+  sourceIdentifier: z.string().nullable().openapi({ example: '1901371647' }),
   durationText: z.string().nullable().openapi({ example: '00:03:43' }),
   durationSeconds: z.number().int().nullable().openapi({ example: 223 }),
   createdAt: z.string().datetime().openapi({ example: '2024-01-01T12:00:00.000Z' }),
@@ -107,6 +96,7 @@ const MusicDlSearchResultSchema = z.object({
   singers: z.string().openapi({ example: '周杰伦' }),
   album: z.string().openapi({ example: '魔杰座' }),
   source: z.string().openapi({ example: 'NeteaseMusicClient' }),
+  sourceIdentifier: z.string().nullable().openapi({ example: '1901371647' }),
   ext: z.string().openapi({ example: 'mp3' }),
   fileSize: z.string().openapi({ example: '10.23MB' }),
   duration: z.string().openapi({ example: '00:03:43' }),
@@ -289,6 +279,7 @@ app.openapi(searchImportRoute, async (c) => {
       singers: record.singers,
       album: record.album,
       source: record.source,
+      sourceIdentifier: toSourceIdentifier(JSON.parse(record.songInfoJson).identifier),
       ext: record.ext,
       fileSize: record.fileSize,
       duration: record.duration,
@@ -381,6 +372,7 @@ app.openapi(parseUrlImportRoute, async (c) => {
       singers: record.singers,
       album: record.album,
       source: record.source,
+      sourceIdentifier: toSourceIdentifier(JSON.parse(record.songInfoJson).identifier),
       ext: record.ext,
       fileSize: record.fileSize,
       duration: record.duration,
@@ -609,26 +601,6 @@ const coverRoute = createRoute({
   },
 })
 
-function toWebStream(body: GetObjectCommandOutput['Body']): ReadableStream {
-  if (!body) {
-    throw new Error('Missing object body')
-  }
-
-  if (body instanceof Readable) {
-    return Readable.toWeb(body) as unknown as ReadableStream
-  }
-
-  if (body instanceof Uint8Array) {
-    return Readable.toWeb(Readable.from(body)) as unknown as ReadableStream
-  }
-
-  if ('transformToWebStream' in body && typeof body.transformToWebStream === 'function') {
-    return body.transformToWebStream() as unknown as ReadableStream
-  }
-
-  return body as ReadableStream
-}
-
 interface ParsedRange {
   start: number
   end: number
@@ -679,27 +651,29 @@ function buildContentDisposition(filename: string): string {
   return `attachment; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(filename)}`
 }
 
+function toSourceIdentifier(identifier: unknown): string | null {
+  if (identifier === null || identifier === undefined) {
+    return null
+  }
+  const value = String(identifier).trim()
+  return value || null
+}
+
 app.openapi(coverRoute, async (c) => {
   const { id } = c.req.valid('param')
   const record = db.select().from(tracks).where(eq(tracks.id, id)).get()
 
-  if (!record || !record.coverS3Key) {
+  if (!record || !record.coverStorageKey || !record.coverStorageBackend) {
     return c.json({ message: 'Cover not found' }, 404)
   }
 
-  const object = await s3Client.send(
-    new GetObjectCommand({
-      Bucket: config.s3.bucket,
-      Key: record.coverS3Key,
-    }),
-  )
-  const stream = toWebStream(object.Body)
-  const webStream = stream as unknown as globalThis.ReadableStream
+  const object = await getStoredTrackCover(record)
+  const webStream = Readable.toWeb(object.body) as unknown as globalThis.ReadableStream
 
   return new Response(webStream, {
     status: 200,
     headers: {
-      'Content-Type': object.ContentType ?? 'image/jpeg',
+      'Content-Type': object.contentType ?? record.coverContentType ?? 'image/jpeg',
       'Cache-Control': 'public, max-age=3600',
     },
   })
@@ -725,21 +699,8 @@ app.openapi(downloadRoute, async (c) => {
     })
   }
 
-  const rangeHeaders: { Range?: string } = {}
-  if (range) {
-    rangeHeaders.Range = `bytes=${range.start}-${range.end}`
-  }
-
-  const object = await s3Client.send(
-    new GetObjectCommand({
-      Bucket: config.s3.bucket,
-      Key: record.s3Key,
-      ...rangeHeaders,
-    }),
-  )
-
-  const stream = toWebStream(object.Body)
-  const webStream = stream as unknown as globalThis.ReadableStream
+  const object = await getStoredTrack(record, range ?? undefined)
+  const webStream = Readable.toWeb(object.body) as unknown as globalThis.ReadableStream
 
   const headers: Record<string, string> = {
     'Content-Type': record.contentType ?? 'application/octet-stream',
@@ -749,7 +710,7 @@ app.openapi(downloadRoute, async (c) => {
 
   if (range) {
     headers['Content-Range'] = `bytes ${range.start}-${range.end}/${record.size}`
-    headers['Content-Length'] = `${range.end - range.start + 1}`
+    headers['Content-Length'] = `${object.contentLength}`
     return new Response(webStream, {
       status: 206,
       headers,
@@ -922,13 +883,17 @@ app.openapi(updateCoverRoute, async (c) => {
     return c.json({ message: 'File part is required' }, 400)
   }
   const buffer = new Uint8Array(await filePart.arrayBuffer())
-  const coverS3Key = await storeTrackCover({
+  const storedCover = await storeTrackCover({
     trackId: id,
     contentType: filePart.type || 'image/jpeg',
     size: buffer.byteLength,
     body: buffer,
   })
-  updateTrackCoverKey(id, coverS3Key)
+  updateTrackCover(id, {
+    backend: storedCover.backend,
+    key: storedCover.key,
+    contentType: storedCover.contentType,
+  })
   const updated = getTrackById(id)
   if (!updated) {
     return c.json({ message: 'Music not found' }, 404)
@@ -971,9 +936,13 @@ app.openapi(deleteCoverRoute, async (c) => {
   if (!record) {
     return c.json({ message: 'Music not found' }, 404)
   }
-  if (record.coverS3Key) {
-    await deleteTrackCover(record.coverS3Key)
-    updateTrackCoverKey(id, null)
+  if (record.coverStorageKey && record.coverStorageBackend) {
+    await deleteTrackCover(record)
+    updateTrackCover(id, {
+      backend: null,
+      key: null,
+      contentType: null,
+    })
   }
   const updated = getTrackById(id)
   if (!updated) {

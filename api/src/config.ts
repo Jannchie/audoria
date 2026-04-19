@@ -1,7 +1,15 @@
 import { mkdirSync } from 'node:fs'
 import path from 'node:path'
 import { env } from 'node:process'
+import { fileURLToPath } from 'node:url'
 import { config as loadEnv } from 'dotenv'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+const projectRootDir = path.resolve(__dirname, '../..')
+const projectRootEnvPath = path.resolve(projectRootDir, '.env')
+
+export type StorageBackend = 's3' | 'fs'
 
 export interface S3Config {
   bucket: string
@@ -12,6 +20,10 @@ export interface S3Config {
   forcePathStyle: boolean
 }
 
+export interface FsStorageConfig {
+  rootDir: string
+}
+
 export interface MusicDlConfig {
   searchTimeoutMs?: number
   downloadTimeoutMs?: number
@@ -20,7 +32,11 @@ export interface MusicDlConfig {
 export interface AppConfig {
   port: number
   dbPath: string
-  s3: S3Config
+  storage: {
+    backend: StorageBackend
+    s3?: S3Config
+    fs?: FsStorageConfig
+  }
   musicdl: MusicDlConfig
   importCandidateTtlMs: number
   importWorkerPollMs: number
@@ -34,13 +50,27 @@ function requireEnv(key: string): string {
   return value
 }
 
-function loadConfig(): AppConfig {
-  const dbPath = path.resolve(env.DB_PATH ?? './data/audoria.sqlite')
-  mkdirSync(path.dirname(dbPath), { recursive: true })
+function resolveProjectPath(value: string): string {
+  return path.isAbsolute(value) ? value : path.resolve(projectRootDir, value)
+}
+
+function loadStorageConfig(): AppConfig['storage'] {
+  const backendValue = env.STORAGE_BACKEND ?? 's3'
+  if (backendValue !== 's3' && backendValue !== 'fs') {
+    throw new Error(`Unsupported STORAGE_BACKEND: ${backendValue}`)
+  }
+
+  if (backendValue === 'fs') {
+    const rootDir = resolveProjectPath(env.STORAGE_FS_ROOT ?? './api/data/storage')
+    mkdirSync(rootDir, { recursive: true })
+    return {
+      backend: 'fs',
+      fs: { rootDir },
+    }
+  }
 
   return {
-    port: Number(env.PORT ?? '8787'),
-    dbPath,
+    backend: 's3',
     s3: {
       bucket: requireEnv('S3_BUCKET'),
       endpoint: env.S3_ENDPOINT,
@@ -49,12 +79,23 @@ function loadConfig(): AppConfig {
       secretAccessKey: requireEnv('S3_SECRET_ACCESS_KEY'),
       forcePathStyle: env.S3_FORCE_PATH_STYLE !== 'false',
     },
+  }
+}
+
+function loadConfig(): AppConfig {
+  const dbPath = resolveProjectPath(env.DB_PATH ?? './api/data/audoria.sqlite')
+  mkdirSync(path.dirname(dbPath), { recursive: true })
+
+  return {
+    port: Number(env.PORT ?? '8787'),
+    dbPath,
+    storage: loadStorageConfig(),
     musicdl: {},
     importCandidateTtlMs: Number(env.IMPORT_CANDIDATE_TTL_MS ?? 30 * 60 * 1000),
     importWorkerPollMs: Number(env.IMPORT_WORKER_POLL_MS ?? 3000),
   }
 }
 
-loadEnv()
+loadEnv({ path: projectRootEnvPath })
 
 export const config = loadConfig()

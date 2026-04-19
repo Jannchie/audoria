@@ -18,6 +18,8 @@ pnpm install
 pnpm dev
 ```
 
+Create the project root `.env` from `.env.example` before starting development.
+
 This starts the API server, import worker, and web app concurrently.
 
 ## Project Structure

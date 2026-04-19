@@ -21,6 +21,14 @@ function toErrorMessage(error: unknown): string {
   return 'Unknown import error'
 }
 
+function toSourceIdentifier(identifier: MusicDlSongInfo['identifier']): string | null {
+  if (identifier === null || identifier === undefined) {
+    return null
+  }
+  const value = String(identifier).trim()
+  return value || null
+}
+
 async function fetchCoverAsset(coverUrl: string): Promise<{ body: Uint8Array, contentType: string | null } | null> {
   const response = await fetch(coverUrl)
   if (!response.ok) {
@@ -70,12 +78,12 @@ async function processNextJob(): Promise<boolean> {
       },
     })
 
-    let coverS3Key: string | null = null
+    let storedCover: Awaited<ReturnType<typeof storeTrackCover>> | null = null
     if (songInfo.cover_url) {
       try {
         const cover = await fetchCoverAsset(songInfo.cover_url)
         if (cover) {
-          coverS3Key = await storeTrackCover({
+          storedCover = await storeTrackCover({
             trackId: track.id,
             contentType: cover.contentType,
             size: cover.body.byteLength,
@@ -89,12 +97,15 @@ async function processNextJob(): Promise<boolean> {
     }
 
     updateTrackImportedMetadata(track.id, {
-      coverS3Key,
+      coverStorageBackend: storedCover?.backend ?? null,
+      coverStorageKey: storedCover?.key ?? null,
+      coverContentType: storedCover?.contentType ?? null,
       lyrics: songInfo.lyric,
       title: songInfo.song_name,
       artists: songInfo.singers,
       album: songInfo.album,
       source: songInfo.source,
+      sourceIdentifier: toSourceIdentifier(songInfo.identifier),
       durationText: track.durationText ?? songInfo.duration,
       durationSeconds: track.durationSeconds ?? songInfo.duration_s,
     })

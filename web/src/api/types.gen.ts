@@ -15,6 +15,7 @@ export type Music = {
     artists: string | null;
     album: string | null;
     source: string | null;
+    sourceIdentifier: string | null;
     durationText: string | null;
     durationSeconds: number | null;
     createdAt: string;
@@ -26,6 +27,7 @@ export type MusicDlSearchResult = {
     singers: string;
     album: string;
     source: string;
+    sourceIdentifier: string | null;
     ext: string;
     fileSize: string;
     duration: string;

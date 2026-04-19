@@ -1,43 +1,7 @@
-import type { GetObjectCommandOutput } from '@aws-sdk/client-s3'
-import { Buffer } from 'node:buffer'
-import { Readable } from 'node:stream'
-import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import { eq, isNull, or } from 'drizzle-orm'
-import { config } from '../src/config.js'
 import { db, tracks } from '../src/db.js'
 import { formatDurationText, probeDurationSeconds } from '../src/probeAudio.js'
-
-const s3Client = new S3Client({
-  endpoint: config.s3.endpoint,
-  region: config.s3.region,
-  forcePathStyle: config.s3.forcePathStyle,
-  requestChecksumCalculation: 'WHEN_REQUIRED',
-  credentials: {
-    accessKeyId: config.s3.accessKeyId,
-    secretAccessKey: config.s3.secretAccessKey,
-  },
-})
-
-async function bodyToBuffer(body: GetObjectCommandOutput['Body']): Promise<Buffer> {
-  if (!body) {
-    throw new Error('Missing object body')
-  }
-  if (body instanceof Uint8Array) {
-    return Buffer.from(body)
-  }
-  if (body instanceof Readable) {
-    const chunks: Buffer[] = []
-    for await (const chunk of body) {
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array))
-    }
-    return Buffer.concat(chunks)
-  }
-  if ('transformToByteArray' in body && typeof body.transformToByteArray === 'function') {
-    const bytes = await body.transformToByteArray()
-    return Buffer.from(bytes)
-  }
-  throw new TypeError('Unsupported S3 body type')
-}
+import { readStoredTrackBuffer } from '../src/storage.js'
 
 async function main(): Promise<void> {
   const pending = db
@@ -60,10 +24,7 @@ async function main(): Promise<void> {
   for (const [index, track] of pending.entries()) {
     const label = `[${index + 1}/${pending.length}] ${track.title ?? track.filename} (${track.id})`
     try {
-      const object = await s3Client.send(
-        new GetObjectCommand({ Bucket: config.s3.bucket, Key: track.s3Key }),
-      )
-      const buffer = await bodyToBuffer(object.Body)
+      const buffer = await readStoredTrackBuffer(track)
       const durationSeconds = await probeDurationSeconds(buffer, track.contentType)
       if (durationSeconds === null) {
         console.warn(`${label}: duration unavailable, skipped`)
@@ -80,7 +41,7 @@ async function main(): Promise<void> {
     }
     catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error'
-      console.warn(`${label}: failed — ${message}`)
+      console.warn(`${label}: failed - ${message}`)
       failed += 1
     }
   }

@@ -6,7 +6,8 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "start:worker": "node dist/worker.js",
-    "backfill:duration": "tsx scripts/backfill-duration.ts"
+    "backfill:duration": "tsx scripts/backfill-duration.ts",
+    "backfill:source-identifier": "tsx scripts/backfill-source-identifier.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1031.0",

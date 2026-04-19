@@ -9,12 +9,16 @@ import { config } from './config.js'
 export const tracks = sqliteTable('tracks', {
   id: text('id').primaryKey(),
   filename: text('filename').notNull(),
-  s3Key: text('s3_key').notNull(),
-  coverS3Key: text('cover_s3_key'),
+  storageBackend: text('storage_backend').notNull(),
+  storageKey: text('storage_key').notNull(),
+  coverStorageBackend: text('cover_storage_backend'),
+  coverStorageKey: text('cover_storage_key'),
+  coverContentType: text('cover_content_type'),
   title: text('title'),
   artists: text('artists'),
   album: text('album'),
   source: text('source'),
+  sourceIdentifier: text('source_identifier'),
   durationText: text('duration_text'),
   durationSeconds: integer('duration_seconds', { mode: 'number' }),
   size: integer('size', { mode: 'number' }).notNull(),
@@ -63,16 +67,93 @@ export type MusicImportJobStatus = 'queued' | 'running' | 'succeeded' | 'failed'
 
 const sqlite = new Database(config.dbPath)
 
+function rebuildLegacyTracksTable(): void {
+  sqlite.exec(`
+    BEGIN;
+
+    CREATE TABLE tracks__migrated (
+      id TEXT PRIMARY KEY,
+      filename TEXT NOT NULL,
+      storage_backend TEXT NOT NULL,
+      storage_key TEXT NOT NULL,
+      cover_storage_backend TEXT,
+      cover_storage_key TEXT,
+      cover_content_type TEXT,
+      title TEXT,
+      artists TEXT,
+      album TEXT,
+      source TEXT,
+      source_identifier TEXT,
+      duration_text TEXT,
+      duration_seconds INTEGER,
+      size INTEGER NOT NULL,
+      content_type TEXT,
+      lyrics TEXT,
+      created_at INTEGER NOT NULL
+    );
+
+    INSERT INTO tracks__migrated (
+      id,
+      filename,
+      storage_backend,
+      storage_key,
+      cover_storage_backend,
+      cover_storage_key,
+      cover_content_type,
+      title,
+      artists,
+      album,
+      source,
+      source_identifier,
+      duration_text,
+      duration_seconds,
+      size,
+      content_type,
+      lyrics,
+      created_at
+    )
+    SELECT
+      id,
+      filename,
+      COALESCE(storage_backend, 's3'),
+      storage_key,
+      cover_storage_backend,
+      cover_storage_key,
+      cover_content_type,
+      title,
+      artists,
+      album,
+      source,
+      source_identifier,
+      duration_text,
+      duration_seconds,
+      size,
+      content_type,
+      lyrics,
+      created_at
+    FROM tracks;
+
+    DROP TABLE tracks;
+    ALTER TABLE tracks__migrated RENAME TO tracks;
+
+    COMMIT;
+  `)
+}
+
 sqlite.exec(`
   CREATE TABLE IF NOT EXISTS tracks (
     id TEXT PRIMARY KEY,
     filename TEXT NOT NULL,
-    s3_key TEXT NOT NULL,
-    cover_s3_key TEXT,
+    storage_backend TEXT NOT NULL,
+    storage_key TEXT NOT NULL,
+    cover_storage_backend TEXT,
+    cover_storage_key TEXT,
+    cover_content_type TEXT,
     title TEXT,
     artists TEXT,
     album TEXT,
     source TEXT,
+    source_identifier TEXT,
     duration_text TEXT,
     duration_seconds INTEGER,
     size INTEGER NOT NULL,
@@ -116,8 +197,22 @@ sqlite.exec(`
 `)
 
 const trackColumns = sqlite.prepare('PRAGMA table_info(tracks)').all() as Array<{ name: string }>
-if (!trackColumns.some(column => column.name === 'cover_s3_key')) {
-  sqlite.exec('ALTER TABLE tracks ADD COLUMN cover_s3_key TEXT')
+const hasLegacyS3Key = trackColumns.some(column => column.name === 's3_key')
+const hasLegacyCoverS3Key = trackColumns.some(column => column.name === 'cover_s3_key')
+if (!trackColumns.some(column => column.name === 'storage_backend')) {
+  sqlite.exec('ALTER TABLE tracks ADD COLUMN storage_backend TEXT')
+}
+if (!trackColumns.some(column => column.name === 'storage_key')) {
+  sqlite.exec('ALTER TABLE tracks ADD COLUMN storage_key TEXT')
+}
+if (!trackColumns.some(column => column.name === 'cover_storage_backend')) {
+  sqlite.exec('ALTER TABLE tracks ADD COLUMN cover_storage_backend TEXT')
+}
+if (!trackColumns.some(column => column.name === 'cover_storage_key')) {
+  sqlite.exec('ALTER TABLE tracks ADD COLUMN cover_storage_key TEXT')
+}
+if (!trackColumns.some(column => column.name === 'cover_content_type')) {
+  sqlite.exec('ALTER TABLE tracks ADD COLUMN cover_content_type TEXT')
 }
 if (!trackColumns.some(column => column.name === 'title')) {
   sqlite.exec('ALTER TABLE tracks ADD COLUMN title TEXT')
@@ -131,6 +226,9 @@ if (!trackColumns.some(column => column.name === 'album')) {
 if (!trackColumns.some(column => column.name === 'source')) {
   sqlite.exec('ALTER TABLE tracks ADD COLUMN source TEXT')
 }
+if (!trackColumns.some(column => column.name === 'source_identifier')) {
+  sqlite.exec('ALTER TABLE tracks ADD COLUMN source_identifier TEXT')
+}
 if (!trackColumns.some(column => column.name === 'duration_text')) {
   sqlite.exec('ALTER TABLE tracks ADD COLUMN duration_text TEXT')
 }
@@ -140,6 +238,40 @@ if (!trackColumns.some(column => column.name === 'duration_seconds')) {
 if (!trackColumns.some(column => column.name === 'lyrics')) {
   sqlite.exec('ALTER TABLE tracks ADD COLUMN lyrics TEXT')
 }
+
+if (hasLegacyS3Key) {
+  sqlite.exec(`
+    UPDATE tracks
+    SET
+      storage_backend = COALESCE(storage_backend, 's3'),
+      storage_key = COALESCE(storage_key, s3_key)
+    WHERE storage_backend IS NULL
+      OR storage_key IS NULL;
+  `)
+}
+else {
+  sqlite.exec(`
+    UPDATE tracks
+    SET storage_backend = COALESCE(storage_backend, 's3')
+    WHERE storage_backend IS NULL;
+  `)
+}
+
+if (hasLegacyCoverS3Key) {
+  sqlite.exec(`
+    UPDATE tracks
+    SET
+      cover_storage_backend = COALESCE(cover_storage_backend, CASE WHEN cover_s3_key IS NOT NULL THEN 's3' END),
+      cover_storage_key = COALESCE(cover_storage_key, cover_s3_key)
+    WHERE cover_storage_backend IS NULL
+      OR cover_storage_key IS NULL;
+  `)
+}
+
+if (hasLegacyS3Key || hasLegacyCoverS3Key) {
+  rebuildLegacyTracksTable()
+}
+
 const importJobColumns = sqlite.prepare('PRAGMA table_info(music_import_jobs)').all() as Array<{ name: string }>
 if (!importJobColumns.some(column => column.name === 'progress_bytes')) {
   sqlite.exec('ALTER TABLE music_import_jobs ADD COLUMN progress_bytes INTEGER')
@@ -326,9 +458,17 @@ export function updateTrackEditableMetadata(id: string, metadata: {
     .run()
 }
 
-export function updateTrackCoverKey(id: string, coverS3Key: string | null): void {
+export function updateTrackCover(id: string, cover: {
+  backend: string | null
+  key: string | null
+  contentType: string | null
+}): void {
   db.update(tracks)
-    .set({ coverS3Key })
+    .set({
+      coverStorageBackend: cover.backend,
+      coverStorageKey: cover.key,
+      coverContentType: cover.contentType,
+    })
     .where(eq(tracks.id, id))
     .run()
 }
@@ -338,23 +478,29 @@ export function getTrackById(id: string): Track | undefined {
 }
 
 export function updateTrackImportedMetadata(id: string, metadata: {
-  coverS3Key: string | null
+  coverStorageBackend: string | null
+  coverStorageKey: string | null
+  coverContentType: string | null
   lyrics: string | null
   title: string | null
   artists: string | null
   album: string | null
   source: string | null
+  sourceIdentifier: string | null
   durationText: string | null
   durationSeconds: number | null
 }): void {
   db.update(tracks)
     .set({
-      coverS3Key: metadata.coverS3Key,
+      coverStorageBackend: metadata.coverStorageBackend,
+      coverStorageKey: metadata.coverStorageKey,
+      coverContentType: metadata.coverContentType,
       lyrics: metadata.lyrics,
       title: metadata.title,
       artists: metadata.artists,
       album: metadata.album,
       source: metadata.source,
+      sourceIdentifier: metadata.sourceIdentifier,
       durationText: metadata.durationText,
       durationSeconds: metadata.durationSeconds,
     })
