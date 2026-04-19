@@ -40,9 +40,6 @@ const languageOptions = computed<Array<{ value: LocalePreference, label: string,
         <h2 class="section-title">
           {{ t('settings.language.title') }}
         </h2>
-        <p class="section-description">
-          {{ t('settings.language.description') }}
-        </p>
       </div>
 
       <div class="option-list">
@@ -50,30 +47,24 @@ const languageOptions = computed<Array<{ value: LocalePreference, label: string,
           v-for="option in languageOptions"
           :key="option.value"
           type="button"
-          class="option-row"
-          :class="{ 'option-row--active': localePreference === option.value }"
+          class="option-chip"
+          :class="{ 'option-chip--active': localePreference === option.value }"
           :aria-pressed="localePreference === option.value"
           @click="setLocalePreference(option.value)"
         >
-          <span class="option-main">
-            <span class="option-label">{{ option.label }}</span>
-            <span
-              v-if="option.hint"
-              class="option-hint"
-            >
-              {{ option.hint }}
-            </span>
-          </span>
-          <span
-            class="option-indicator"
-            :class="{ 'option-indicator--active': localePreference === option.value }"
-            aria-hidden="true"
-          />
+          {{ option.label }}
         </button>
       </div>
 
+      <p class="section-description">
+        {{ t('settings.language.description') }}
+      </p>
+
       <p class="settings-footnote">
-        {{ t('settings.language.effectiveLocale') }}: {{ localeLabels[effectiveLocale] }}
+        {{
+          languageOptions.find(option => option.value === localePreference)?.hint
+          ?? `${t('settings.language.effectiveLocale')}: ${localeLabels[effectiveLocale]}`
+        }}
       </p>
     </section>
   </section>
@@ -114,7 +105,7 @@ const languageOptions = computed<Array<{ value: LocalePreference, label: string,
 .settings-section {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.75rem;
   padding: 1rem;
   border-radius: 1rem;
   background: var(--bg-surface);
@@ -140,64 +131,35 @@ const languageOptions = computed<Array<{ value: LocalePreference, label: string,
 
 .option-list {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   gap: 0.5rem;
 }
 
-.option-row {
-  width: 100%;
-  display: flex;
+.option-chip {
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.875rem 1rem;
-  border: 1px solid transparent;
-  border-radius: 0.875rem;
+  justify-content: center;
+  min-height: 2.25rem;
+  padding: 0 0.875rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
   background: var(--bg-primary);
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease;
-}
-
-.option-row:hover {
-  background: var(--bg-elevated);
-}
-
-.option-row--active {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-}
-
-.option-main {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  min-width: 0;
-}
-
-.option-label {
-  font-size: 0.875rem;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
   font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.option-chip:hover {
+  background: var(--bg-elevated);
   color: var(--text-primary);
 }
 
-.option-hint {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-}
-
-.option-indicator {
-  width: 0.875rem;
-  height: 0.875rem;
-  border-radius: 999px;
-  border: 2px solid var(--text-tertiary);
-  flex-shrink: 0;
-}
-
-.option-indicator--active {
+.option-chip--active {
   border-color: var(--accent);
-  background: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text-primary);
 }
 
 .settings-footnote {

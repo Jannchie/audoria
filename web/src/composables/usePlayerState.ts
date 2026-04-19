@@ -17,6 +17,7 @@ interface PersistedPlayerState {
   currentTime: number
   currentTrackId: string | null
   history: string[]
+  isPlaying: boolean
   muted: boolean
   playMode: PlayMode
   volume: number
@@ -56,6 +57,7 @@ function readPersistedState(): PersistedPlayerState {
       currentTime: 0,
       currentTrackId: null,
       history: [],
+      isPlaying: false,
       muted: false,
       playMode: 'repeat-all',
       volume: 1,
@@ -70,6 +72,7 @@ function readPersistedState(): PersistedPlayerState {
         currentTime: 0,
         currentTrackId: null,
         history: [],
+        isPlaying: false,
         muted: false,
         playMode: 'repeat-all',
         volume: 1,
@@ -97,6 +100,7 @@ function readPersistedState(): PersistedPlayerState {
       history: Array.isArray(parsed.history)
         ? normalizeTrackIds(parsed.history).slice(-historyLimit)
         : [],
+      isPlaying: Boolean(parsed.isPlaying),
       muted: Boolean(parsed.muted),
       playMode: isPlayMode(parsed.playMode) ? parsed.playMode : 'repeat-all',
       volume: typeof parsed.volume === 'number'
@@ -110,6 +114,7 @@ function readPersistedState(): PersistedPlayerState {
       currentTime: 0,
       currentTrackId: null,
       history: [],
+      isPlaying: false,
       muted: false,
       playMode: 'repeat-all',
       volume: 1,
@@ -120,7 +125,7 @@ function readPersistedState(): PersistedPlayerState {
 const persistedState = readPersistedState()
 
 const currentTrackId = ref<string | null>(persistedState.currentTrackId)
-const isPlaying = ref(false)
+const isPlaying = ref(persistedState.isPlaying)
 const playMode = ref<PlayMode>(persistedState.playMode)
 const currentTime = ref(persistedState.currentTime)
 const duration = ref(0)
@@ -140,6 +145,7 @@ function persistState(): void {
       currentTime: currentTime.value,
       currentTrackId: currentTrackId.value,
       history: playHistory.value,
+      isPlaying: isPlaying.value,
       muted: muted.value,
       playMode: playMode.value,
       volume: volume.value,
@@ -234,6 +240,7 @@ export function usePlayerState() {
 
   const setPlaying = (playing: boolean) => {
     isPlaying.value = playing
+    persistState()
   }
 
   const cyclePlayMode = () => {

@@ -192,14 +192,14 @@ function handleLoaded(): void {
     updateProgress(resumeTime, audio.duration || 0)
     pendingResumeTime.value = null
     if (isPlaying.value) {
-      audio.play().catch(() => {})
+      audio.play().catch(() => setPlaying(false))
     }
     return
   }
   pendingResumeTime.value = null
   updateProgress(audio.currentTime, audio.duration || 0)
   if (isPlaying.value) {
-    audio.play().catch(() => {})
+    audio.play().catch(() => setPlaying(false))
   }
 }
 

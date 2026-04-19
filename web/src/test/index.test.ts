@@ -49,6 +49,7 @@ describe('useplayerstate', () => {
       currentTime: 42,
       currentTrackId: 'track-b',
       history: ['track-a'],
+      isPlaying: true,
       muted: true,
       playMode: 'shuffle',
       volume: 0.35,
@@ -59,6 +60,7 @@ describe('useplayerstate', () => {
 
     expect(player.currentTrackId.value).toBe('track-b')
     expect(player.currentTime.value).toBe(42)
+    expect(player.isPlaying.value).toBe(true)
     expect(player.playMode.value).toBe('shuffle')
     expect(player.volume.value).toBe(0.35)
     expect(player.muted.value).toBe(true)
@@ -96,5 +98,15 @@ describe('useplayerstate', () => {
     const previousTrack = player.getPreviousTrackId(tracks)
 
     expect(previousTrack).toBe('track-a')
+  })
+
+  it('persists the playback status when toggled', async () => {
+    const { usePlayerState } = await loadPlayerState()
+    const player = usePlayerState()
+
+    player.setPlaying(true)
+
+    const persisted = JSON.parse(globalThis.localStorage.getItem(playerStateStorageKey) ?? '{}') as { isPlaying?: boolean }
+    expect(persisted.isPlaying).toBe(true)
   })
 })
