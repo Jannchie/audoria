@@ -353,8 +353,8 @@ export function usePlayerState() {
     return getAdjacentTrackId(tracks, 'next')
   }
 
-  const getResumeTime = (total: number) => {
-    const savedTime = normalizeTime(currentTime.value)
+  const getResumeTime = (total: number, savedTimeInput = currentTime.value) => {
+    const savedTime = normalizeTime(savedTimeInput)
     if (!savedTime) {
       return 0
     }

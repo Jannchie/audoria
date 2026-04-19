@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { findLyricLineAtTime, useLyrics } from '../composables/useLyrics'
 import { buildDownloadUrl, resolveApiUrl, useMusicQuery } from '../composables/useMusic'
@@ -20,6 +20,7 @@ const previewRatio = ref<number | null>(null)
 const hoverPreviewTime = ref<number | null>(null)
 const scrubPreviewTime = ref<number | null>(null)
 const volumePreview = ref<number | null>(null)
+const pendingResumeTime = ref<number | null>(null)
 const { data: tracks, isPending: isTracksPending } = useMusicQuery()
 const {
   currentTrackId,
@@ -167,6 +168,10 @@ function handleTimeUpdate(): void {
   if (!audio) {
     return
   }
+  if (pendingResumeTime.value !== null && audio.currentTime < Math.max(0, pendingResumeTime.value - 0.5)) {
+    return
+  }
+  pendingResumeTime.value = null
   updateProgress(audio.currentTime, audio.duration || duration.value)
 }
 
@@ -175,12 +180,17 @@ function handleLoaded(): void {
   if (!audio) {
     return
   }
-  const resumeTime = getResumeTime(audio.duration || 0)
+  const resumeTime = getResumeTime(audio.duration || 0, pendingResumeTime.value ?? currentTime.value)
   if (resumeTime > 0) {
     audio.currentTime = resumeTime
     updateProgress(resumeTime, audio.duration || 0)
+    pendingResumeTime.value = null
+    if (isPlaying.value) {
+      audio.play().catch(() => {})
+    }
     return
   }
+  pendingResumeTime.value = null
   updateProgress(audio.currentTime, audio.duration || 0)
   if (isPlaying.value) {
     audio.play().catch(() => {})
@@ -421,6 +431,7 @@ watch(audioSrc, (src) => {
   if (!audio) {
     return
   }
+  pendingResumeTime.value = src ? currentTime.value : null
   audio.autoplay = isPlaying.value
   audio.src = src
   audio.load()
@@ -451,28 +462,10 @@ watch([tracks, isTracksPending], ([items, pending]) => {
   syncTrackContext(items ?? [])
 }, { immediate: true })
 
-onMounted(() => {
-  const audio = audioRef.value
-  if (!audio) {
-    return
-  }
-  audio.volume = actualAudioVolume.value
-  audio.addEventListener('timeupdate', handleTimeUpdate)
-  audio.addEventListener('loadedmetadata', handleLoaded)
-  audio.addEventListener('ended', handleEnded)
-})
-
 onUnmounted(() => {
   globalThis.removeEventListener('pointermove', handleProgressPointerMove)
   globalThis.removeEventListener('pointerup', handleProgressPointerUp)
   globalThis.removeEventListener('pointercancel', handleProgressPointerUp)
-  const audio = audioRef.value
-  if (!audio) {
-    return
-  }
-  audio.removeEventListener('timeupdate', handleTimeUpdate)
-  audio.removeEventListener('loadedmetadata', handleLoaded)
-  audio.removeEventListener('ended', handleEnded)
 })
 </script>
 
@@ -623,6 +616,9 @@ onUnmounted(() => {
     :autoplay="isPlaying"
     preload="auto"
     :src="audioSrc"
+    @ended="handleEnded"
+    @loadedmetadata="handleLoaded"
+    @timeupdate="handleTimeUpdate"
   />
 </template>
 
