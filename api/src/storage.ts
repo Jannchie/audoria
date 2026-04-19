@@ -436,6 +436,11 @@ export async function getStoredTrackCover(record: Track, variant: CoverVariant =
   return getStorageDriver(ref.backend).getObject({ key: ref.key })
 }
 
+export async function readStoredTrackCoverBuffer(record: Track, variant: CoverVariant = 'cover'): Promise<Buffer> {
+  const object = await getStoredTrackCover(record, variant)
+  return readReadableToBuffer(object.body)
+}
+
 export async function deleteStoredTrack(record: Track): Promise<void> {
   const trackRef = getTrackObjectRef(record)
   await getStorageDriver(trackRef.backend).deleteObject(trackRef.key)

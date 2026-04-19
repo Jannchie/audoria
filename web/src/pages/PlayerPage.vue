@@ -3,6 +3,7 @@ import type { FilamentConfig } from '../components/ShaderProgressBar.vue'
 import { ShaderGradient, ShaderGradientCanvas } from '@shader-gradient/vue'
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import HoloCoverArt from '../components/HoloCoverArt.vue'
 import MetadataEditDialog from '../components/MetadataEditDialog.vue'
 import ProgressPreviewTooltip from '../components/ProgressPreviewTooltip.vue'
 import ShaderProgressBar from '../components/ShaderProgressBar.vue'
@@ -12,10 +13,12 @@ import { useCoverPalette } from '../composables/useCoverPalette'
 import { findLyricLineAtTime, useLyrics } from '../composables/useLyrics'
 import { resolveApiUrl, useMusicQuery } from '../composables/useMusic'
 import { usePlayerState } from '../composables/usePlayerState'
+import { useSettings } from '../composables/useSettings'
 import { formatTrackSpecs } from '../utils/audio'
 
 const { data: tracks } = useMusicQuery()
 const { t } = useI18n()
+const { coverEffect } = useSettings()
 const isDev = import.meta.env.DEV
 const filamentConfig = ref<FilamentConfig>({
   gain: 2.1,
@@ -85,6 +88,18 @@ const currentTrackCoverUrl = computed(() => {
     return ''
   }
   return resolveApiUrl(currentTrack.value.coverUrl)
+})
+const currentTrackForegroundMaskUrl = computed(() => {
+  if (!currentTrack.value?.coverUrl) {
+    return ''
+  }
+  return resolveApiUrl(`/music/${currentTrack.value.id}/cover/mask?layer=foreground`)
+})
+const currentTrackBackgroundMaskUrl = computed(() => {
+  if (!currentTrack.value?.coverUrl) {
+    return ''
+  }
+  return resolveApiUrl(`/music/${currentTrack.value.id}/cover/mask?layer=background`)
 })
 
 const { colors: paletteColors } = useCoverPalette(currentTrackCoverUrl)
@@ -522,26 +537,15 @@ onUnmounted(() => {
       <div class="player-main">
         <!-- Left: cover only, centered -->
         <div class="player-left">
-          <div
+          <HoloCoverArt
             class="cover-art"
-            :class="{ 'cover-art--playing': isPlaying }"
-          >
-            <img
-              v-if="currentTrackCoverUrl"
-              :src="currentTrackCoverUrl"
-              :alt="title"
-              class="h-full w-full object-cover"
-              width="1200"
-              height="1200"
-              decoding="async"
-            >
-            <div
-              v-else
-              class="cover-placeholder"
-            >
-              <span class="i-tabler-music text-5xl text-white/15" />
-            </div>
-          </div>
+            :alt="title"
+            :background-mask-url="currentTrackBackgroundMaskUrl"
+            :effect="coverEffect"
+            :foreground-mask-url="currentTrackForegroundMaskUrl"
+            :image-url="currentTrackCoverUrl"
+            :playing="isPlaying"
+          />
         </div>
 
         <!-- Right: title + artist + lyrics -->
@@ -871,23 +875,7 @@ onUnmounted(() => {
 
 .cover-art {
   width: 80px;
-  height: 80px;
-  border-radius: 0.75rem;
-  overflow: hidden;
-  flex-shrink: 0;
-  box-shadow: 0 8px 30px -6px rgba(0, 0, 0, 0.4);
-  transition: box-shadow 0.4s ease;
-}
-.cover-art--playing {
-  box-shadow: 0 12px 40px -6px rgba(0, 0, 0, 0.55);
-}
-.cover-placeholder {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, var(--bg-elevated), var(--bg-surface));
+  aspect-ratio: 1;
 }
 
 /* ---- Track info (always above lyrics) ---- */
@@ -958,7 +946,6 @@ onUnmounted(() => {
     width: 100%;
     height: auto;
     aspect-ratio: 1;
-    border-radius: 1rem;
   }
 
   .player-right {

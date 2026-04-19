@@ -43,12 +43,14 @@ describe('usesettings', () => {
 
   it('restores the locale preference from persisted state', async () => {
     globalThis.localStorage.setItem(settingsStorageKey, JSON.stringify({
+      coverEffect: 'v-series',
       localePreference: 'zh-CN',
     }))
 
     const { useSettings } = await loadSettings()
     const settings = useSettings()
 
+    expect(settings.coverEffect.value).toBe('vMax')
     expect(settings.localePreference.value).toBe('zh-CN')
     expect(settings.effectiveLocale.value).toBe('zh-CN')
   })
@@ -75,5 +77,19 @@ describe('usesettings', () => {
 
     expect(settings.localePreference.value).toBe('zh-CN')
     expect(persisted.localePreference).toBe('zh-CN')
+  })
+
+  it('persists cover effect updates', async () => {
+    const { setCoverEffect, useSettings } = await loadSettings()
+
+    setCoverEffect('amazingRare')
+
+    const settings = useSettings()
+    const persisted = JSON.parse(globalThis.localStorage.getItem(settingsStorageKey) ?? '{}') as {
+      coverEffect?: string
+    }
+
+    expect(settings.coverEffect.value).toBe('amazingRare')
+    expect(persisted.coverEffect).toBe('amazingRare')
   })
 })

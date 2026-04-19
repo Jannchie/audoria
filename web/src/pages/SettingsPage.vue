@@ -1,12 +1,19 @@
 <script setup lang="ts">
 import type { LocalePreference } from '../i18n/locales'
+import { coverEffectDefinitions } from '../constants/coverEffects'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useSettings } from '../composables/useSettings'
 import { localeLabels } from '../i18n/locales'
 
 const { t } = useI18n()
-const { localePreference, effectiveLocale, setLocalePreference } = useSettings()
+const {
+  localePreference,
+  effectiveLocale,
+  coverEffect,
+  setLocalePreference,
+  setCoverEffect,
+} = useSettings()
 
 const languageOptions = computed<Array<{ value: LocalePreference, label: string, hint?: string }>>(() => [
   {
@@ -23,6 +30,11 @@ const languageOptions = computed<Array<{ value: LocalePreference, label: string,
     label: localeLabels['zh-CN'],
   },
 ])
+
+const coverEffectOptions = computed(() => coverEffectDefinitions.map(definition => ({
+  value: definition.value,
+  label: t(`settings.coverEffect.options.${definition.value}`),
+})))
 </script>
 
 <template>
@@ -65,6 +77,40 @@ const languageOptions = computed<Array<{ value: LocalePreference, label: string,
         {{
           languageOptions.find(option => option.value === localePreference)?.hint
             ?? `${t('settings.language.effectiveLocale')}: ${localeLabels[effectiveLocale]}`
+        }}
+      </p>
+    </section>
+
+    <section class="settings-section">
+      <div class="section-header">
+        <h2 class="section-title">
+          {{ t('settings.coverEffect.title') }}
+        </h2>
+      </div>
+
+      <div class="option-list">
+        <button
+          v-for="option in coverEffectOptions"
+          :key="option.value"
+          type="button"
+          class="option-chip"
+          :class="{ 'option-chip--active': coverEffect === option.value }"
+          :aria-pressed="coverEffect === option.value"
+          @click="setCoverEffect(option.value)"
+        >
+          {{ option.label }}
+        </button>
+      </div>
+
+      <p class="section-description">
+        {{ t('settings.coverEffect.description') }}
+      </p>
+
+      <p class="settings-footnote">
+        {{
+          t('settings.coverEffect.currentValue', {
+            effect: coverEffectOptions.find(option => option.value === coverEffect)?.label ?? coverEffect,
+          })
         }}
       </p>
     </section>

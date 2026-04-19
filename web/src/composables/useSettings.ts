@@ -1,4 +1,6 @@
+import type { CoverEffectPreset } from '../constants/coverEffects'
 import type { LocalePreference } from '../i18n/locales'
+import { defaultCoverEffectPreset, isCoverEffectPreset, legacyCoverEffectPresetMap } from '../constants/coverEffects'
 import { computed, reactive, readonly } from 'vue'
 import { isLocalePreference, resolveLocale } from '../i18n/locales'
 
@@ -6,10 +8,12 @@ const settingsStorageKey = 'audoria.settings'
 
 interface AppSettings {
   localePreference: LocalePreference
+  coverEffect: CoverEffectPreset
 }
 
 const defaultSettings: AppSettings = {
   localePreference: 'system',
+  coverEffect: defaultCoverEffectPreset,
 }
 
 function canUseStorage(): boolean {
@@ -29,10 +33,17 @@ function readPersistedSettings(): AppSettings {
 
     const parsed = JSON.parse(raw) as Partial<AppSettings>
 
+    const normalizedCoverEffect = typeof parsed.coverEffect === 'string'
+      ? (legacyCoverEffectPresetMap[parsed.coverEffect as keyof typeof legacyCoverEffectPresetMap] ?? parsed.coverEffect)
+      : parsed.coverEffect
+
     return {
       localePreference: isLocalePreference(parsed.localePreference)
         ? parsed.localePreference
         : defaultSettings.localePreference,
+      coverEffect: isCoverEffectPreset(normalizedCoverEffect)
+        ? normalizedCoverEffect
+        : defaultSettings.coverEffect,
     }
   }
   catch {
@@ -60,13 +71,20 @@ export function setLocalePreference(localePreference: LocalePreference): void {
   persistSettings()
 }
 
+export function setCoverEffect(coverEffect: CoverEffectPreset): void {
+  settings.coverEffect = coverEffect
+  persistSettings()
+}
+
 export function useSettings() {
   const effectiveLocale = computed(() => resolveLocale(settings.localePreference))
 
   return {
     settings: readonly(settings),
     localePreference: computed(() => settings.localePreference),
+    coverEffect: computed(() => settings.coverEffect),
     effectiveLocale,
     setLocalePreference,
+    setCoverEffect,
   }
 }

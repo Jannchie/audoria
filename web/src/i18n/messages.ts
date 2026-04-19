@@ -68,6 +68,17 @@ export const messages = {
         currentValue: 'Currently using {language}',
         effectiveLocale: 'Effective language',
       },
+      coverEffect: {
+        title: 'Player cover effect',
+        description: 'Choose the foil style used on the player cover.',
+        currentValue: 'Current effect: {effect}',
+        options: {
+          amazingRare: 'Amazing Rare',
+          radiantHolo: 'Radiant holo',
+          vMax: 'VMAX',
+          vStar: 'VSTAR',
+        },
+      },
     },
     library: {
       searchPlaceholder: 'Search',
@@ -322,6 +333,17 @@ export const messages = {
         followSystem: '跟随系统',
         currentValue: '当前使用 {language}',
         effectiveLocale: '当前生效语言',
+      },
+      coverEffect: {
+        title: '播放器封面特效',
+        description: '选择播放器封面使用的闪卡样式。',
+        currentValue: '当前特效：{effect}',
+        options: {
+          amazingRare: 'Amazing Rare',
+          radiantHolo: 'Radiant 闪',
+          vMax: 'VMAX',
+          vStar: 'VSTAR',
+        },
       },
     },
     library: {
