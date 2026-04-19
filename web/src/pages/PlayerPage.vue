@@ -509,6 +509,9 @@ onUnmounted(() => {
               :src="currentTrackCoverUrl"
               :alt="title"
               class="h-full w-full object-cover"
+              width="1200"
+              height="1200"
+              decoding="async"
             >
             <div
               v-else

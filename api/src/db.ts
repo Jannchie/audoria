@@ -14,6 +14,9 @@ export const tracks = sqliteTable('tracks', {
   coverStorageBackend: text('cover_storage_backend'),
   coverStorageKey: text('cover_storage_key'),
   coverContentType: text('cover_content_type'),
+  coverThumbStorageBackend: text('cover_thumb_storage_backend'),
+  coverThumbStorageKey: text('cover_thumb_storage_key'),
+  coverThumbContentType: text('cover_thumb_content_type'),
   title: text('title'),
   artists: text('artists'),
   album: text('album'),
@@ -79,6 +82,9 @@ function rebuildLegacyTracksTable(): void {
       cover_storage_backend TEXT,
       cover_storage_key TEXT,
       cover_content_type TEXT,
+      cover_thumb_storage_backend TEXT,
+      cover_thumb_storage_key TEXT,
+      cover_thumb_content_type TEXT,
       title TEXT,
       artists TEXT,
       album TEXT,
@@ -100,6 +106,9 @@ function rebuildLegacyTracksTable(): void {
       cover_storage_backend,
       cover_storage_key,
       cover_content_type,
+      cover_thumb_storage_backend,
+      cover_thumb_storage_key,
+      cover_thumb_content_type,
       title,
       artists,
       album,
@@ -120,6 +129,9 @@ function rebuildLegacyTracksTable(): void {
       cover_storage_backend,
       cover_storage_key,
       cover_content_type,
+      cover_thumb_storage_backend,
+      cover_thumb_storage_key,
+      cover_thumb_content_type,
       title,
       artists,
       album,
@@ -149,6 +161,9 @@ sqlite.exec(`
     cover_storage_backend TEXT,
     cover_storage_key TEXT,
     cover_content_type TEXT,
+    cover_thumb_storage_backend TEXT,
+    cover_thumb_storage_key TEXT,
+    cover_thumb_content_type TEXT,
     title TEXT,
     artists TEXT,
     album TEXT,
@@ -213,6 +228,15 @@ if (!trackColumns.some(column => column.name === 'cover_storage_key')) {
 }
 if (!trackColumns.some(column => column.name === 'cover_content_type')) {
   sqlite.exec('ALTER TABLE tracks ADD COLUMN cover_content_type TEXT')
+}
+if (!trackColumns.some(column => column.name === 'cover_thumb_storage_backend')) {
+  sqlite.exec('ALTER TABLE tracks ADD COLUMN cover_thumb_storage_backend TEXT')
+}
+if (!trackColumns.some(column => column.name === 'cover_thumb_storage_key')) {
+  sqlite.exec('ALTER TABLE tracks ADD COLUMN cover_thumb_storage_key TEXT')
+}
+if (!trackColumns.some(column => column.name === 'cover_thumb_content_type')) {
+  sqlite.exec('ALTER TABLE tracks ADD COLUMN cover_thumb_content_type TEXT')
 }
 if (!trackColumns.some(column => column.name === 'title')) {
   sqlite.exec('ALTER TABLE tracks ADD COLUMN title TEXT')
@@ -462,12 +486,18 @@ export function updateTrackCover(id: string, cover: {
   backend: string | null
   key: string | null
   contentType: string | null
+  thumbBackend: string | null
+  thumbKey: string | null
+  thumbContentType: string | null
 }): void {
   db.update(tracks)
     .set({
       coverStorageBackend: cover.backend,
       coverStorageKey: cover.key,
       coverContentType: cover.contentType,
+      coverThumbStorageBackend: cover.thumbBackend,
+      coverThumbStorageKey: cover.thumbKey,
+      coverThumbContentType: cover.thumbContentType,
     })
     .where(eq(tracks.id, id))
     .run()
@@ -481,6 +511,9 @@ export function updateTrackImportedMetadata(id: string, metadata: {
   coverStorageBackend: string | null
   coverStorageKey: string | null
   coverContentType: string | null
+  coverThumbStorageBackend: string | null
+  coverThumbStorageKey: string | null
+  coverThumbContentType: string | null
   lyrics: string | null
   title: string | null
   artists: string | null
@@ -495,6 +528,9 @@ export function updateTrackImportedMetadata(id: string, metadata: {
       coverStorageBackend: metadata.coverStorageBackend,
       coverStorageKey: metadata.coverStorageKey,
       coverContentType: metadata.coverContentType,
+      coverThumbStorageBackend: metadata.coverThumbStorageBackend,
+      coverThumbStorageKey: metadata.coverThumbStorageKey,
+      coverThumbContentType: metadata.coverThumbContentType,
       lyrics: metadata.lyrics,
       title: metadata.title,
       artists: metadata.artists,

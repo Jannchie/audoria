@@ -2,9 +2,9 @@
 
 import { type Client, formDataBodySerializer, type Options as Options2, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { DeleteMusicByIdData, DeleteMusicByIdErrors, DeleteMusicByIdResponses, GetMusicByIdDownloadData, GetMusicByIdDownloadErrors, GetMusicByIdDownloadResponses, GetMusicData, GetMusicImportsByIdData, GetMusicImportsByIdErrors, GetMusicImportsByIdResponses, GetMusicResponses, PostMusicData, PostMusicErrors, PostMusicImportsData, PostMusicImportsErrors, PostMusicImportsResponses, PostMusicImportsSearchData, PostMusicImportsSearchErrors, PostMusicImportsSearchResponses, PostMusicResponses } from './types.gen';
+import type { DeleteMusicByIdCoverData, DeleteMusicByIdCoverErrors, DeleteMusicByIdCoverResponses, DeleteMusicByIdData, DeleteMusicByIdErrors, DeleteMusicByIdResponses, GetMusicByIdCoverData, GetMusicByIdCoverErrors, GetMusicByIdCoverResponses, GetMusicByIdCoverThumbData, GetMusicByIdCoverThumbErrors, GetMusicByIdCoverThumbResponses, GetMusicByIdDownloadData, GetMusicByIdDownloadErrors, GetMusicByIdDownloadResponses, GetMusicData, GetMusicImportsByIdData, GetMusicImportsByIdErrors, GetMusicImportsByIdResponses, GetMusicResponses, PatchMusicByIdData, PatchMusicByIdErrors, PatchMusicByIdResponses, PostMusicByIdCoverData, PostMusicByIdCoverErrors, PostMusicByIdCoverResponses, PostMusicData, PostMusicErrors, PostMusicImportsData, PostMusicImportsErrors, PostMusicImportsParseUrlData, PostMusicImportsParseUrlErrors, PostMusicImportsParseUrlResponses, PostMusicImportsResponses, PostMusicImportsSearchData, PostMusicImportsSearchErrors, PostMusicImportsSearchResponses, PostMusicResponses } from './types.gen';
 
-export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean> = Options2<TData, ThrowOnError> & {
+export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
      * You can provide a client instance returned by `createClient()` instead of
      * individual options. This might be also useful if you want to implement a
@@ -49,6 +49,18 @@ export const postMusicImportsSearch = <ThrowOnError extends boolean = false>(opt
 });
 
 /**
+ * Resolve a Bilibili or Youtube URL into an importable candidate
+ */
+export const postMusicImportsParseUrl = <ThrowOnError extends boolean = false>(options?: Options<PostMusicImportsParseUrlData, ThrowOnError>) => (options?.client ?? client).post<PostMusicImportsParseUrlResponses, PostMusicImportsParseUrlErrors, ThrowOnError>({
+    url: '/music/imports/parse-url',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers
+    }
+});
+
+/**
  * Create an asynchronous import job through musicdl
  */
 export const postMusicImports = <ThrowOnError extends boolean = false>(options?: Options<PostMusicImportsData, ThrowOnError>) => (options?.client ?? client).post<PostMusicImportsResponses, PostMusicImportsErrors, ThrowOnError>({
@@ -66,6 +78,34 @@ export const postMusicImports = <ThrowOnError extends boolean = false>(options?:
 export const getMusicImportsById = <ThrowOnError extends boolean = false>(options: Options<GetMusicImportsByIdData, ThrowOnError>) => (options.client ?? client).get<GetMusicImportsByIdResponses, GetMusicImportsByIdErrors, ThrowOnError>({ url: '/music/imports/{id}', ...options });
 
 /**
+ * Remove a track cover
+ */
+export const deleteMusicByIdCover = <ThrowOnError extends boolean = false>(options: Options<DeleteMusicByIdCoverData, ThrowOnError>) => (options.client ?? client).delete<DeleteMusicByIdCoverResponses, DeleteMusicByIdCoverErrors, ThrowOnError>({ url: '/music/{id}/cover', ...options });
+
+/**
+ * Get a track cover by id
+ */
+export const getMusicByIdCover = <ThrowOnError extends boolean = false>(options: Options<GetMusicByIdCoverData, ThrowOnError>) => (options.client ?? client).get<GetMusicByIdCoverResponses, GetMusicByIdCoverErrors, ThrowOnError>({ url: '/music/{id}/cover', ...options });
+
+/**
+ * Upload a new cover image for a track
+ */
+export const postMusicByIdCover = <ThrowOnError extends boolean = false>(options: Options<PostMusicByIdCoverData, ThrowOnError>) => (options.client ?? client).post<PostMusicByIdCoverResponses, PostMusicByIdCoverErrors, ThrowOnError>({
+    ...formDataBodySerializer,
+    url: '/music/{id}/cover',
+    ...options,
+    headers: {
+        'Content-Type': null,
+        ...options.headers
+    }
+});
+
+/**
+ * Get a track cover thumbnail by id
+ */
+export const getMusicByIdCoverThumb = <ThrowOnError extends boolean = false>(options: Options<GetMusicByIdCoverThumbData, ThrowOnError>) => (options.client ?? client).get<GetMusicByIdCoverThumbResponses, GetMusicByIdCoverThumbErrors, ThrowOnError>({ url: '/music/{id}/cover/thumb', ...options });
+
+/**
  * Download a music file by id
  */
 export const getMusicByIdDownload = <ThrowOnError extends boolean = false>(options: Options<GetMusicByIdDownloadData, ThrowOnError>) => (options.client ?? client).get<GetMusicByIdDownloadResponses, GetMusicByIdDownloadErrors, ThrowOnError>({ url: '/music/{id}/download', ...options });
@@ -74,3 +114,15 @@ export const getMusicByIdDownload = <ThrowOnError extends boolean = false>(optio
  * Delete a music file
  */
 export const deleteMusicById = <ThrowOnError extends boolean = false>(options: Options<DeleteMusicByIdData, ThrowOnError>) => (options.client ?? client).delete<DeleteMusicByIdResponses, DeleteMusicByIdErrors, ThrowOnError>({ url: '/music/{id}', ...options });
+
+/**
+ * Update editable track metadata (title/artists/album/source/lyrics)
+ */
+export const patchMusicById = <ThrowOnError extends boolean = false>(options: Options<PatchMusicByIdData, ThrowOnError>) => (options.client ?? client).patch<PatchMusicByIdResponses, PatchMusicByIdErrors, ThrowOnError>({
+    url: '/music/{id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});

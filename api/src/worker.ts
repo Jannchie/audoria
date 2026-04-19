@@ -85,8 +85,6 @@ async function processNextJob(): Promise<boolean> {
         if (cover) {
           storedCover = await storeTrackCover({
             trackId: track.id,
-            contentType: cover.contentType,
-            size: cover.body.byteLength,
             body: cover.body,
           })
         }
@@ -97,9 +95,12 @@ async function processNextJob(): Promise<boolean> {
     }
 
     updateTrackImportedMetadata(track.id, {
-      coverStorageBackend: storedCover?.backend ?? null,
-      coverStorageKey: storedCover?.key ?? null,
-      coverContentType: storedCover?.contentType ?? null,
+      coverStorageBackend: storedCover?.cover.backend ?? null,
+      coverStorageKey: storedCover?.cover.key ?? null,
+      coverContentType: storedCover?.cover.contentType ?? null,
+      coverThumbStorageBackend: storedCover?.thumb.backend ?? null,
+      coverThumbStorageKey: storedCover?.thumb.key ?? null,
+      coverThumbContentType: storedCover?.thumb.contentType ?? null,
       lyrics: songInfo.lyric,
       title: songInfo.song_name,
       artists: songInfo.singers,

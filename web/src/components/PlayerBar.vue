@@ -20,7 +20,7 @@ const previewRatio = ref<number | null>(null)
 const hoverPreviewTime = ref<number | null>(null)
 const scrubPreviewTime = ref<number | null>(null)
 const volumePreview = ref<number | null>(null)
-const { data: tracks } = useMusicQuery()
+const { data: tracks, isPending: isTracksPending } = useMusicQuery()
 const {
   currentTrackId,
   isPlaying,
@@ -60,10 +60,11 @@ const audioSrc = computed(() => {
 })
 
 const currentTrackCoverUrl = computed(() => {
-  if (!currentTrack.value?.coverUrl) {
+  const coverUrl = currentTrack.value?.coverThumbUrl ?? currentTrack.value?.coverUrl
+  if (!coverUrl) {
     return ''
   }
-  return resolveApiUrl(currentTrack.value.coverUrl)
+  return resolveApiUrl(coverUrl)
 })
 const isPlayerPage = computed(() => route.path === '/player')
 const { parsed } = useLyrics(() => currentTrack.value?.lyrics)
@@ -177,6 +178,8 @@ function handleLoaded(): void {
   const resumeTime = getResumeTime(audio.duration || 0)
   if (resumeTime > 0) {
     audio.currentTime = resumeTime
+    updateProgress(resumeTime, audio.duration || 0)
+    return
   }
   updateProgress(audio.currentTime, audio.duration || 0)
   if (isPlaying.value) {
@@ -441,7 +444,10 @@ watch(isPlaying, (playing) => {
   }
 })
 
-watch(tracks, (items) => {
+watch([tracks, isTracksPending], ([items, pending]) => {
+  if (pending) {
+    return
+  }
   syncTrackContext(items ?? [])
 }, { immediate: true })
 
@@ -521,6 +527,9 @@ onUnmounted(() => {
             :src="currentTrackCoverUrl"
             :alt="currentTrack?.filename ?? 'Track cover'"
             class="h-full w-full object-cover"
+            width="48"
+            height="48"
+            decoding="async"
           >
           <span
             v-else

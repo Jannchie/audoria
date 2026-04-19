@@ -35,7 +35,7 @@ async function loadPlayerState() {
   return await import('../composables/usePlayerState')
 }
 
-describe('usePlayerState', () => {
+describe('useplayerstate', () => {
   beforeEach(() => {
     vi.stubGlobal('localStorage', new MemoryStorage())
   })

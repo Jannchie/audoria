@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import type { Music } from '../api/types.gen'
 import { computed, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import MetadataEditDialog from '../components/MetadataEditDialog.vue'
 import SoundWave from '../components/SoundWave.vue'
 import SourceBadge from '../components/SourceBadge.vue'
@@ -13,7 +12,6 @@ const librarySearchStateKey = 'audoria.library-search'
 const skeletonTitleWidths = [72, 56, 80, 48, 68, 60, 76, 52]
 const skeletonMetaWidths = [38, 30, 44, 26, 40, 34, 48, 32]
 
-const router = useRouter()
 const { data: tracks, isPending, isError, error } = useMusicQuery()
 const deleteMutation = useDeleteMusic()
 const { currentTrackId, isPlaying, selectTrack, setPlaying } = usePlayerState()
@@ -46,11 +44,11 @@ function handleTrackClick(id: string): void {
   else {
     selectTrack(id, { contextTracks: tracks.value ?? [] })
     setPlaying(true)
-    router.push('/player')
   }
 }
 
-function trackCoverUrl(coverUrl: string | null): string {
+function trackCoverUrl(track: Music): string {
+  const coverUrl = track.coverThumbUrl ?? track.coverUrl
   return coverUrl ? resolveApiUrl(coverUrl) : ''
 }
 
@@ -163,9 +161,13 @@ async function handleDelete(id: string): Promise<void> {
         <div class="track-cover">
           <img
             v-if="track.coverUrl"
-            :src="trackCoverUrl(track.coverUrl)"
+            :src="trackCoverUrl(track)"
             :alt="track.title || track.filename"
             class="track-cover-img"
+            width="52"
+            height="52"
+            loading="lazy"
+            decoding="async"
           >
           <span
             v-else

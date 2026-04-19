@@ -6,6 +6,7 @@ import { mkdir, open, rename, rm, stat, unlink } from 'node:fs/promises'
 import path from 'node:path'
 import { Readable } from 'node:stream'
 import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
+import sharp from 'sharp'
 import { config } from './config.js'
 import { db, tracks } from './db.js'
 import { formatDurationText, probeDurationSeconds } from './probeAudio.js'
@@ -23,8 +24,31 @@ interface ObjectRef {
   key: string
 }
 
-type StoredCover = ObjectRef & {
+type StoredCoverAsset = ObjectRef & {
   contentType: string | null
+}
+
+type StoredCover = {
+  cover: StoredCoverAsset
+  thumb: StoredCoverAsset
+}
+
+type CoverVariant = 'cover' | 'thumb'
+
+const COVER_CONTENT_TYPE = 'image/webp'
+const COVER_VARIANT_OPTIONS: Record<CoverVariant, { width: number, height: number, quality: number, suffix: string }> = {
+  cover: {
+    width: 1200,
+    height: 1200,
+    quality: 82,
+    suffix: 'cover',
+  },
+  thumb: {
+    width: 320,
+    height: 320,
+    quality: 76,
+    suffix: 'thumb',
+  },
 }
 
 interface StorageDriver {
@@ -255,7 +279,13 @@ function getTrackObjectRef(record: Track): ObjectRef {
   }
 }
 
-function getCoverObjectRef(record: Track): ObjectRef | null {
+function getCoverObjectRef(record: Track, variant: CoverVariant = 'cover'): ObjectRef | null {
+  if (variant === 'thumb' && record.coverThumbStorageBackend && record.coverThumbStorageKey) {
+    return {
+      backend: record.coverThumbStorageBackend as StorageBackend,
+      key: record.coverThumbStorageKey,
+    }
+  }
   if (!record.coverStorageBackend || !record.coverStorageKey) {
     return null
   }
@@ -263,6 +293,31 @@ function getCoverObjectRef(record: Track): ObjectRef | null {
     backend: record.coverStorageBackend as StorageBackend,
     key: record.coverStorageKey,
   }
+}
+
+function listCoverObjectRefs(record: Track): ObjectRef[] {
+  const refs = [
+    getCoverObjectRef(record, 'cover'),
+    getCoverObjectRef(record, 'thumb'),
+  ].filter((value): value is ObjectRef => value !== null)
+
+  return refs.filter((ref, index) =>
+    refs.findIndex(candidate => candidate.backend === ref.backend && candidate.key === ref.key) === index,
+  )
+}
+
+async function createCoverVariant(body: Uint8Array, variant: CoverVariant): Promise<Buffer> {
+  const { width, height, quality } = COVER_VARIANT_OPTIONS[variant]
+  return await sharp(body)
+    .rotate()
+    .resize({
+      width,
+      height,
+      fit: 'inside',
+      withoutEnlargement: true,
+    })
+    .webp({ quality })
+    .toBuffer()
 }
 
 export async function storeTrack({
@@ -310,6 +365,9 @@ export async function storeTrack({
     coverStorageBackend: null,
     coverStorageKey: null,
     coverContentType: null,
+    coverThumbStorageBackend: null,
+    coverThumbStorageKey: null,
+    coverThumbContentType: null,
     title: null,
     artists: null,
     album: null,
@@ -329,26 +387,72 @@ export async function storeTrack({
 
 export async function storeTrackCover({
   trackId,
-  contentType,
   body,
 }: {
   trackId: string
-  contentType: string | null
-  size: number
   body: Uint8Array
 }): Promise<StoredCover> {
-  const key = `covers/${trackId}`
   const storageBackend = getActiveStorageBackend()
-  await getStorageDriver(storageBackend).putObject({
-    key,
-    body: Buffer.from(body),
-    contentType,
-  })
+  const driver = getStorageDriver(storageBackend)
+  const [coverBody, thumbBody] = await Promise.all([
+    createCoverVariant(body, 'cover'),
+    createCoverVariant(body, 'thumb'),
+  ])
+
+  const coverKey = `covers/${trackId}/${COVER_VARIANT_OPTIONS.cover.suffix}.webp`
+  const thumbKey = `covers/${trackId}/${COVER_VARIANT_OPTIONS.thumb.suffix}.webp`
+
+  await Promise.all([
+    driver.putObject({
+      key: coverKey,
+      body: coverBody,
+      contentType: COVER_CONTENT_TYPE,
+    }),
+    driver.putObject({
+      key: thumbKey,
+      body: thumbBody,
+      contentType: COVER_CONTENT_TYPE,
+    }),
+  ])
+
   return {
-    backend: storageBackend,
-    key,
-    contentType,
+    cover: {
+      backend: storageBackend,
+      key: coverKey,
+      contentType: COVER_CONTENT_TYPE,
+    },
+    thumb: {
+      backend: storageBackend,
+      key: thumbKey,
+      contentType: COVER_CONTENT_TYPE,
+    },
   }
+}
+
+export async function getStoredTrackCover(record: Track, variant: CoverVariant = 'cover'): Promise<StoredObject> {
+  const ref = getCoverObjectRef(record, variant)
+  if (!ref) {
+    throw new Error('Track cover is not stored')
+  }
+  return getStorageDriver(ref.backend).getObject({ key: ref.key })
+}
+
+export async function deleteStoredTrack(record: Track): Promise<void> {
+  const trackRef = getTrackObjectRef(record)
+  await getStorageDriver(trackRef.backend).deleteObject(trackRef.key)
+
+  const coverRefs = listCoverObjectRefs(record)
+  await Promise.all(coverRefs.map(ref => getStorageDriver(ref.backend).deleteObject(ref.key)))
+}
+
+export async function deleteTrackCover(record: Track): Promise<void> {
+  const coverRefs = listCoverObjectRefs(record)
+  await Promise.all(coverRefs.map(ref => getStorageDriver(ref.backend).deleteObject(ref.key)))
+}
+
+export async function readStoredTrackBuffer(record: Track): Promise<Buffer> {
+  const object = await getStoredTrack(record)
+  return readReadableToBuffer(object.body)
 }
 
 export async function getStoredTrack(record: Track, range?: ByteRange): Promise<StoredObject> {
@@ -357,35 +461,4 @@ export async function getStoredTrack(record: Track, range?: ByteRange): Promise<
     key: ref.key,
     range,
   })
-}
-
-export async function getStoredTrackCover(record: Track): Promise<StoredObject> {
-  const ref = getCoverObjectRef(record)
-  if (!ref) {
-    throw new Error('Track cover is not stored')
-  }
-  return getStorageDriver(ref.backend).getObject({ key: ref.key })
-}
-
-export async function readStoredTrackBuffer(record: Track): Promise<Buffer> {
-  const object = await getStoredTrack(record)
-  return readReadableToBuffer(object.body)
-}
-
-export async function deleteStoredTrack(record: Track): Promise<void> {
-  const trackRef = getTrackObjectRef(record)
-  await getStorageDriver(trackRef.backend).deleteObject(trackRef.key)
-
-  const coverRef = getCoverObjectRef(record)
-  if (coverRef) {
-    await getStorageDriver(coverRef.backend).deleteObject(coverRef.key)
-  }
-}
-
-export async function deleteTrackCover(record: Track): Promise<void> {
-  const coverRef = getCoverObjectRef(record)
-  if (!coverRef) {
-    return
-  }
-  await getStorageDriver(coverRef.backend).deleteObject(coverRef.key)
 }

@@ -8,16 +8,17 @@ export type Music = {
     id: string;
     filename: string;
     size: number;
-    contentType: string | null;
-    coverUrl: string | null;
-    lyrics: string | null;
-    title: string | null;
-    artists: string | null;
-    album: string | null;
-    source: string | null;
-    sourceIdentifier: string | null;
-    durationText: string | null;
-    durationSeconds: number | null;
+    contentType: string;
+    coverUrl: string;
+    coverThumbUrl: string;
+    lyrics: string;
+    title: string;
+    artists: string;
+    album: string;
+    source: string;
+    sourceIdentifier: string;
+    durationText: string;
+    durationSeconds: number;
     createdAt: string;
 };
 
@@ -27,7 +28,7 @@ export type MusicDlSearchResult = {
     singers: string;
     album: string;
     source: string;
-    sourceIdentifier: string | null;
+    sourceIdentifier: string;
     ext: string;
     fileSize: string;
     duration: string;
@@ -35,12 +36,16 @@ export type MusicDlSearchResult = {
     downloadable: boolean;
 };
 
-export type MusicDlSource = 'NeteaseMusicClient' | 'QQMusicClient' | 'KuwoMusicClient' | 'MiguMusicClient' | 'JamendoMusicClient';
-
 export type MusicDlSearchRequest = {
     keyword: string;
     source?: MusicDlSource;
     limitPerSource?: number;
+};
+
+export type MusicDlSource = 'NeteaseMusicClient' | 'QQMusicClient' | 'KuwoMusicClient' | 'MiguMusicClient' | 'JamendoMusicClient';
+
+export type MusicDlParseUrlRequest = {
+    url: string;
 };
 
 export type MusicImportJob = {
@@ -49,19 +54,27 @@ export type MusicImportJob = {
     songName: string;
     singers: string;
     status: 'queued' | 'running' | 'succeeded' | 'failed';
-    trackId: string | null;
-    errorMessage: string | null;
-    progressBytes: number | null;
-    totalBytes: number | null;
-    progressPercent: number | null;
+    trackId: string;
+    errorMessage: string;
+    progressBytes: number;
+    totalBytes: number;
+    progressPercent: number;
     createdAt: string;
     updatedAt: string;
-    startedAt: string | null;
-    finishedAt: string | null;
+    startedAt: string;
+    finishedAt: string;
 };
 
 export type MusicDlImportRequest = {
     resultId: string;
+};
+
+export type UpdateMusicRequest = {
+    title?: string;
+    artists?: string;
+    album?: string;
+    source?: string;
+    lyrics?: string;
 };
 
 export type GetMusicData = {
@@ -151,6 +164,45 @@ export type PostMusicImportsSearchResponses = {
 
 export type PostMusicImportsSearchResponse = PostMusicImportsSearchResponses[keyof PostMusicImportsSearchResponses];
 
+export type PostMusicImportsParseUrlData = {
+    body?: MusicDlParseUrlRequest;
+    path?: never;
+    query?: never;
+    url: '/music/imports/parse-url';
+};
+
+export type PostMusicImportsParseUrlErrors = {
+    /**
+     * Invalid URL
+     */
+    400: {
+        message: string;
+    };
+    /**
+     * musicdl failed
+     */
+    502: {
+        message: string;
+    };
+    /**
+     * musicdl unavailable
+     */
+    503: {
+        message: string;
+    };
+};
+
+export type PostMusicImportsParseUrlError = PostMusicImportsParseUrlErrors[keyof PostMusicImportsParseUrlErrors];
+
+export type PostMusicImportsParseUrlResponses = {
+    /**
+     * Parsed result
+     */
+    200: MusicDlSearchResult;
+};
+
+export type PostMusicImportsParseUrlResponse = PostMusicImportsParseUrlResponses[keyof PostMusicImportsParseUrlResponses];
+
 export type PostMusicImportsData = {
     body?: MusicDlImportRequest;
     path?: never;
@@ -169,6 +221,18 @@ export type PostMusicImportsErrors = {
      * Search result not found
      */
     404: {
+        message: string;
+    };
+    /**
+     * musicdl failed
+     */
+    502: {
+        message: string;
+    };
+    /**
+     * musicdl unavailable
+     */
+    503: {
         message: string;
     };
 };
@@ -212,6 +276,133 @@ export type GetMusicImportsByIdResponses = {
 };
 
 export type GetMusicImportsByIdResponse = GetMusicImportsByIdResponses[keyof GetMusicImportsByIdResponses];
+
+export type DeleteMusicByIdCoverData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/music/{id}/cover';
+};
+
+export type DeleteMusicByIdCoverErrors = {
+    /**
+     * Not found
+     */
+    404: {
+        message: string;
+    };
+};
+
+export type DeleteMusicByIdCoverError = DeleteMusicByIdCoverErrors[keyof DeleteMusicByIdCoverErrors];
+
+export type DeleteMusicByIdCoverResponses = {
+    /**
+     * Updated
+     */
+    200: Music;
+};
+
+export type DeleteMusicByIdCoverResponse = DeleteMusicByIdCoverResponses[keyof DeleteMusicByIdCoverResponses];
+
+export type GetMusicByIdCoverData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/music/{id}/cover';
+};
+
+export type GetMusicByIdCoverErrors = {
+    /**
+     * Not found
+     */
+    404: {
+        message: string;
+    };
+};
+
+export type GetMusicByIdCoverError = GetMusicByIdCoverErrors[keyof GetMusicByIdCoverErrors];
+
+export type GetMusicByIdCoverResponses = {
+    /**
+     * Cover image
+     */
+    200: Blob | File;
+};
+
+export type GetMusicByIdCoverResponse = GetMusicByIdCoverResponses[keyof GetMusicByIdCoverResponses];
+
+export type PostMusicByIdCoverData = {
+    body?: {
+        /**
+         * Cover image file
+         */
+        file?: Blob | File;
+    };
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/music/{id}/cover';
+};
+
+export type PostMusicByIdCoverErrors = {
+    /**
+     * Invalid request
+     */
+    400: {
+        message: string;
+    };
+    /**
+     * Not found
+     */
+    404: {
+        message: string;
+    };
+};
+
+export type PostMusicByIdCoverError = PostMusicByIdCoverErrors[keyof PostMusicByIdCoverErrors];
+
+export type PostMusicByIdCoverResponses = {
+    /**
+     * Updated
+     */
+    200: Music;
+};
+
+export type PostMusicByIdCoverResponse = PostMusicByIdCoverResponses[keyof PostMusicByIdCoverResponses];
+
+export type GetMusicByIdCoverThumbData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/music/{id}/cover/thumb';
+};
+
+export type GetMusicByIdCoverThumbErrors = {
+    /**
+     * Not found
+     */
+    404: {
+        message: string;
+    };
+};
+
+export type GetMusicByIdCoverThumbError = GetMusicByIdCoverThumbErrors[keyof GetMusicByIdCoverThumbErrors];
+
+export type GetMusicByIdCoverThumbResponses = {
+    /**
+     * Cover thumbnail image
+     */
+    200: Blob | File;
+};
+
+export type GetMusicByIdCoverThumbResponse = GetMusicByIdCoverThumbResponses[keyof GetMusicByIdCoverThumbResponses];
 
 export type GetMusicByIdDownloadData = {
     body?: never;
@@ -270,3 +461,32 @@ export type DeleteMusicByIdResponses = {
 };
 
 export type DeleteMusicByIdResponse = DeleteMusicByIdResponses[keyof DeleteMusicByIdResponses];
+
+export type PatchMusicByIdData = {
+    body?: UpdateMusicRequest;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/music/{id}';
+};
+
+export type PatchMusicByIdErrors = {
+    /**
+     * Not found
+     */
+    404: {
+        message: string;
+    };
+};
+
+export type PatchMusicByIdError = PatchMusicByIdErrors[keyof PatchMusicByIdErrors];
+
+export type PatchMusicByIdResponses = {
+    /**
+     * Updated
+     */
+    200: Music;
+};
+
+export type PatchMusicByIdResponse = PatchMusicByIdResponses[keyof PatchMusicByIdResponses];

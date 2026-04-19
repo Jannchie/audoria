@@ -317,7 +317,7 @@ export function usePlayerState() {
       return pickRandomTrackId(tracks)
     }
 
-    const index = orderedTrackIds.findIndex(trackId => trackId === currentTrackId.value)
+    const index = currentTrackId.value ? orderedTrackIds.indexOf(currentTrackId.value) : -1
     if (index === -1) {
       return orderedTrackIds[0] ?? null
     }

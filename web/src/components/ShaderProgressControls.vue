@@ -135,10 +135,22 @@ const copyLabel = computed(() => {
 
 <template>
   <Teleport to="body">
-    <div class="shader-ctrl">
+    <div
+      class="shader-ctrl"
+      :class="{ 'shader-ctrl--collapsed': collapsed }"
+    >
       <div class="shader-ctrl__header">
-        <span class="shader-ctrl__title">Filament tuner</span>
         <button
+          type="button"
+          class="shader-ctrl__toggle"
+          :aria-label="collapsed ? 'Expand filament tuner' : 'Collapse filament tuner'"
+          @click="collapsed = !collapsed"
+        >
+          <span class="shader-ctrl__caret">{{ collapsed ? '▸' : '▾' }}</span>
+          <span class="shader-ctrl__title">Filament tuner</span>
+        </button>
+        <button
+          v-if="!collapsed"
           type="button"
           class="shader-ctrl__copy"
           :class="{ 'shader-ctrl__copy--done': copyStatus === 'copied', 'shader-ctrl__copy--fail': copyStatus === 'failed' }"
@@ -147,145 +159,147 @@ const copyLabel = computed(() => {
           {{ copyLabel }}
         </button>
       </div>
-      <div class="shader-ctrl__presets">
-        <button
-          v-for="p in presets"
-          :key="p.name"
-          type="button"
-          class="shader-ctrl__preset"
-          :class="{ 'shader-ctrl__preset--active': p.name === activePresetName }"
-          @click="applyPreset(p)"
-        >
-          {{ p.name }}
-        </button>
-      </div>
-
-      <div class="shader-ctrl__row">
-        <label>Shader style</label>
-        <div class="shader-ctrl__styles">
+      <template v-if="!collapsed">
+        <div class="shader-ctrl__presets">
           <button
-            v-for="s in STYLES"
-            :key="s.id"
+            v-for="p in presets"
+            :key="p.name"
             type="button"
-            class="shader-ctrl__style"
-            :class="{ 'shader-ctrl__style--active': model.style === s.id }"
-            @click="model = { ...model, style: s.id }"
+            class="shader-ctrl__preset"
+            :class="{ 'shader-ctrl__preset--active': p.name === activePresetName }"
+            @click="applyPreset(p)"
           >
-            {{ s.label }}
+            {{ p.name }}
           </button>
         </div>
-      </div>
 
-      <div class="shader-ctrl__row">
-        <label>Gain <span>{{ model.gain.toFixed(2) }}</span></label>
-        <input
-          type="range"
-          min="0"
-          max="3"
-          step="0.05"
-          :value="model.gain"
-          @input="onInput('gain', $event)"
-        >
-      </div>
-      <div class="shader-ctrl__row">
-        <label>Count <span>{{ model.count }}</span></label>
-        <input
-          type="range"
-          min="1"
-          max="6"
-          step="1"
-          :value="model.count"
-          @input="onInput('count', $event)"
-        >
-      </div>
-      <div class="shader-ctrl__row">
-        <label>Amp <span>{{ model.amp.toFixed(2) }}</span></label>
-        <input
-          type="range"
-          min="0"
-          max="2"
-          step="0.05"
-          :value="model.amp"
-          @input="onInput('amp', $event)"
-        >
-      </div>
-      <div class="shader-ctrl__row">
-        <label>Freq <span>{{ model.freq.toFixed(2) }}</span></label>
-        <input
-          type="range"
-          min="0.3"
-          max="3"
-          step="0.05"
-          :value="model.freq"
-          @input="onInput('freq', $event)"
-        >
-      </div>
-      <div class="shader-ctrl__row">
-        <label>Speed <span>{{ model.speed.toFixed(2) }}</span></label>
-        <input
-          type="range"
-          min="0"
-          max="3"
-          step="0.05"
-          :value="model.speed"
-          @input="onInput('speed', $event)"
-        >
-      </div>
-      <div class="shader-ctrl__row">
-        <label>Pulse depth <span>{{ model.pulseDepth.toFixed(2) }}</span></label>
-        <input
-          type="range"
-          min="0"
-          max="1"
-          step="0.02"
-          :value="model.pulseDepth"
-          @input="onInput('pulseDepth', $event)"
-        >
-      </div>
-      <div class="shader-ctrl__row">
-        <label>Pulse freq (Hz) <span>{{ model.pulseFreq.toFixed(2) }}</span></label>
-        <input
-          type="range"
-          min="0.1"
-          max="4"
-          step="0.05"
-          :value="model.pulseFreq"
-          @input="onInput('pulseFreq', $event)"
-        >
-      </div>
-      <div class="shader-ctrl__row">
-        <label>Density <span>{{ model.density.toFixed(2) }}</span></label>
-        <input
-          type="range"
-          min="0.2"
-          max="2.5"
-          step="0.05"
-          :value="model.density"
-          @input="onInput('density', $event)"
-        >
-      </div>
-      <div class="shader-ctrl__row">
-        <label>Smoothness <span>{{ model.smoothness.toFixed(2) }}</span></label>
-        <input
-          type="range"
-          min="0.3"
-          max="2.5"
-          step="0.05"
-          :value="model.smoothness"
-          @input="onInput('smoothness', $event)"
-        >
-      </div>
-      <div class="shader-ctrl__row">
-        <label>Converge <span>{{ model.converge.toFixed(2) }}</span></label>
-        <input
-          type="range"
-          min="0"
-          max="1"
-          step="0.02"
-          :value="model.converge"
-          @input="onInput('converge', $event)"
-        >
-      </div>
+        <div class="shader-ctrl__row">
+          <label>Shader style</label>
+          <div class="shader-ctrl__styles">
+            <button
+              v-for="s in STYLES"
+              :key="s.id"
+              type="button"
+              class="shader-ctrl__style"
+              :class="{ 'shader-ctrl__style--active': model.style === s.id }"
+              @click="model = { ...model, style: s.id }"
+            >
+              {{ s.label }}
+            </button>
+          </div>
+        </div>
+
+        <div class="shader-ctrl__row">
+          <label>Gain <span>{{ model.gain.toFixed(2) }}</span></label>
+          <input
+            type="range"
+            min="0"
+            max="3"
+            step="0.05"
+            :value="model.gain"
+            @input="onInput('gain', $event)"
+          >
+        </div>
+        <div class="shader-ctrl__row">
+          <label>Count <span>{{ model.count }}</span></label>
+          <input
+            type="range"
+            min="1"
+            max="6"
+            step="1"
+            :value="model.count"
+            @input="onInput('count', $event)"
+          >
+        </div>
+        <div class="shader-ctrl__row">
+          <label>Amp <span>{{ model.amp.toFixed(2) }}</span></label>
+          <input
+            type="range"
+            min="0"
+            max="2"
+            step="0.05"
+            :value="model.amp"
+            @input="onInput('amp', $event)"
+          >
+        </div>
+        <div class="shader-ctrl__row">
+          <label>Freq <span>{{ model.freq.toFixed(2) }}</span></label>
+          <input
+            type="range"
+            min="0.3"
+            max="3"
+            step="0.05"
+            :value="model.freq"
+            @input="onInput('freq', $event)"
+          >
+        </div>
+        <div class="shader-ctrl__row">
+          <label>Speed <span>{{ model.speed.toFixed(2) }}</span></label>
+          <input
+            type="range"
+            min="0"
+            max="3"
+            step="0.05"
+            :value="model.speed"
+            @input="onInput('speed', $event)"
+          >
+        </div>
+        <div class="shader-ctrl__row">
+          <label>Pulse depth <span>{{ model.pulseDepth.toFixed(2) }}</span></label>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.02"
+            :value="model.pulseDepth"
+            @input="onInput('pulseDepth', $event)"
+          >
+        </div>
+        <div class="shader-ctrl__row">
+          <label>Pulse freq (Hz) <span>{{ model.pulseFreq.toFixed(2) }}</span></label>
+          <input
+            type="range"
+            min="0.1"
+            max="4"
+            step="0.05"
+            :value="model.pulseFreq"
+            @input="onInput('pulseFreq', $event)"
+          >
+        </div>
+        <div class="shader-ctrl__row">
+          <label>Density <span>{{ model.density.toFixed(2) }}</span></label>
+          <input
+            type="range"
+            min="0.2"
+            max="2.5"
+            step="0.05"
+            :value="model.density"
+            @input="onInput('density', $event)"
+          >
+        </div>
+        <div class="shader-ctrl__row">
+          <label>Smoothness <span>{{ model.smoothness.toFixed(2) }}</span></label>
+          <input
+            type="range"
+            min="0.3"
+            max="2.5"
+            step="0.05"
+            :value="model.smoothness"
+            @input="onInput('smoothness', $event)"
+          >
+        </div>
+        <div class="shader-ctrl__row">
+          <label>Converge <span>{{ model.converge.toFixed(2) }}</span></label>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.02"
+            :value="model.converge"
+            @input="onInput('converge', $event)"
+          >
+        </div>
+      </template>
     </div>
   </Teleport>
 </template>
@@ -308,6 +322,11 @@ const copyLabel = computed(() => {
   user-select: none;
   pointer-events: auto;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+  transition: width 0.18s ease, padding 0.18s ease;
+}
+.shader-ctrl--collapsed {
+  width: auto;
+  padding: 6px 10px;
 }
 
 .shader-ctrl__header {
@@ -315,13 +334,34 @@ const copyLabel = computed(() => {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 8px;
+  gap: 6px;
+}
+.shader-ctrl--collapsed .shader-ctrl__header {
+  margin-bottom: 0;
+}
+
+.shader-ctrl__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+.shader-ctrl__caret {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.5);
+  line-height: 1;
 }
 
 .shader-ctrl__title {
   font-size: 10px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.5);
 }
 
 .shader-ctrl__copy {

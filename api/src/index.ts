@@ -23,13 +23,21 @@ import {
 import { MusicDlBridgeError, musicDlSources, MusicDlUnavailableError, resolveMusicDlSongInfo, resolveMusicUrl, searchMusicDl } from './musicdl.js'
 import { deleteStoredTrack, deleteTrackCover, getStoredTrack, getStoredTrackCover, storeTrack, storeTrackCover } from './storage.js'
 
+function buildCoverPath(id: string, variant: 'cover' | 'thumb' = 'cover'): string {
+  if (variant === 'thumb') {
+    return `/music/${id}/cover/thumb`
+  }
+  return `/music/${id}/cover`
+}
+
 function toMusicResponse(row: Track) {
   return {
     id: row.id,
     filename: row.filename,
     size: row.size,
     contentType: row.contentType,
-    coverUrl: row.coverStorageKey ? `/music/${row.id}/cover` : null,
+    coverUrl: row.coverStorageKey ? buildCoverPath(row.id, 'cover') : null,
+    coverThumbUrl: row.coverStorageKey ? buildCoverPath(row.id, 'thumb') : null,
     lyrics: row.lyrics,
     title: row.title,
     artists: row.artists,
@@ -67,6 +75,7 @@ const MusicSchema = z.object({
   size: z.number().int().nonnegative().openapi({ example: 1_280_000 }),
   contentType: z.string().nullable().openapi({ example: 'audio/mpeg' }),
   coverUrl: z.string().nullable().openapi({ example: '/music/a3f9d3d1-9c9d-4a40-a54d-0e4cb7acb8a0/cover' }),
+  coverThumbUrl: z.string().nullable().openapi({ example: '/music/a3f9d3d1-9c9d-4a40-a54d-0e4cb7acb8a0/cover/thumb' }),
   lyrics: z.string().nullable().openapi({ example: '[00:00.00] Lyrics line' }),
   title: z.string().nullable().openapi({ example: '稻香' }),
   artists: z.string().nullable().openapi({ example: '周杰伦' }),
@@ -601,6 +610,35 @@ const coverRoute = createRoute({
   },
 })
 
+const coverThumbRoute = createRoute({
+  method: 'get',
+  path: '/music/{id}/cover/thumb',
+  summary: 'Get a track cover thumbnail by id',
+  request: {
+    params: z.object({
+      id: z.string().min(1),
+    }),
+  },
+  responses: {
+    200: {
+      description: 'Cover thumbnail image',
+      content: {
+        'image/*': {
+          schema: z.string().openapi({ format: 'binary' }),
+        },
+      },
+    },
+    404: {
+      description: 'Not found',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+})
+
 interface ParsedRange {
   start: number
   end: number
@@ -674,6 +712,26 @@ app.openapi(coverRoute, async (c) => {
     status: 200,
     headers: {
       'Content-Type': object.contentType ?? record.coverContentType ?? 'image/jpeg',
+      'Cache-Control': 'public, max-age=3600',
+    },
+  })
+})
+
+app.openapi(coverThumbRoute, async (c) => {
+  const { id } = c.req.valid('param')
+  const record = db.select().from(tracks).where(eq(tracks.id, id)).get()
+
+  if (!record || !record.coverStorageKey || !record.coverStorageBackend) {
+    return c.json({ message: 'Cover not found' }, 404)
+  }
+
+  const object = await getStoredTrackCover(record, 'thumb')
+  const webStream = Readable.toWeb(object.body) as unknown as globalThis.ReadableStream
+
+  return new Response(webStream, {
+    status: 200,
+    headers: {
+      'Content-Type': object.contentType ?? record.coverThumbContentType ?? record.coverContentType ?? 'image/webp',
       'Cache-Control': 'public, max-age=3600',
     },
   })
@@ -885,14 +943,15 @@ app.openapi(updateCoverRoute, async (c) => {
   const buffer = new Uint8Array(await filePart.arrayBuffer())
   const storedCover = await storeTrackCover({
     trackId: id,
-    contentType: filePart.type || 'image/jpeg',
-    size: buffer.byteLength,
     body: buffer,
   })
   updateTrackCover(id, {
-    backend: storedCover.backend,
-    key: storedCover.key,
-    contentType: storedCover.contentType,
+    backend: storedCover.cover.backend,
+    key: storedCover.cover.key,
+    contentType: storedCover.cover.contentType,
+    thumbBackend: storedCover.thumb.backend,
+    thumbKey: storedCover.thumb.key,
+    thumbContentType: storedCover.thumb.contentType,
   })
   const updated = getTrackById(id)
   if (!updated) {
@@ -942,6 +1001,9 @@ app.openapi(deleteCoverRoute, async (c) => {
       backend: null,
       key: null,
       contentType: null,
+      thumbBackend: null,
+      thumbKey: null,
+      thumbContentType: null,
     })
   }
   const updated = getTrackById(id)
