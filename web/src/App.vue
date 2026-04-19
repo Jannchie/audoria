@@ -1,18 +1,21 @@
 <script setup lang="ts">
 import { computed, watchEffect } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
 import AudoriaLogo from './components/AudoriaLogo.vue'
 import PlayerBar from './components/PlayerBar.vue'
 
+const { t } = useI18n()
 const route = useRoute()
 
-const navItems = [
-  { name: 'Library', path: '/library', icon: 'i-tabler-vinyl' },
-  { name: 'Explore', path: '/import', icon: 'i-tabler-compass' },
-  { name: 'Parse', path: '/parse', icon: 'i-tabler-link' },
-  { name: 'Upload', path: '/upload', icon: 'i-tabler-upload' },
-  { name: 'Player', path: '/player', icon: 'i-tabler-wave-sine' },
-]
+const navItems = computed(() => [
+  { name: t('nav.library'), path: '/library', icon: 'i-tabler-vinyl' },
+  { name: t('nav.explore'), path: '/import', icon: 'i-tabler-compass' },
+  { name: t('nav.parse'), path: '/parse', icon: 'i-tabler-link' },
+  { name: t('nav.upload'), path: '/upload', icon: 'i-tabler-upload' },
+  { name: t('nav.player'), path: '/player', icon: 'i-tabler-wave-sine' },
+  { name: t('nav.settings'), path: '/settings', icon: 'i-tabler-settings' },
+])
 
 const currentPath = computed(() => route.path)
 const isPlayerPage = computed(() => route.path === '/player')

@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useUploadMusic } from '../composables/useMusic'
 import { usePlayerState } from '../composables/usePlayerState'
 
+const { t } = useI18n()
 const router = useRouter()
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const selectedFile = ref<File | null>(null)
@@ -20,7 +22,7 @@ const uploadErrorMessage = computed(() => {
   if (!err) {
     return ''
   }
-  return err instanceof Error ? err.message : 'Failed to upload. Please retry.'
+  return err instanceof Error ? err.message : t('upload.failed')
 })
 
 function handleFileChange(event: Event): void {
@@ -46,7 +48,7 @@ function handleDrop(event: DragEvent): void {
 function handleUpload(): void {
   const file = selectedFile.value ?? fileInputRef.value?.files?.[0] ?? null
   if (!file) {
-    formError.value = 'Please choose a file to upload.'
+    formError.value = t('upload.chooseFile')
     return
   }
   formError.value = ''
@@ -114,10 +116,10 @@ function formatFileSize(bytes: number): string {
         class="drop-info"
       >
         <p class="drop-hint">
-          Drop audio files here
+          {{ t('upload.dropHint') }}
         </p>
         <p class="drop-formats">
-          or tap to browse · MP3, FLAC, WAV, OGG, AAC
+          {{ t('upload.browseHint') }} · MP3, FLAC, WAV, OGG, AAC
         </p>
       </div>
 
@@ -134,7 +136,7 @@ function formatFileSize(bytes: number): string {
           class="text-base"
           :class="isUploading ? 'i-tabler-loader-2 animate-spin' : 'i-tabler-upload'"
         />
-        {{ isUploading ? 'Uploading...' : 'Upload' }}
+        {{ isUploading ? t('common.actions.uploading') : t('common.actions.upload') }}
       </button>
     </label>
 
@@ -162,7 +164,7 @@ function formatFileSize(bytes: number): string {
       role="status"
       aria-live="polite"
     >
-      Upload successful!
+      {{ t('upload.success') }}
     </div>
   </section>
 </template>

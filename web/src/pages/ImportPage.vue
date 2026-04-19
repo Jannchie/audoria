@@ -2,6 +2,7 @@
 import type { MusicDlSearchResult, MusicDlSource } from '../api/types.gen'
 import { useQueryClient } from '@tanstack/vue-query'
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import SourceBadge from '../components/SourceBadge.vue'
 import { useImportJobQuery, useImportMusic, useMusicQuery, useSearchMusicImport } from '../composables/useMusic'
 import { formatTrackSpecs } from '../utils/audio'
@@ -43,21 +44,21 @@ function savePersistedImportPageState(state: PersistedImportPageState): void {
 
 const persistedState = loadPersistedImportPageState()
 
-const sourceOptions: Array<{ value: MusicDlSource | null, label: string }> = [
-  { value: null, label: 'All' },
-  { value: 'NeteaseMusicClient', label: 'Netease' },
-  { value: 'QQMusicClient', label: 'QQ' },
-  { value: 'KuwoMusicClient', label: 'Kuwo' },
-  { value: 'MiguMusicClient', label: 'Migu' },
-  { value: 'JamendoMusicClient', label: 'Jamendo' },
-]
-
 function isMusicDlSource(value: string): value is MusicDlSource {
   return isKnownSource(value)
 }
 
 const queryClient = useQueryClient()
 const { data: tracks } = useMusicQuery()
+const { t } = useI18n()
+const sourceOptions = computed<Array<{ value: MusicDlSource | null, label: string }>>(() => [
+  { value: null, label: t('import.allSources') },
+  { value: 'NeteaseMusicClient', label: 'Netease' },
+  { value: 'QQMusicClient', label: 'QQ' },
+  { value: 'KuwoMusicClient', label: 'Kuwo' },
+  { value: 'MiguMusicClient', label: 'Migu' },
+  { value: 'JamendoMusicClient', label: 'Jamendo' },
+])
 const searchKeyword = ref(persistedState?.searchKeyword ?? '')
 const selectedSource = ref<MusicDlSource | null>(
   persistedState?.selectedSource && isMusicDlSource(persistedState.selectedSource)
@@ -222,7 +223,7 @@ const searchErrorMessage = computed(() => {
   if (!err) {
     return ''
   }
-  return extractErrorMessage(err, 'Search failed. Please retry.')
+  return extractErrorMessage(err, t('import.searchFailed'))
 })
 
 const importErrorMessage = computed(() => {
@@ -230,7 +231,7 @@ const importErrorMessage = computed(() => {
   if (!err) {
     return ''
   }
-  return extractErrorMessage(err, 'Import failed.')
+  return extractErrorMessage(err, t('import.importFailed'))
 })
 
 function extractErrorMessage(error: unknown, fallback: string): string {
@@ -272,24 +273,24 @@ const importJobMessage = computed(() => {
     return ''
   }
   if (job.status === 'queued') {
-    return `Queued: ${job.songName}`
+    return t('import.status.queued', { song: job.songName })
   }
   if (job.status === 'running') {
     if (importProgress.value?.progressPercent !== null && importProgress.value) {
-      return `Importing: ${job.songName}... ${importProgress.value.progressPercent}%`
+      return t('import.status.importingPercent', { song: job.songName, percent: importProgress.value.progressPercent })
     }
     if (importProgress.value && importProgress.value.progressBytes > 0) {
-      return `Importing: ${job.songName}... ${formatBytes(importProgress.value.progressBytes)}`
+      return t('import.status.importingBytes', { song: job.songName, bytes: formatBytes(importProgress.value.progressBytes) })
     }
-    return `Importing: ${job.songName}...`
+    return t('import.status.importing', { song: job.songName })
   }
   if (job.status === 'succeeded') {
     if (completedTrack.value) {
-      return `Done: ${job.songName} · ${formatTrackSpecs(completedTrack.value)}`
+      return t('import.status.doneWithSpec', { song: job.songName, spec: formatTrackSpecs(completedTrack.value) })
     }
-    return `Done: ${job.songName}`
+    return t('import.status.done', { song: job.songName })
   }
-  return job.errorMessage || `Failed: ${job.songName}`
+  return job.errorMessage || t('import.status.failed', { song: job.songName })
 })
 
 const statusMessage = computed(() => {
@@ -303,7 +304,7 @@ const statusMessage = computed(() => {
     return { text: importErrorMessage.value, type: 'error' }
   }
   if (pendingImports.value.size > 1) {
-    return { text: `Importing ${pendingImports.value.size} tracks…`, type: 'info' }
+    return { text: t('import.status.multiple', { count: pendingImports.value.size }), type: 'info' }
   }
   if (currentImportJob.value) {
     const s = currentImportJob.value.status
@@ -371,7 +372,7 @@ function resetImportState(): void {
 function runSearch(nextLimitPerSource: number, clearExistingResults: boolean): void {
   const keyword = searchKeyword.value.trim()
   if (!keyword) {
-    importFormError.value = 'Enter a keyword to search.'
+    importFormError.value = t('import.enterKeyword')
     return
   }
   importFormError.value = ''
@@ -454,9 +455,9 @@ function isImporting(id: string): boolean {
         <input
           v-model="searchKeyword"
           class="search-bar-input"
-          placeholder="Search songs, artists..."
+          :placeholder="t('import.searchPlaceholder')"
           type="text"
-          aria-label="Search songs or artists"
+          :aria-label="t('import.searchLabel')"
           @keydown.enter.prevent="handleSearch"
         >
         <button
@@ -464,7 +465,7 @@ function isImporting(id: string): boolean {
           class="search-bar-action"
           :disabled="isSearching"
           type="button"
-          :aria-label="isSearching ? 'Searching' : 'Search'"
+          :aria-label="isSearching ? t('common.actions.searching') : t('common.actions.search')"
           @click="handleSearch"
         >
           <span
@@ -476,11 +477,11 @@ function isImporting(id: string): boolean {
       <div
         class="source-filter"
         role="group"
-        aria-label="Source filter"
+        :aria-label="t('import.sourceFilter')"
       >
         <button
           v-for="option in sourceOptions"
-          :key="option.label"
+          :key="option.value ?? 'all'"
           type="button"
           class="source-chip"
           :class="{ 'source-chip--active': selectedSource === option.value }"
@@ -534,7 +535,7 @@ function isImporting(id: string): boolean {
     >
       <span class="i-tabler-world-search text-4xl text-[var(--text-tertiary)]/30" />
       <p class="empty-text">
-        Search across multiple music sources
+        {{ t('import.emptyText') }}
       </p>
     </div>
 
@@ -579,7 +580,7 @@ function isImporting(id: string): boolean {
           'result-row--possible': getLibraryMatchState(result) === 'possible',
         }"
         :disabled="isImporting(result.id) || !result.downloadable || isAlreadyImported(result)"
-        :title="isAlreadyImported(result) ? 'Already in your library' : getLibraryMatchState(result) === 'possible' ? 'Possibly already in your library' : undefined"
+        :title="isAlreadyImported(result) ? t('import.titleAlreadyInLibrary') : getLibraryMatchState(result) === 'possible' ? t('import.titlePossibleMatch') : undefined"
         @click="handleImport(result)"
       >
         <div class="result-cover">
@@ -617,35 +618,35 @@ function isImporting(id: string): boolean {
             class="result-badge result-badge--importing"
           >
             <span class="i-tabler-loader-2 text-sm animate-spin" />
-            <span>Importing</span>
+            <span>{{ t('import.badges.importing') }}</span>
           </span>
           <span
             v-else-if="isAlreadyImported(result)"
             class="result-badge result-badge--imported"
           >
             <span class="i-tabler-check text-sm" />
-            <span>In library</span>
+            <span>{{ t('import.badges.inLibrary') }}</span>
           </span>
           <span
             v-else-if="getLibraryMatchState(result) === 'possible'"
             class="result-badge result-badge--possible"
           >
             <span class="i-tabler-alert-circle text-sm" />
-            <span>Possible match</span>
+            <span>{{ t('import.badges.possibleMatch') }}</span>
           </span>
           <span
             v-else-if="result.downloadable"
             class="result-badge result-badge--download"
           >
             <span class="i-tabler-download text-sm" />
-            <span>Download</span>
+            <span>{{ t('import.badges.download') }}</span>
           </span>
           <span
             v-else
             class="result-badge result-badge--unavailable"
           >
             <span class="i-tabler-ban text-sm" />
-            <span>Unavailable</span>
+            <span>{{ t('import.badges.unavailable') }}</span>
           </span>
         </div>
       </button>
@@ -663,7 +664,7 @@ function isImporting(id: string): boolean {
           v-else
           class="i-tabler-plus"
         />
-        {{ isLoadingMore ? 'Loading more...' : `Load more (${limitPerSource + loadMoreStep} per source)` }}
+        {{ isLoadingMore ? t('import.loadingMore') : t('import.loadMore', { count: limitPerSource + loadMoreStep }) }}
       </button>
     </div>
 
@@ -674,7 +675,7 @@ function isImporting(id: string): boolean {
     >
       <span class="i-tabler-mood-empty text-4xl text-[var(--text-tertiary)]/30" />
       <p class="empty-text">
-        No results found
+        {{ t('import.noResults') }}
       </p>
     </div>
   </section>

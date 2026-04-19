@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Music } from '../api/types.gen'
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { isLrcFormat } from '../composables/useLyrics'
 import { resolveApiUrl, useDeleteCover, useUpdateCover, useUpdateMusic } from '../composables/useMusic'
 import { getSourceDisplay } from '../utils/source'
@@ -18,6 +19,7 @@ const emit = defineEmits<{
 const updateMutation = useUpdateMusic()
 const coverMutation = useUpdateCover()
 const deleteCoverMutation = useDeleteCover()
+const { t } = useI18n()
 
 const title = ref('')
 const artists = ref('')
@@ -164,7 +166,7 @@ async function handleSave(): Promise<void> {
     emit('close')
   }
   catch (error_) {
-    error.value = error_ instanceof Error ? error_.message : 'Save failed'
+    error.value = error_ instanceof Error ? error_.message : t('metadata.saveFailed')
   }
 }
 
@@ -193,12 +195,12 @@ function applySourcePreset(value: string): void {
               id="metadata-dialog-title"
               class="metadata-title"
             >
-              Edit metadata
+              {{ t('metadata.title') }}
             </h2>
             <button
               type="button"
               class="metadata-close"
-              aria-label="Close"
+              :aria-label="t('common.actions.close')"
               :disabled="isSaving"
               @click="handleClose"
             >
@@ -215,7 +217,7 @@ function applySourcePreset(value: string): void {
                 <img
                   v-if="displayCoverUrl"
                   :src="displayCoverUrl"
-                  alt="Cover preview"
+                  :alt="t('metadata.coverPreview')"
                   class="metadata-cover-img"
                 >
                 <span
@@ -230,7 +232,7 @@ function applySourcePreset(value: string): void {
                     class="i-tabler-upload"
                     aria-hidden="true"
                   />
-                  <span>Choose image</span>
+                  <span>{{ t('common.actions.chooseImage') }}</span>
                   <input
                     class="sr-only"
                     type="file"
@@ -250,7 +252,7 @@ function applySourcePreset(value: string): void {
                     class="i-tabler-trash"
                     aria-hidden="true"
                   />
-                  <span>Remove</span>
+                  <span>{{ t('common.actions.remove') }}</span>
                 </button>
                 <button
                   v-if="removeCoverPending"
@@ -263,55 +265,55 @@ function applySourcePreset(value: string): void {
                     class="i-tabler-arrow-back-up"
                     aria-hidden="true"
                   />
-                  <span>Keep current</span>
+                  <span>{{ t('common.actions.keepCurrent') }}</span>
                 </button>
                 <p
                   v-if="removeCoverPending"
                   class="metadata-hint metadata-hint--warn"
                 >
-                  Cover will be removed when you save.
+                  {{ t('metadata.coverWillBeRemoved') }}
                 </p>
               </div>
             </section>
 
             <div class="metadata-fields">
               <label class="metadata-field">
-                <span class="metadata-label">Title</span>
+                <span class="metadata-label">{{ t('metadata.fields.title') }}</span>
                 <input
                   v-model="title"
                   class="metadata-input"
                   type="text"
-                  placeholder="Track title"
+                  :placeholder="t('metadata.placeholders.title')"
                   :disabled="isSaving"
                 >
               </label>
               <label class="metadata-field">
-                <span class="metadata-label">Artists</span>
+                <span class="metadata-label">{{ t('metadata.fields.artists') }}</span>
                 <input
                   v-model="artists"
                   class="metadata-input"
                   type="text"
-                  placeholder="Artist / artists"
+                  :placeholder="t('metadata.placeholders.artists')"
                   :disabled="isSaving"
                 >
               </label>
               <label class="metadata-field">
-                <span class="metadata-label">Album</span>
+                <span class="metadata-label">{{ t('metadata.fields.album') }}</span>
                 <input
                   v-model="album"
                   class="metadata-input"
                   type="text"
-                  placeholder="Album"
+                  :placeholder="t('metadata.placeholders.album')"
                   :disabled="isSaving"
                 >
               </label>
               <div class="metadata-field">
-                <span class="metadata-label">Source</span>
+                <span class="metadata-label">{{ t('metadata.fields.source') }}</span>
                 <input
                   v-model="source"
                   class="metadata-input"
                   type="text"
-                  placeholder="e.g. NeteaseMusicClient"
+                  :placeholder="t('metadata.placeholders.source')"
                   :disabled="isSaving"
                 >
                 <div class="metadata-source-presets">
@@ -341,31 +343,31 @@ function applySourcePreset(value: string): void {
                       class="i-tabler-x"
                       aria-hidden="true"
                     />
-                    <span>None</span>
+                    <span>{{ t('metadata.sourceNone') }}</span>
                   </button>
                 </div>
               </div>
               <div class="metadata-field">
                 <div class="metadata-label-row">
-                  <span class="metadata-label">Lyrics</span>
+                  <span class="metadata-label">{{ t('metadata.fields.lyrics') }}</span>
                   <span
                     class="metadata-mode-tag"
                     :data-mode="lyricsMode"
                   >
-                    <template v-if="lyricsMode === 'lrc'">Synced (LRC)</template>
-                    <template v-else-if="lyricsMode === 'plain'">Plain text</template>
-                    <template v-else>Empty</template>
+                    <template v-if="lyricsMode === 'lrc'">{{ t('metadata.lyricsModes.synced') }}</template>
+                    <template v-else-if="lyricsMode === 'plain'">{{ t('metadata.lyricsModes.plain') }}</template>
+                    <template v-else>{{ t('metadata.lyricsModes.empty') }}</template>
                   </span>
                 </div>
                 <textarea
                   v-model="lyrics"
                   class="metadata-textarea"
                   rows="10"
-                  placeholder="Paste LRC lyrics (with [mm:ss] timestamps) or plain text. Plain text will display statically without scrolling."
+                  :placeholder="t('metadata.placeholders.lyrics')"
                   :disabled="isSaving"
                 />
                 <p class="metadata-hint">
-                  LRC timestamps auto-enable synced highlighting. Plain text renders as-is.
+                  {{ t('metadata.lyricsHint') }}
                 </p>
               </div>
             </div>
@@ -386,7 +388,7 @@ function applySourcePreset(value: string): void {
                 :disabled="isSaving"
                 @click="handleClose"
               >
-                Cancel
+                {{ t('common.actions.cancel') }}
               </button>
               <button
                 type="button"
@@ -399,7 +401,7 @@ function applySourcePreset(value: string): void {
                   class="i-tabler-loader-2 animate-spin"
                   aria-hidden="true"
                 />
-                <span>{{ isSaving ? 'Saving...' : 'Save' }}</span>
+                <span>{{ isSaving ? t('common.actions.saving') : t('common.actions.save') }}</span>
               </button>
             </div>
           </footer>

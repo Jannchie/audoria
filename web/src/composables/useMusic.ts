@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed } from 'vue'
 import { client } from '../api/client.gen'
 import { deleteMusicById, getMusic, getMusicImportsById, postMusic, postMusicImports, postMusicImportsSearch } from '../api/sdk.gen'
+import { translate } from '../i18n'
 
 export const musicQueryKey = ['music'] as const
 export function buildDownloadUrl(id: string): string {
@@ -115,7 +116,7 @@ export function useParseMusicUrl() {
       if (!response.ok) {
         const message = payload && typeof payload === 'object' && 'message' in payload && typeof (payload as { message: unknown }).message === 'string'
           ? (payload as { message: string }).message
-          : `Parse failed (${response.status})`
+          : translate('errors.parseFailedStatus', { status: response.status })
         throw new Error(message)
       }
       return payload as MusicDlSearchResult
@@ -135,7 +136,7 @@ async function parseJsonError(response: Response, fallback: string): Promise<nev
   const payload = await response.json().catch(() => null) as unknown
   const message = payload && typeof payload === 'object' && 'message' in payload && typeof (payload as { message: unknown }).message === 'string'
     ? (payload as { message: string }).message
-    : `${fallback} (${response.status})`
+    : translate(fallback, { status: response.status })
   throw new Error(message)
 }
 
@@ -150,7 +151,7 @@ export function useUpdateMusic() {
         body: JSON.stringify(patch),
       })
       if (!response.ok) {
-        await parseJsonError(response, 'Update failed')
+        await parseJsonError(response, 'errors.updateFailedStatus')
       }
       return await response.json() as Music
     },
@@ -172,7 +173,7 @@ export function useUpdateCover() {
         body: formData,
       })
       if (!response.ok) {
-        await parseJsonError(response, 'Cover upload failed')
+        await parseJsonError(response, 'errors.coverUploadFailedStatus')
       }
       return await response.json() as Music
     },
@@ -191,7 +192,7 @@ export function useDeleteCover() {
         method: 'DELETE',
       })
       if (!response.ok) {
-        await parseJsonError(response, 'Cover delete failed')
+        await parseJsonError(response, 'errors.coverDeleteFailedStatus')
       }
       return await response.json() as Music
     },
@@ -208,7 +209,7 @@ export function useImportJobQuery(jobId: Ref<string | null>) {
     queryFn: async (): Promise<MusicImportJob> => {
       const id = jobId.value
       if (!id) {
-        throw new Error('Missing import job id')
+        throw new Error(translate('errors.missingImportJobId'))
       }
       const response = await getMusicImportsById({
         path: { id },

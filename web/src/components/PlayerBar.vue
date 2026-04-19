@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { findLyricLineAtTime, useLyrics } from '../composables/useLyrics'
 import { buildDownloadUrl, resolveApiUrl, useMusicQuery } from '../composables/useMusic'
@@ -10,6 +11,7 @@ import SourceBadge from './SourceBadge.vue'
 
 const router = useRouter()
 const route = useRoute()
+const { t } = useI18n()
 const audioRef = ref<HTMLAudioElement | null>(null)
 const progressTrack = ref<HTMLDivElement | null>(null)
 const volumeSlider = ref<HTMLInputElement | null>(null)
@@ -94,16 +96,20 @@ const playModeIcon = computed(() => {
 })
 
 const playModeLabel = computed(() => {
+  let mode: string
   if (playMode.value === 'sequence') {
-    return 'Play mode: sequence'
+    mode = t('player.playModes.sequence')
   }
-  if (playMode.value === 'repeat-all') {
-    return 'Play mode: repeat all'
+  else if (playMode.value === 'repeat-all') {
+    mode = t('player.playModes.repeatAll')
   }
-  if (playMode.value === 'repeat-one') {
-    return 'Play mode: repeat one'
+  else if (playMode.value === 'repeat-one') {
+    mode = t('player.playModes.repeatOne')
   }
-  return 'Play mode: shuffle'
+  else {
+    mode = t('player.playModes.shuffle')
+  }
+  return t('player.playModeLabel', { mode })
 })
 
 const volumeIcon = computed(() => {
@@ -132,7 +138,7 @@ const previewTooltipLyric = computed(() => {
     ? scrubPreviewTime.value
     : hoverPreviewTime.value
   const line = findLyricLineAtTime(parsed.value, previewTime ?? currentTime.value)
-  return line?.text || 'No synced lyric'
+  return line?.text || t('player.noSyncedLyric')
 })
 const previewTooltipTimeLabel = computed(() => {
   const previewTime = isScrubbing.value
@@ -480,11 +486,11 @@ onUnmounted(() => {
       class="py-2 w-full cursor-pointer relative"
       role="slider"
       tabindex="0"
-      aria-label="Seek"
+      :aria-label="t('common.actions.seek')"
       :aria-valuemin="0"
       :aria-valuemax="Math.max(1, Math.round(duration))"
       :aria-valuenow="Math.round(displayedCurrentTime)"
-      :aria-valuetext="`${formattedTime(displayedCurrentTime)} of ${formattedTime(duration)}`"
+      :aria-valuetext="t('player.progressValue', { current: formattedTime(displayedCurrentTime), total: formattedTime(duration) })"
       @pointerenter="handleProgressPointerEnter"
       @pointerdown.prevent="handleProgressPointerDown"
       @pointerleave="clearProgressPreview"
@@ -511,14 +517,14 @@ onUnmounted(() => {
       <button
         type="button"
         class="playerbar-track text-left flex flex-1 gap-3 min-w-0 transition-colors items-center"
-        :aria-label="currentTrack ? `Open player · ${currentTrack.title ?? currentTrack.filename}` : 'Open player'"
+        :aria-label="currentTrack ? t('player.openPlayerTrack', { title: currentTrack.title ?? currentTrack.filename }) : t('player.openPlayer')"
         @click="goToPlayer"
       >
         <div class="rounded-lg bg-[var(--bg-elevated)] flex shrink-0 h-11 w-11 items-center justify-center overflow-hidden">
           <img
             v-if="currentTrackCoverUrl"
             :src="currentTrackCoverUrl"
-            :alt="currentTrack?.filename ?? 'Track cover'"
+            :alt="currentTrack?.filename ?? t('player.trackCover')"
             class="h-full w-full object-cover"
             width="48"
             height="48"
@@ -531,7 +537,7 @@ onUnmounted(() => {
         </div>
         <div class="min-w-0">
           <p class="text-[13px] leading-tight font-medium text-heading truncate">
-            {{ currentTrack?.title || currentTrack?.filename || 'Select a track' }}
+            {{ currentTrack?.title || currentTrack?.filename || t('player.noTrackSelected') }}
           </p>
           <p class="text-[11px] text-[var(--text-tertiary)] mt-0.5 flex gap-1 truncate items-center">
             <SourceBadge
@@ -555,21 +561,21 @@ onUnmounted(() => {
       <!-- Controls -->
       <div class="playerbar-controls flex gap-0.5 items-center">
         <IconButton
-          aria-label="Previous"
+          :aria-label="t('common.actions.previousTrack')"
           icon="i-tabler-player-skip-back-filled"
           size="sm"
           @click="handlePrev"
         />
         <IconButton
           :disabled="!audioSrc"
-          aria-label="Play or pause"
+          :aria-label="isPlaying ? t('common.actions.pause') : t('common.actions.play')"
           :icon="isPlaying ? 'i-tabler-player-pause-filled' : 'i-tabler-player-play-filled'"
           tone="primary"
           size="lg"
           @click="togglePlayPause"
         />
         <IconButton
-          aria-label="Next"
+          :aria-label="t('common.actions.nextTrack')"
           icon="i-tabler-player-skip-forward-filled"
           size="sm"
           @click="handleNext"
@@ -587,7 +593,7 @@ onUnmounted(() => {
       <!-- Volume (desktop only) -->
       <div class="playerbar-volume gap-1 hidden items-center lg:flex">
         <IconButton
-          aria-label="Toggle mute"
+          :aria-label="muted ? t('common.actions.unmute') : t('common.actions.mute')"
           :icon="volumeIcon"
           size="sm"
           @click="toggleMute"
@@ -595,7 +601,7 @@ onUnmounted(() => {
         <input
           ref="volumeSlider"
           class="volume-slider"
-          aria-label="Volume"
+          :aria-label="t('common.actions.volume')"
           max="100"
           min="0"
           step="1"

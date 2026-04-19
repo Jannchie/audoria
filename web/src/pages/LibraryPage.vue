@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Music } from '../api/types.gen'
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import MetadataEditDialog from '../components/MetadataEditDialog.vue'
 import SoundWave from '../components/SoundWave.vue'
 import SourceBadge from '../components/SourceBadge.vue'
@@ -12,6 +13,7 @@ const librarySearchStateKey = 'audoria.library-search'
 const skeletonTitleWidths = [72, 56, 80, 48, 68, 60, 76, 52]
 const skeletonMetaWidths = [38, 30, 44, 26, 40, 34, 48, 32]
 
+const { t } = useI18n()
 const { data: tracks, isPending, isError, error } = useMusicQuery()
 const deleteMutation = useDeleteMusic()
 const { currentTrackId, isPlaying, selectTrack, setPlaying } = usePlayerState()
@@ -90,7 +92,7 @@ async function handleDelete(id: string): Promise<void> {
       <input
         v-model="search"
         class="search-input"
-        placeholder="Search"
+        :placeholder="t('library.searchPlaceholder')"
         type="search"
       >
     </div>
@@ -102,7 +104,7 @@ async function handleDelete(id: string): Promise<void> {
     >
       <span class="i-tabler-alert-circle text-3xl text-[var(--danger)]/50" />
       <p class="empty-text">
-        {{ (error as Error)?.message ?? 'Failed to load tracks.' }}
+        {{ (error as Error)?.message ?? t('library.loadFailed') }}
       </p>
     </div>
 
@@ -136,10 +138,10 @@ async function handleDelete(id: string): Promise<void> {
     >
       <span class="i-tabler-music-off text-4xl text-[var(--text-tertiary)]/40" />
       <p class="empty-title">
-        {{ search ? 'No results' : 'No music yet' }}
+        {{ search ? t('library.noResultsTitle') : t('library.emptyTitle') }}
       </p>
       <p class="empty-hint">
-        {{ search ? 'Try a different keyword' : 'Upload or download tracks to start listening' }}
+        {{ search ? t('library.noResultsHint') : t('library.emptyHint') }}
       </p>
     </div>
 
@@ -154,7 +156,7 @@ async function handleDelete(id: string): Promise<void> {
         type="button"
         class="track-row"
         :class="{ 'track-row--active': currentTrackId === track.id }"
-        :aria-label="`${currentTrackId === track.id && isPlaying ? 'Pause' : 'Play'} ${track.title || track.filename}`"
+        :aria-label="currentTrackId === track.id && isPlaying ? t('library.pauseTrack', { title: track.title || track.filename }) : t('library.playTrack', { title: track.title || track.filename })"
         :aria-current="currentTrackId === track.id ? 'true' : undefined"
         @click="handleTrackClick(track.id)"
       >
@@ -233,7 +235,7 @@ async function handleDelete(id: string): Promise<void> {
           <button
             type="button"
             class="track-action"
-            aria-label="Edit metadata"
+            :aria-label="t('common.actions.editMetadata')"
             @click="openEdit(track, $event)"
           >
             <span
@@ -245,7 +247,7 @@ async function handleDelete(id: string): Promise<void> {
             type="button"
             class="track-action track-action--danger"
             :disabled="isDeleting(track.id)"
-            :aria-label="isDeleting(track.id) ? 'Deleting track' : 'Delete track'"
+            :aria-label="isDeleting(track.id) ? t('common.actions.deletingTrack') : t('common.actions.deleteTrack')"
             @click.stop="handleDelete(track.id)"
           >
             <span

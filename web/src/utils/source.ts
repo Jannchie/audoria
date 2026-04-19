@@ -1,4 +1,5 @@
 import type { MusicDlSource } from '../api/types.gen'
+import { translate } from '../i18n'
 
 const sourceDisplayMap = {
   NeteaseMusicClient: { label: 'Netease', icon: 'i-tabler-brand-netease-music' },
@@ -17,7 +18,7 @@ export function getSourceDisplay(source: string | null | undefined): { label: st
     return sourceDisplayMap[source]
   }
   return {
-    label: source || 'Unknown',
+    label: source || translate('common.unknown'),
     icon: 'i-tabler-world',
   }
 }

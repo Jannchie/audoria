@@ -48,6 +48,11 @@ const router = createRouter({
       name: 'player',
       component: () => import('./pages/PlayerPage.vue'),
     },
+    {
+      path: '/settings',
+      name: 'settings',
+      component: () => import('./pages/SettingsPage.vue'),
+    },
   ],
 })
 

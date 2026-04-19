@@ -2,6 +2,7 @@
 import type { FilamentConfig } from '../components/ShaderProgressBar.vue'
 import { ShaderGradient, ShaderGradientCanvas } from '@shader-gradient/vue'
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import MetadataEditDialog from '../components/MetadataEditDialog.vue'
 import ProgressPreviewTooltip from '../components/ProgressPreviewTooltip.vue'
 import ShaderProgressBar from '../components/ShaderProgressBar.vue'
@@ -14,6 +15,7 @@ import { usePlayerState } from '../composables/usePlayerState'
 import { formatTrackSpecs } from '../utils/audio'
 
 const { data: tracks } = useMusicQuery()
+const { t } = useI18n()
 const isDev = import.meta.env.DEV
 const filamentConfig = ref<FilamentConfig>({
   gain: 2.1,
@@ -125,8 +127,8 @@ const gradientProps = computed(() => ({
   enableCameraUpdate: true,
 }))
 
-const title = computed(() => currentTrack.value?.title || currentTrack.value?.filename || 'No track selected')
-const artist = computed(() => currentTrack.value?.artists || 'Unknown Artist')
+const title = computed(() => currentTrack.value?.title || currentTrack.value?.filename || t('player.noTrackSelected'))
+const artist = computed(() => currentTrack.value?.artists || t('player.unknownArtist'))
 const album = computed(() => currentTrack.value?.album || '')
 const trackSpecs = computed(() => currentTrack.value ? formatTrackSpecs(currentTrack.value) : '')
 
@@ -160,16 +162,20 @@ const playModeIcon = computed(() => {
 })
 
 const playModeLabel = computed(() => {
+  let mode: string
   if (playMode.value === 'sequence') {
-    return 'Play mode: sequence'
+    mode = t('player.playModes.sequence')
   }
-  if (playMode.value === 'repeat-all') {
-    return 'Play mode: repeat all'
+  else if (playMode.value === 'repeat-all') {
+    mode = t('player.playModes.repeatAll')
   }
-  if (playMode.value === 'repeat-one') {
-    return 'Play mode: repeat one'
+  else if (playMode.value === 'repeat-one') {
+    mode = t('player.playModes.repeatOne')
   }
-  return 'Play mode: shuffle'
+  else {
+    mode = t('player.playModes.shuffle')
+  }
+  return t('player.playModeLabel', { mode })
 })
 
 const volumeIcon = computed(() => {
@@ -198,7 +204,7 @@ const previewTooltipLyric = computed(() => {
     ? scrubPreviewTime.value
     : hoverPreviewTime.value
   const line = findLyricLineAtTime(parsed.value, previewTime ?? currentTime.value)
-  return line?.text || 'No synced lyric'
+  return line?.text || t('player.noSyncedLyric')
 })
 const previewTooltipTimeLabel = computed(() => {
   const previewTime = isScrubbing.value
@@ -570,7 +576,7 @@ onUnmounted(() => {
                         ? 'lyric-line--past'
                         : 'lyric-line--future',
                   ]"
-                  :aria-label="`Play from ${formattedTime(line.time)}`"
+                  :aria-label="t('player.playFromTime', { time: formattedTime(line.time) })"
                   :aria-current="i === currentLineIndex ? 'true' : undefined"
                   @click="handleLyricClick(line)"
                 >
@@ -595,7 +601,7 @@ onUnmounted(() => {
             >
               <span class="i-tabler-music-off text-3xl text-white/10" />
               <p class="text-sm text-white/25 mt-3">
-                No lyrics available
+                {{ t('player.noLyricsAvailable') }}
               </p>
             </div>
           </div>
@@ -609,11 +615,11 @@ onUnmounted(() => {
           class="progress-hit"
           role="slider"
           tabindex="0"
-          aria-label="Seek"
+          :aria-label="t('common.actions.seek')"
           :aria-valuemin="0"
           :aria-valuemax="Math.max(1, Math.round(duration))"
           :aria-valuenow="Math.round(displayedCurrentTime)"
-          :aria-valuetext="`${formattedTime(displayedCurrentTime)} of ${formattedTime(duration)}`"
+          :aria-valuetext="t('player.progressValue', { current: formattedTime(displayedCurrentTime), total: formattedTime(duration) })"
           @pointerenter="handleProgressPointerEnter"
           @pointerdown.prevent="handleProgressPointerDown"
           @pointerleave="clearProgressPreview"
@@ -662,7 +668,7 @@ onUnmounted(() => {
             <button
               type="button"
               class="ctrl-btn ctrl-btn--md"
-              aria-label="Previous track"
+              :aria-label="t('common.actions.previousTrack')"
               @click="handlePrev"
             >
               <span
@@ -673,7 +679,7 @@ onUnmounted(() => {
             <button
               type="button"
               class="ctrl-btn-play"
-              :aria-label="isPlaying ? 'Pause' : 'Play'"
+              :aria-label="isPlaying ? t('common.actions.pause') : t('common.actions.play')"
               @click="togglePlayPause"
             >
               <span
@@ -684,7 +690,7 @@ onUnmounted(() => {
             <button
               type="button"
               class="ctrl-btn ctrl-btn--md"
-              aria-label="Next track"
+              :aria-label="t('common.actions.nextTrack')"
               @click="handleNext"
             >
               <span
@@ -698,7 +704,7 @@ onUnmounted(() => {
             <button
               type="button"
               class="ctrl-btn ctrl-btn--sm"
-              aria-label="Edit metadata"
+              :aria-label="t('common.actions.editMetadata')"
               :disabled="!currentTrack"
               @click="openEdit"
             >
@@ -710,7 +716,7 @@ onUnmounted(() => {
             <button
               type="button"
               class="ctrl-btn ctrl-btn--sm"
-              :aria-label="muted ? 'Unmute' : 'Mute'"
+              :aria-label="muted ? t('common.actions.unmute') : t('common.actions.mute')"
               :aria-pressed="muted"
               @click="toggleMute"
             >
@@ -722,7 +728,7 @@ onUnmounted(() => {
             <input
               ref="volumeSlider"
               class="volume-slider"
-              aria-label="Volume"
+              :aria-label="t('common.actions.volume')"
               max="100"
               min="0"
               step="1"

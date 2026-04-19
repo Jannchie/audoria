@@ -2,6 +2,7 @@
 import type { MusicDlSearchResult } from '../api/types.gen'
 import { useQueryClient } from '@tanstack/vue-query'
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useImportJobQuery, useImportMusic, useMusicQuery, useParseMusicUrl } from '../composables/useMusic'
 import { formatTrackSpecs } from '../utils/audio'
 
@@ -35,6 +36,7 @@ function saveState(state: PersistedState): void {
 const persisted = loadState()
 const queryClient = useQueryClient()
 const { data: tracks } = useMusicQuery()
+const { t } = useI18n()
 
 const url = ref(persisted?.url ?? '')
 const parsedResult = ref<MusicDlSearchResult | null>(persisted?.parsedResult ?? null)
@@ -71,7 +73,7 @@ function sourceDisplay(source: string | null | undefined): { label: string, icon
   if (source === 'Youtube') {
     return { label: 'YouTube', icon: 'i-tabler-brand-youtube' }
   }
-  return { label: source || 'Unknown', icon: 'i-tabler-world' }
+  return { label: source || t('common.unknown'), icon: 'i-tabler-world' }
 }
 
 const detectedSource = computed<'Bilibili' | 'Youtube' | null>(() => {
@@ -123,24 +125,24 @@ const importStatusText = computed(() => {
     return ''
   }
   if (job.status === 'queued') {
-    return `Queued: ${job.songName}`
+    return t('parse.status.queued', { song: job.songName })
   }
   if (job.status === 'running') {
     if (importProgress.value?.progressPercent != null) {
-      return `Downloading… ${importProgress.value.progressPercent}%`
+      return t('parse.status.downloadingPercent', { percent: importProgress.value.progressPercent })
     }
     if (importProgress.value && importProgress.value.progressBytes > 0) {
-      return `Downloading… ${formatBytes(importProgress.value.progressBytes)}`
+      return t('parse.status.downloadingBytes', { bytes: formatBytes(importProgress.value.progressBytes) })
     }
-    return 'Downloading…'
+    return t('parse.status.downloading')
   }
   if (job.status === 'succeeded') {
     if (completedTrack.value) {
-      return `Done · ${formatTrackSpecs(completedTrack.value)}`
+      return t('parse.status.doneWithSpec', { spec: formatTrackSpecs(completedTrack.value) })
     }
-    return 'Done'
+    return t('parse.status.done')
   }
-  return job.errorMessage || 'Failed'
+  return job.errorMessage || t('parse.status.failed')
 })
 
 const statusMessage = computed<{ text: string, type: 'error' | 'success' | 'info' } | null>(() => {
@@ -174,7 +176,7 @@ function handleParse(): void {
       parsedResult.value = result
     },
     onError: (err) => {
-      parseError.value = err instanceof Error ? err.message : 'Parse failed'
+      parseError.value = err instanceof Error ? err.message : t('parse.parseFailed')
     },
   })
 }
@@ -191,7 +193,7 @@ function handleImport(): void {
       activeJobId.value = job.id
     },
     onError: (err) => {
-      importError.value = err instanceof Error ? err.message : 'Import failed'
+      importError.value = err instanceof Error ? err.message : t('parse.importFailed')
     },
   })
 }
@@ -241,8 +243,8 @@ watch(
           v-model="url"
           class="parse-bar-input"
           type="url"
-          placeholder="Paste a Bilibili or YouTube URL"
-          aria-label="Bilibili or YouTube URL"
+          :placeholder="t('parse.urlPlaceholder')"
+          :aria-label="t('parse.urlLabel')"
           @keydown.enter.prevent="handleParse"
         >
         <span
@@ -256,7 +258,7 @@ watch(
           type="button"
           class="parse-bar-action"
           :disabled="!canParse"
-          :aria-label="isParsing ? 'Parsing' : 'Parse URL'"
+          :aria-label="isParsing ? t('common.actions.parsing') : t('common.actions.parseUrl')"
           @click="handleParse"
         >
           <span
@@ -305,7 +307,7 @@ watch(
           {{ parsedResult.songName }}
         </p>
         <p class="preview-sub">
-          {{ parsedResult.singers || 'Unknown uploader' }}
+          {{ parsedResult.singers || t('parse.unknownUploader') }}
         </p>
         <div class="preview-tags">
           <span class="preview-tag">
@@ -343,7 +345,7 @@ watch(
             class="i-tabler-x"
             aria-hidden="true"
           />
-          Reset
+          {{ t('common.actions.reset') }}
         </button>
         <button
           type="button"
@@ -361,7 +363,7 @@ watch(
             class="i-tabler-download"
             aria-hidden="true"
           />
-          {{ isImporting ? 'Downloading…' : 'Download' }}
+          {{ isImporting ? t('common.actions.downloading') : t('common.actions.download') }}
         </button>
       </div>
     </div>
@@ -376,10 +378,10 @@ watch(
         aria-hidden="true"
       />
       <p class="empty-title">
-        Parse from URL
+        {{ t('parse.emptyTitle') }}
       </p>
       <p class="empty-text">
-        Paste a Bilibili or YouTube link to extract its audio.
+        {{ t('parse.emptyText') }}
       </p>
       <ul class="empty-hints">
         <li>
