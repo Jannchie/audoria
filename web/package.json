@@ -16,6 +16,7 @@
     "@shader-gradient/vue": "^0.2.0",
     "@tanstack/vue-query": "^5.99.0",
     "@vueuse/core": "^14.2.1",
+    "three": "^0.183.2",
     "vue": "^3.5.32",
     "vue-router": "^5.0.4"
   },
@@ -24,6 +25,7 @@
     "@iconify/json": "^2.2.463",
     "@jannchie/eslint-config": "^3.7.8",
     "@types/node": "^25.6.0",
+    "@types/three": "^0.183.0",
     "@unocss/eslint-plugin": "^66.6.8",
     "@unocss/preset-icons": "^66.6.8",
     "@unocss/reset": "^66.6.8",

@@ -25,17 +25,16 @@ const {
   isPlaying,
   currentTime,
   duration,
-  shuffle,
-  repeatMode,
+  playMode,
   volume,
   muted,
   selectTrack,
   setPlaying,
-  toggleShuffle,
-  cycleRepeat,
+  cyclePlayMode,
   seekTo,
   setVolume,
   toggleMute,
+  getAdjacentTrackId,
 } = usePlayerState()
 
 const lyricsContainer = ref<HTMLDivElement | null>(null)
@@ -129,14 +128,30 @@ const progress = computed(() => {
   return Math.min(100, (currentTime.value / duration.value) * 100)
 })
 
-const repeatIcon = computed(() => {
-  if (repeatMode.value === 'one') {
+const playModeIcon = computed(() => {
+  if (playMode.value === 'sequence') {
+    return 'i-tabler-list'
+  }
+  if (playMode.value === 'repeat-all') {
+    return 'i-tabler-repeat'
+  }
+  if (playMode.value === 'repeat-one') {
     return 'i-tabler-repeat-once'
   }
-  if (repeatMode.value === 'off') {
-    return 'i-tabler-repeat-off'
+  return 'i-tabler-arrows-shuffle'
+})
+
+const playModeLabel = computed(() => {
+  if (playMode.value === 'sequence') {
+    return 'Play mode: sequence'
   }
-  return 'i-tabler-repeat'
+  if (playMode.value === 'repeat-all') {
+    return 'Play mode: repeat all'
+  }
+  if (playMode.value === 'repeat-one') {
+    return 'Play mode: repeat one'
+  }
+  return 'Play mode: shuffle'
 })
 
 const volumeIcon = computed(() => {
@@ -382,53 +397,19 @@ function handleVolumeCommit(event?: Event): void {
   isVolumeDragging.value = false
 }
 
-function pickNextId(direction: 'next' | 'prev'): string | null {
-  const items = tracks.value ?? []
-  if (items.length === 0) {
-    return null
-  }
-  if (shuffle.value) {
-    const others = items.filter(item => item.id !== resolvedCurrentTrackId.value)
-    const pool = others.length > 0 ? others : items
-    return pool[Math.floor(Math.random() * pool.length)]?.id ?? null
-  }
-  const index = items.findIndex(item => item.id === resolvedCurrentTrackId.value)
-  if (index === -1) {
-    return items[0]?.id ?? null
-  }
-  if (direction === 'next') {
-    const next = items[index + 1]
-    if (next) {
-      return next.id
-    }
-    return repeatMode.value === 'all' ? items[0]?.id ?? null : null
-  }
-  const prev = items[index - 1]
-  if (prev) {
-    return prev.id
-  }
-  return repeatMode.value === 'all' ? items.at(-1)?.id ?? null : null
-}
-
 function handleNext(): void {
-  if (repeatMode.value === 'one') {
-    const audio = getAudioElement()
-    if (audio) {
-      audio.currentTime = 0
-      audio.play().catch(() => setPlaying(false))
-    }
-    return
-  }
-  const nextId = pickNextId('next')
+  const nextId = getAdjacentTrackId(tracks.value ?? [], 'next')
   if (nextId) {
-    selectTrack(nextId); setPlaying(true)
+    selectTrack(nextId)
+    setPlaying(true)
   }
 }
 
 function handlePrev(): void {
-  const prevId = pickNextId('prev')
+  const prevId = getAdjacentTrackId(tracks.value ?? [], 'prev')
   if (prevId) {
-    selectTrack(prevId); setPlaying(true)
+    selectTrack(prevId)
+    setPlaying(true)
   }
 }
 
@@ -640,25 +621,12 @@ onUnmounted(() => {
             <button
               type="button"
               class="ctrl-btn ctrl-btn--sm"
-              :class="{ 'ctrl-btn--active': shuffle }"
-              aria-label="Shuffle"
-              :aria-pressed="shuffle"
-              @click="toggleShuffle"
+              :class="{ 'ctrl-btn--active': playMode !== 'sequence' }"
+              :aria-label="playModeLabel"
+              @click="cyclePlayMode"
             >
               <span
-                class="i-tabler-arrows-shuffle"
-                aria-hidden="true"
-              />
-            </button>
-            <button
-              type="button"
-              class="ctrl-btn ctrl-btn--sm"
-              :class="{ 'ctrl-btn--active': repeatMode !== 'off' }"
-              :aria-label="`Repeat: ${repeatMode}`"
-              @click="cycleRepeat"
-            >
-              <span
-                :class="repeatIcon"
+                :class="playModeIcon"
                 aria-hidden="true"
               />
             </button>

@@ -24,19 +24,19 @@ const { data: tracks } = useMusicQuery()
 const {
   currentTrackId,
   isPlaying,
-  shuffle,
-  repeatMode,
+  playMode,
   currentTime,
   duration,
   volume,
   muted,
   selectTrack,
   setPlaying,
-  toggleShuffle,
-  cycleRepeat,
+  cyclePlayMode,
   updateProgress,
   setVolume,
   toggleMute,
+  getAdjacentTrackId,
+  getAutoAdvanceTrackId,
 } = usePlayerState()
 
 const currentTrack = computed(() => {
@@ -75,14 +75,30 @@ const progress = computed(() => {
   return Math.min(100, (currentTime.value / duration.value) * 100)
 })
 
-const repeatIcon = computed(() => {
-  if (repeatMode.value === 'one') {
+const playModeIcon = computed(() => {
+  if (playMode.value === 'sequence') {
+    return 'i-tabler-list'
+  }
+  if (playMode.value === 'repeat-all') {
+    return 'i-tabler-repeat'
+  }
+  if (playMode.value === 'repeat-one') {
     return 'i-tabler-repeat-once'
   }
-  if (repeatMode.value === 'off') {
-    return 'i-tabler-repeat-off'
+  return 'i-tabler-arrows-shuffle'
+})
+
+const playModeLabel = computed(() => {
+  if (playMode.value === 'sequence') {
+    return 'Play mode: sequence'
   }
-  return 'i-tabler-repeat'
+  if (playMode.value === 'repeat-all') {
+    return 'Play mode: repeat all'
+  }
+  if (playMode.value === 'repeat-one') {
+    return 'Play mode: repeat one'
+  }
+  return 'Play mode: shuffle'
 })
 
 const volumeIcon = computed(() => {
@@ -161,56 +177,19 @@ function handleLoaded(): void {
   }
 }
 
-function pickNextId(direction: 'next' | 'prev'): string | null {
-  const items = tracks.value ?? []
-  if (items.length === 0) {
-    return null
-  }
-  if (shuffle.value) {
-    const others = items.filter(item => item.id !== resolvedCurrentTrackId.value)
-    const pool = others.length > 0 ? others : items
-    return pool[Math.floor(Math.random() * pool.length)]?.id ?? null
-  }
-  const index = items.findIndex(item => item.id === resolvedCurrentTrackId.value)
-  if (index === -1) {
-    return items[0]?.id ?? null
-  }
-  if (direction === 'next') {
-    const next = items[index + 1]
-    if (next) {
-      return next.id
-    }
-    return repeatMode.value === 'all' ? items[0]?.id ?? null : null
-  }
-  const prev = items[index - 1]
-  if (prev) {
-    return prev.id
-  }
-  return repeatMode.value === 'all' ? items.at(-1)?.id ?? null : null
-}
-
 function handleNext(): void {
-  if (repeatMode.value === 'one') {
-    const audio = audioRef.value
-    if (audio) {
-      audio.currentTime = 0
-      audio.play().catch(() => setPlaying(false))
-    }
-    return
-  }
-  const nextId = pickNextId('next')
+  const nextId = getAdjacentTrackId(tracks.value ?? [], 'next')
   if (nextId) {
-    selectTrack(nextId); setPlaying(true)
-  }
-  else {
-    setPlaying(false)
+    selectTrack(nextId)
+    setPlaying(true)
   }
 }
 
 function handlePrev(): void {
-  const prevId = pickNextId('prev')
+  const prevId = getAdjacentTrackId(tracks.value ?? [], 'prev')
   if (prevId) {
-    selectTrack(prevId); setPlaying(true)
+    selectTrack(prevId)
+    setPlaying(true)
   }
 }
 
@@ -374,7 +353,19 @@ function handleProgressHoverMove(event: PointerEvent): void {
 }
 
 function handleEnded(): void {
-  handleNext()
+  const nextId = getAutoAdvanceTrackId(tracks.value ?? [])
+  const audio = audioRef.value
+  if (!nextId) {
+    setPlaying(false)
+    return
+  }
+  if (nextId === resolvedCurrentTrackId.value && audio) {
+    audio.currentTime = 0
+    audio.play().catch(() => setPlaying(false))
+    return
+  }
+  selectTrack(nextId)
+  setPlaying(true)
 }
 
 function goToPlayer(): void {
@@ -551,14 +542,6 @@ onUnmounted(() => {
       <!-- Controls -->
       <div class="playerbar-controls flex gap-0.5 items-center">
         <IconButton
-          :active="shuffle"
-          aria-label="Shuffle"
-          icon="i-tabler-arrows-shuffle"
-          size="sm"
-          class="hidden lg:flex"
-          @click="toggleShuffle"
-        />
-        <IconButton
           aria-label="Previous"
           icon="i-tabler-player-skip-back-filled"
           size="sm"
@@ -579,12 +562,12 @@ onUnmounted(() => {
           @click="handleNext"
         />
         <IconButton
-          :active="repeatMode !== 'off'"
-          aria-label="Repeat mode"
-          :icon="repeatIcon"
+          :active="playMode !== 'sequence'"
+          :aria-label="playModeLabel"
+          :icon="playModeIcon"
           size="sm"
           class="hidden lg:flex"
-          @click="cycleRepeat"
+          @click="cyclePlayMode"
         />
       </div>
 
