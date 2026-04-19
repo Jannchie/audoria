@@ -7,6 +7,17 @@ import '@unocss/reset/tailwind.css'
 import 'virtual:uno.css'
 import './style.css'
 
+// Suppress the noisy THREE.Clock deprecation warning emitted by
+// `@shader-gradient/vue`'s bundled three build. Not our code; can't patch.
+const originalWarn = console.warn.bind(console)
+console.warn = (...args: unknown[]): void => {
+  const first = args[0]
+  if (typeof first === 'string' && first.includes('THREE.Clock')) {
+    return
+  }
+  originalWarn(...args)
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

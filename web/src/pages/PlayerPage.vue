@@ -1,8 +1,11 @@
 <script setup lang="ts">
+import type { FilamentConfig } from '../components/ShaderProgressBar.vue'
 import { ShaderGradient, ShaderGradientCanvas } from '@shader-gradient/vue'
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import MetadataEditDialog from '../components/MetadataEditDialog.vue'
 import ProgressPreviewTooltip from '../components/ProgressPreviewTooltip.vue'
+import ShaderProgressBar from '../components/ShaderProgressBar.vue'
+import ShaderProgressControls from '../components/ShaderProgressControls.vue'
 import SourceBadge from '../components/SourceBadge.vue'
 import { useCoverPalette } from '../composables/useCoverPalette'
 import { findLyricLineAtTime, useLyrics } from '../composables/useLyrics'
@@ -11,6 +14,20 @@ import { usePlayerState } from '../composables/usePlayerState'
 import { formatTrackSpecs } from '../utils/audio'
 
 const { data: tracks } = useMusicQuery()
+const isDev = import.meta.env.DEV
+const filamentConfig = ref<FilamentConfig>({
+  gain: 2.1,
+  count: 6,
+  amp: 2,
+  freq: 3,
+  speed: 1.5,
+  pulseDepth: 0.66,
+  pulseFreq: 0.65,
+  density: 0.55,
+  smoothness: 1.8,
+  converge: 0.9,
+  style: 0,
+})
 const progressTrack = ref<HTMLDivElement | null>(null)
 const volumeSlider = ref<HTMLInputElement | null>(null)
 const isScrubbing = ref(false)
@@ -430,7 +447,11 @@ function togglePlayPause(): void {
   }
 }
 
-watch(currentLineIndex, async (idx) => {
+const lyricTick = ref(0)
+watch(currentLineIndex, async (idx, prev) => {
+  if (idx >= 0 && idx !== prev) {
+    lyricTick.value += 1
+  }
   if (idx < 0) {
     return
   }
@@ -595,14 +616,15 @@ onUnmounted(() => {
           @pointermove="handleProgressHoverMove"
           @keydown="handleProgressKeydown"
         >
-          <div class="progress-track">
-            <div
-              class="progress-fill"
-              :style="{ width: `${progress}%` }"
-            >
-              <div class="progress-thumb" />
-            </div>
-          </div>
+          <ShaderProgressBar
+            :progress="progress / 100"
+            :colors="paletteColors"
+            :playing="isPlaying"
+            :scrubbing="isScrubbing"
+            :hovered="isProgressHovered"
+            :lyric-tick="lyricTick"
+            :filament="filamentConfig"
+          />
           <ProgressPreviewTooltip
             :lyric="previewTooltipLyric"
             :ratio="previewRatio"
@@ -716,6 +738,10 @@ onUnmounted(() => {
       :open="isEditOpen"
       :track="currentTrack"
       @close="closeEdit"
+    />
+    <ShaderProgressControls
+      v-if="isDev"
+      v-model="filamentConfig"
     />
   </section>
 </template>
@@ -1015,32 +1041,6 @@ onUnmounted(() => {
   padding: 0.375rem 0;
   cursor: pointer;
 }
-.progress-track {
-  height: 3px;
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.12);
-  position: relative;
-}
-.progress-fill {
-  height: 100%;
-  border-radius: 2px;
-  background: white;
-  transition: none;
-  position: relative;
-}
-.progress-thumb {
-  position: absolute;
-  right: -5px;
-  top: -4px;
-  width: 11px;
-  height: 11px;
-  border-radius: 50%;
-  background: white;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
-  opacity: 0;
-  transition: opacity 0.15s ease;
-}
-.progress-hit:hover .progress-thumb { opacity: 1; }
 
 .progress-time {
   display: flex;
