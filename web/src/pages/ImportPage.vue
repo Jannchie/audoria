@@ -1032,7 +1032,7 @@ function isImporting(id: string): boolean {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-family: 'Outfit', 'DM Sans', system-ui, sans-serif;
+  font-family: var(--font-display);
 }
 
 .result-sub {

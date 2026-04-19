@@ -594,7 +594,7 @@ watch(
   font-size: 1rem;
   font-weight: 600;
   color: var(--text-primary);
-  font-family: 'Outfit', 'DM Sans', system-ui, sans-serif;
+  font-family: var(--font-display);
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;

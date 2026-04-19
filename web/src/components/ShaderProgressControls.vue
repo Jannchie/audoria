@@ -319,7 +319,7 @@ const copyLabel = computed(() => {
   border-radius: 10px;
   backdrop-filter: blur(8px);
   color: rgba(255, 255, 255, 0.85);
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 11px;
   user-select: none;
   pointer-events: auto;

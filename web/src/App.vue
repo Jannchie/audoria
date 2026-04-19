@@ -158,7 +158,7 @@ watchEffect(() => {
   color: var(--text-secondary);
   letter-spacing: 0.15em;
   text-transform: uppercase;
-  font-family: 'Outfit', 'DM Sans', system-ui, sans-serif;
+  font-family: var(--font-display);
   transition: color 0.25s ease;
 }
 

@@ -247,7 +247,7 @@ function formatFileSize(bytes: number): string {
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--text-primary);
-  font-family: 'Outfit', 'DM Sans', system-ui, sans-serif;
+  font-family: var(--font-display);
 }
 
 .drop-filesize {
@@ -281,7 +281,7 @@ function formatFileSize(bytes: number): string {
   border: none;
   cursor: pointer;
   transition: all 0.15s ease;
-  font-family: 'Outfit', 'DM Sans', system-ui, sans-serif;
+  font-family: var(--font-display);
 }
 
 .upload-btn:hover {

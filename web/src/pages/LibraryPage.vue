@@ -463,7 +463,7 @@ async function handleDelete(id: string): Promise<void> {
   overflow: hidden;
   text-overflow: ellipsis;
   line-height: 1.3;
-  font-family: 'Outfit', 'DM Sans', system-ui, sans-serif;
+  font-family: var(--font-display);
 }
 
 .track-name--active {
