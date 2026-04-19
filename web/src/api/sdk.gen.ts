@@ -2,7 +2,7 @@
 
 import { type Client, formDataBodySerializer, type Options as Options2, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { DeleteMusicByIdCoverData, DeleteMusicByIdCoverErrors, DeleteMusicByIdCoverResponses, DeleteMusicByIdData, DeleteMusicByIdErrors, DeleteMusicByIdResponses, GetMusicByIdCoverData, GetMusicByIdCoverErrors, GetMusicByIdCoverResponses, GetMusicByIdCoverThumbData, GetMusicByIdCoverThumbErrors, GetMusicByIdCoverThumbResponses, GetMusicByIdDownloadData, GetMusicByIdDownloadErrors, GetMusicByIdDownloadResponses, GetMusicData, GetMusicImportsByIdData, GetMusicImportsByIdErrors, GetMusicImportsByIdResponses, GetMusicResponses, PatchMusicByIdData, PatchMusicByIdErrors, PatchMusicByIdResponses, PostMusicByIdCoverData, PostMusicByIdCoverErrors, PostMusicByIdCoverResponses, PostMusicData, PostMusicErrors, PostMusicImportsData, PostMusicImportsErrors, PostMusicImportsParseUrlData, PostMusicImportsParseUrlErrors, PostMusicImportsParseUrlResponses, PostMusicImportsResponses, PostMusicImportsSearchData, PostMusicImportsSearchErrors, PostMusicImportsSearchResponses, PostMusicResponses } from './types.gen';
+import type { DeleteMusicByIdCoverData, DeleteMusicByIdCoverErrors, DeleteMusicByIdCoverResponses, DeleteMusicByIdData, DeleteMusicByIdErrors, DeleteMusicByIdResponses, DeletePlaylistsByIdData, DeletePlaylistsByIdErrors, DeletePlaylistsByIdResponses, DeletePlaylistsByIdTracksByTrackIdData, DeletePlaylistsByIdTracksByTrackIdErrors, DeletePlaylistsByIdTracksByTrackIdResponses, GetMusicByIdCoverData, GetMusicByIdCoverErrors, GetMusicByIdCoverResponses, GetMusicByIdCoverThumbData, GetMusicByIdCoverThumbErrors, GetMusicByIdCoverThumbResponses, GetMusicByIdDownloadData, GetMusicByIdDownloadErrors, GetMusicByIdDownloadResponses, GetMusicData, GetMusicImportsByIdData, GetMusicImportsByIdErrors, GetMusicImportsByIdResponses, GetMusicResponses, GetPlaylistsByIdData, GetPlaylistsByIdErrors, GetPlaylistsByIdResponses, GetPlaylistsData, GetPlaylistsResponses, PatchMusicByIdData, PatchMusicByIdErrors, PatchMusicByIdResponses, PatchPlaylistsByIdData, PatchPlaylistsByIdErrors, PatchPlaylistsByIdResponses, PatchPlaylistsByIdTracksReorderData, PatchPlaylistsByIdTracksReorderErrors, PatchPlaylistsByIdTracksReorderResponses, PostMusicByIdCoverData, PostMusicByIdCoverErrors, PostMusicByIdCoverResponses, PostMusicData, PostMusicErrors, PostMusicImportsData, PostMusicImportsErrors, PostMusicImportsParseUrlData, PostMusicImportsParseUrlErrors, PostMusicImportsParseUrlResponses, PostMusicImportsResponses, PostMusicImportsSearchData, PostMusicImportsSearchErrors, PostMusicImportsSearchResponses, PostMusicResponses, PostPlaylistsByIdTracksData, PostPlaylistsByIdTracksErrors, PostPlaylistsByIdTracksResponses, PostPlaylistsData, PostPlaylistsResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -76,6 +76,74 @@ export const postMusicImports = <ThrowOnError extends boolean = false>(options?:
  * Get an import job status
  */
 export const getMusicImportsById = <ThrowOnError extends boolean = false>(options: Options<GetMusicImportsByIdData, ThrowOnError>) => (options.client ?? client).get<GetMusicImportsByIdResponses, GetMusicImportsByIdErrors, ThrowOnError>({ url: '/music/imports/{id}', ...options });
+
+/**
+ * List playlists
+ */
+export const getPlaylists = <ThrowOnError extends boolean = false>(options?: Options<GetPlaylistsData, ThrowOnError>) => (options?.client ?? client).get<GetPlaylistsResponses, unknown, ThrowOnError>({ url: '/playlists', ...options });
+
+/**
+ * Create a playlist
+ */
+export const postPlaylists = <ThrowOnError extends boolean = false>(options?: Options<PostPlaylistsData, ThrowOnError>) => (options?.client ?? client).post<PostPlaylistsResponses, unknown, ThrowOnError>({
+    url: '/playlists',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers
+    }
+});
+
+/**
+ * Delete a playlist
+ */
+export const deletePlaylistsById = <ThrowOnError extends boolean = false>(options: Options<DeletePlaylistsByIdData, ThrowOnError>) => (options.client ?? client).delete<DeletePlaylistsByIdResponses, DeletePlaylistsByIdErrors, ThrowOnError>({ url: '/playlists/{id}', ...options });
+
+/**
+ * Get a playlist
+ */
+export const getPlaylistsById = <ThrowOnError extends boolean = false>(options: Options<GetPlaylistsByIdData, ThrowOnError>) => (options.client ?? client).get<GetPlaylistsByIdResponses, GetPlaylistsByIdErrors, ThrowOnError>({ url: '/playlists/{id}', ...options });
+
+/**
+ * Update a playlist
+ */
+export const patchPlaylistsById = <ThrowOnError extends boolean = false>(options: Options<PatchPlaylistsByIdData, ThrowOnError>) => (options.client ?? client).patch<PatchPlaylistsByIdResponses, PatchPlaylistsByIdErrors, ThrowOnError>({
+    url: '/playlists/{id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Add a track to a playlist
+ */
+export const postPlaylistsByIdTracks = <ThrowOnError extends boolean = false>(options: Options<PostPlaylistsByIdTracksData, ThrowOnError>) => (options.client ?? client).post<PostPlaylistsByIdTracksResponses, PostPlaylistsByIdTracksErrors, ThrowOnError>({
+    url: '/playlists/{id}/tracks',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Reorder playlist tracks
+ */
+export const patchPlaylistsByIdTracksReorder = <ThrowOnError extends boolean = false>(options: Options<PatchPlaylistsByIdTracksReorderData, ThrowOnError>) => (options.client ?? client).patch<PatchPlaylistsByIdTracksReorderResponses, PatchPlaylistsByIdTracksReorderErrors, ThrowOnError>({
+    url: '/playlists/{id}/tracks/reorder',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Remove a track from a playlist
+ */
+export const deletePlaylistsByIdTracksByTrackId = <ThrowOnError extends boolean = false>(options: Options<DeletePlaylistsByIdTracksByTrackIdData, ThrowOnError>) => (options.client ?? client).delete<DeletePlaylistsByIdTracksByTrackIdResponses, DeletePlaylistsByIdTracksByTrackIdErrors, ThrowOnError>({ url: '/playlists/{id}/tracks/{trackId}', ...options });
 
 /**
  * Remove a track cover

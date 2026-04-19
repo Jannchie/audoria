@@ -10,6 +10,7 @@ const route = useRoute()
 
 const navItems = computed(() => [
   { name: t('nav.library'), path: '/library', icon: 'i-tabler-vinyl' },
+  { name: 'Playlists', path: '/playlists', icon: 'i-tabler-playlist' },
   { name: t('nav.explore'), path: '/import', icon: 'i-tabler-compass' },
   { name: t('nav.parse'), path: '/parse', icon: 'i-tabler-link' },
   { name: t('nav.upload'), path: '/upload', icon: 'i-tabler-upload' },

@@ -7,10 +7,13 @@ export interface TrackLike {
   id: string
 }
 
-interface PlaybackContext {
-  type: PlaybackContextType
-  trackIds: string[]
-}
+export type PlaybackContextInput
+  = { type: 'library' }
+  | { type: 'playlist', playlistId: string }
+
+type PlaybackContext
+  = { type: 'library', trackIds: string[] }
+  | { type: 'playlist', playlistId: string, trackIds: string[] }
 
 interface PersistedPlayerState {
   context: PlaybackContext | null
@@ -25,7 +28,7 @@ interface PersistedPlayerState {
 
 interface SelectTrackOptions {
   contextTracks?: TrackLike[]
-  contextType?: PlaybackContextType
+  context?: PlaybackContextInput
   history?: 'push' | 'skip'
 }
 
@@ -80,16 +83,28 @@ function readPersistedState(): PersistedPlayerState {
     }
 
     const parsed = JSON.parse(raw) as Partial<PersistedPlayerState>
-    const context = parsed.context
-      && typeof parsed.context === 'object'
-      && parsed.context !== null
-      && (parsed.context.type === 'library' || parsed.context.type === 'playlist')
-      && Array.isArray(parsed.context.trackIds)
-      ? {
-          type: parsed.context.type,
-          trackIds: normalizeTrackIds(parsed.context.trackIds),
+    const parsedContext = parsed.context
+    let context: PlaybackContext | null = null
+    if (
+      parsedContext
+      && typeof parsedContext === 'object'
+      && parsedContext !== null
+      && Array.isArray(parsedContext.trackIds)
+    ) {
+      if (parsedContext.type === 'library') {
+        context = {
+          type: 'library',
+          trackIds: normalizeTrackIds(parsedContext.trackIds),
         }
-      : null
+      }
+      else if (parsedContext.type === 'playlist' && typeof parsedContext.playlistId === 'string' && parsedContext.playlistId.length > 0) {
+        context = {
+          type: 'playlist',
+          playlistId: parsedContext.playlistId,
+          trackIds: normalizeTrackIds(parsedContext.trackIds),
+        }
+      }
+    }
 
     return {
       context,
@@ -157,16 +172,40 @@ function persistState(): void {
   }
 }
 
-function setPlaybackContext(trackIds: string[], type: PlaybackContextType): void {
-  playbackContext.value = {
-    type,
-    trackIds: normalizeTrackIds(trackIds),
+function normalizePlaybackContext(input: PlaybackContextInput, trackIds: string[]): PlaybackContext {
+  const normalizedTrackIds = normalizeTrackIds(trackIds)
+  if (input.type === 'playlist') {
+    return {
+      type: 'playlist',
+      playlistId: input.playlistId,
+      trackIds: normalizedTrackIds,
+    }
+  }
+  return {
+    type: 'library',
+    trackIds: normalizedTrackIds,
   }
 }
 
-function updateContextFromTracks(tracks: TrackLike[], type: PlaybackContextType = 'library'): void {
-  const trackIds = normalizeTrackIds(tracks.map(track => track.id))
-  setPlaybackContext(trackIds, type)
+function setPlaybackContext(trackIds: string[], input: PlaybackContextInput): void {
+  playbackContext.value = normalizePlaybackContext(input, trackIds)
+}
+
+function updateContextFromTracks(tracks: TrackLike[], input: PlaybackContextInput = { type: 'library' }): void {
+  setPlaybackContext(tracks.map(track => track.id), input)
+}
+
+function isSamePlaybackContext(current: PlaybackContext | null, next: PlaybackContextInput): boolean {
+  if (!current) {
+    return false
+  }
+  if (current.type !== next.type) {
+    return false
+  }
+  if (current.type === 'playlist' && next.type === 'playlist') {
+    return current.playlistId === next.playlistId
+  }
+  return true
 }
 
 function pushHistory(trackId: string): void {
@@ -220,7 +259,7 @@ function consumeHistoryTrackId(availableTrackIds: Set<string>): string | null {
 export function usePlayerState() {
   const selectTrack = (id: string | null, options: SelectTrackOptions = {}) => {
     if (options.contextTracks) {
-      updateContextFromTracks(options.contextTracks, options.contextType)
+      updateContextFromTracks(options.contextTracks, options.context)
     }
 
     const previousTrackId = currentTrackId.value
@@ -273,8 +312,8 @@ export function usePlayerState() {
     persistState()
   }
 
-  const syncTrackContext = (tracks: TrackLike[], contextType: PlaybackContextType = 'library') => {
-    if (playbackContext.value && playbackContext.value.type !== contextType) {
+  const syncTrackContext = (tracks: TrackLike[], context: PlaybackContextInput = { type: 'library' }) => {
+    if (playbackContext.value && !isSamePlaybackContext(playbackContext.value, context)) {
       return
     }
 
@@ -283,14 +322,15 @@ export function usePlayerState() {
     const nextHistory = playHistory.value.filter(id => availableTrackIds.has(id))
     const historyChanged = nextHistory.length !== playHistory.value.length
     const currentContext = playbackContext.value
+    const nextContext = normalizePlaybackContext(context, trackIds)
     const contextChanged = !currentContext
-      || currentContext.type !== contextType
+      || !isSamePlaybackContext(currentContext, context)
       || currentContext.trackIds.length !== trackIds.length
       || currentContext.trackIds.some((id, index) => id !== trackIds[index])
     const currentTrackRemoved = Boolean(currentTrackId.value && !availableTrackIds.has(currentTrackId.value))
 
     if (contextChanged) {
-      setPlaybackContext(trackIds, contextType)
+      playbackContext.value = nextContext
     }
 
     if (historyChanged) {

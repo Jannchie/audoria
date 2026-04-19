@@ -45,6 +45,7 @@ const {
   currentTime,
   duration,
   playMode,
+  playbackContext,
   volume,
   muted,
   selectTrack,
@@ -64,7 +65,17 @@ const currentTrack = computed(() => {
   if (items.length === 0) {
     return null
   }
-  return items.find(item => item.id === currentTrackId.value) ?? items[0]
+  if (currentTrackId.value) {
+    return items.find(item => item.id === currentTrackId.value) ?? null
+  }
+  const contextTrackIds = playbackContext.value?.trackIds ?? []
+  for (const trackId of contextTrackIds) {
+    const track = items.find(item => item.id === trackId)
+    if (track) {
+      return track
+    }
+  }
+  return items[0]
 })
 
 const resolvedCurrentTrackId = computed(() => currentTrack.value?.id ?? null)
@@ -163,17 +174,22 @@ const playModeIcon = computed(() => {
 
 const playModeLabel = computed(() => {
   let mode: string
-  if (playMode.value === 'sequence') {
-    mode = t('player.playModes.sequence')
-  }
-  else if (playMode.value === 'repeat-all') {
-    mode = t('player.playModes.repeatAll')
-  }
-  else if (playMode.value === 'repeat-one') {
-    mode = t('player.playModes.repeatOne')
-  }
-  else {
-    mode = t('player.playModes.shuffle')
+  switch (playMode.value) {
+    case 'sequence': {
+      mode = t('player.playModes.sequence')
+      break
+    }
+    case 'repeat-all': {
+      mode = t('player.playModes.repeatAll')
+      break
+    }
+    case 'repeat-one': {
+      mode = t('player.playModes.repeatOne')
+      break
+    }
+    default: {
+      mode = t('player.playModes.shuffle')
+    }
   }
   return t('player.playModeLabel', { mode })
 })

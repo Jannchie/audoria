@@ -41,6 +41,7 @@ const {
   getAdjacentTrackId,
   getAutoAdvanceTrackId,
   getPreviousTrackId,
+  playbackContext,
   getResumeTime,
   syncTrackContext,
 } = usePlayerState()
@@ -50,7 +51,17 @@ const currentTrack = computed(() => {
   if (items.length === 0) {
     return null
   }
-  return items.find(item => item.id === currentTrackId.value) ?? items[0]
+  if (currentTrackId.value) {
+    return items.find(item => item.id === currentTrackId.value) ?? null
+  }
+  const contextTrackIds = playbackContext.value?.trackIds ?? []
+  for (const trackId of contextTrackIds) {
+    const track = items.find(item => item.id === trackId)
+    if (track) {
+      return track
+    }
+  }
+  return items[0]
 })
 
 const resolvedCurrentTrackId = computed(() => currentTrack.value?.id ?? null)

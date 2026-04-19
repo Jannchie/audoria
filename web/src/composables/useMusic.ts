@@ -47,6 +47,8 @@ export function useUploadMusic() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: musicQueryKey }).catch(() => {})
+      queryClient.invalidateQueries({ queryKey: ['playlists'] }).catch(() => {})
+      queryClient.invalidateQueries({ queryKey: ['playlist'] }).catch(() => {})
     },
   })
 }

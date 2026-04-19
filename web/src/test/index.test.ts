@@ -109,4 +109,29 @@ describe('useplayerstate', () => {
     const persisted = JSON.parse(globalThis.localStorage.getItem(playerStateStorageKey) ?? '{}') as { isPlaying?: boolean }
     expect(persisted.isPlaying).toBe(true)
   })
+
+  it('keeps playlist contexts isolated when syncing track order', async () => {
+    globalThis.localStorage.setItem(playerStateStorageKey, JSON.stringify({
+      context: {
+        type: 'playlist',
+        playlistId: 'playlist-a',
+        trackIds: ['track-a', 'track-b'],
+      },
+      currentTrackId: 'track-a',
+    }))
+
+    const { usePlayerState } = await loadPlayerState()
+    const player = usePlayerState()
+
+    player.syncTrackContext(
+      [{ id: 'track-c' }, { id: 'track-d' }],
+      { type: 'playlist', playlistId: 'playlist-b' },
+    )
+
+    expect(player.playbackContext.value).toEqual({
+      type: 'playlist',
+      playlistId: 'playlist-a',
+      trackIds: ['track-a', 'track-b'],
+    })
+  })
 })

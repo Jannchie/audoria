@@ -1,9 +1,9 @@
 import type { InferSelectModel } from 'drizzle-orm'
 import { randomUUID } from 'node:crypto'
 import Database from 'better-sqlite3'
-import { and, eq, lt } from 'drizzle-orm'
+import { and, asc, desc, eq, lt, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { config } from './config.js'
 
 export const tracks = sqliteTable('tracks', {
@@ -63,10 +63,35 @@ export const musicImportJobs = sqliteTable('music_import_jobs', {
   finishedAt: integer('finished_at', { mode: 'number' }),
 })
 
+export const playlists = sqliteTable('playlists', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  description: text('description'),
+  createdAt: integer('created_at', { mode: 'number' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'number' }).notNull(),
+})
+
+export const playlistTracks = sqliteTable('playlist_tracks', {
+  playlistId: text('playlist_id').notNull(),
+  trackId: text('track_id').notNull(),
+  position: integer('position', { mode: 'number' }).notNull(),
+  createdAt: integer('created_at', { mode: 'number' }).notNull(),
+}, table => [
+  primaryKey({ columns: [table.playlistId, table.trackId] }),
+  index('playlist_tracks_playlist_position_idx').on(table.playlistId, table.position),
+  index('playlist_tracks_track_idx').on(table.trackId),
+])
+
 export type Track = InferSelectModel<typeof tracks>
 export type MusicImportCandidate = InferSelectModel<typeof musicImportCandidates>
 export type MusicImportJob = InferSelectModel<typeof musicImportJobs>
 export type MusicImportJobStatus = 'queued' | 'running' | 'succeeded' | 'failed'
+export type Playlist = InferSelectModel<typeof playlists>
+export type PlaylistTrack = InferSelectModel<typeof playlistTracks>
+export interface PlaylistSummary extends Playlist {
+  totalDurationSeconds: number
+  trackCount: number
+}
 
 const sqlite = new Database(config.dbPath)
 
@@ -209,6 +234,28 @@ sqlite.exec(`
     started_at INTEGER,
     finished_at INTEGER
   );
+
+  CREATE TABLE IF NOT EXISTS playlists (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS playlist_tracks (
+    playlist_id TEXT NOT NULL,
+    track_id TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (playlist_id, track_id)
+  );
+
+  CREATE INDEX IF NOT EXISTS playlist_tracks_playlist_position_idx
+  ON playlist_tracks (playlist_id, position);
+
+  CREATE INDEX IF NOT EXISTS playlist_tracks_track_idx
+  ON playlist_tracks (track_id);
 `)
 
 const trackColumns = sqlite.prepare('PRAGMA table_info(tracks)').all() as Array<{ name: string }>
@@ -308,6 +355,209 @@ if (!importJobColumns.some(column => column.name === 'progress_percent')) {
 }
 
 export const db = drizzle(sqlite)
+
+function normalizePlaylistName(name: string): string {
+  return name.trim()
+}
+
+function reindexPlaylistTracksWithinTransaction(playlistId: string): void {
+  const items = db
+    .select({
+      trackId: playlistTracks.trackId,
+    })
+    .from(playlistTracks)
+    .where(eq(playlistTracks.playlistId, playlistId))
+    .orderBy(asc(playlistTracks.position), asc(playlistTracks.createdAt))
+    .all()
+
+  items.forEach((item, index) => {
+    db.update(playlistTracks)
+      .set({ position: index })
+      .where(and(eq(playlistTracks.playlistId, playlistId), eq(playlistTracks.trackId, item.trackId)))
+      .run()
+  })
+}
+
+export function listPlaylists(): PlaylistSummary[] {
+  const items = db.select().from(playlists).orderBy(desc(playlists.updatedAt), desc(playlists.createdAt)).all()
+
+  return items.map((playlist) => {
+    const aggregates = db
+      .select({
+        trackCount: sql<number>`count(${playlistTracks.trackId})`,
+        totalDurationSeconds: sql<number>`coalesce(sum(${tracks.durationSeconds}), 0)`,
+      })
+      .from(playlistTracks)
+      .leftJoin(tracks, eq(playlistTracks.trackId, tracks.id))
+      .where(eq(playlistTracks.playlistId, playlist.id))
+      .get()
+
+    return {
+      ...playlist,
+      trackCount: Number(aggregates?.trackCount ?? 0),
+      totalDurationSeconds: Number(aggregates?.totalDurationSeconds ?? 0),
+    }
+  })
+}
+
+export function createPlaylist(input: {
+  name: string
+  description: string | null
+}): Playlist {
+  const now = Date.now()
+  const record: Playlist = {
+    id: randomUUID(),
+    name: normalizePlaylistName(input.name),
+    description: input.description,
+    createdAt: now,
+    updatedAt: now,
+  }
+  db.insert(playlists).values(record).run()
+  return record
+}
+
+export function getPlaylistById(id: string): Playlist | undefined {
+  return db.select().from(playlists).where(eq(playlists.id, id)).get()
+}
+
+export function updatePlaylist(id: string, input: {
+  name: string
+  description: string | null
+}): void {
+  db.update(playlists)
+    .set({
+      name: normalizePlaylistName(input.name),
+      description: input.description,
+      updatedAt: Date.now(),
+    })
+    .where(eq(playlists.id, id))
+    .run()
+}
+
+export function deletePlaylist(id: string): void {
+  db.transaction(() => {
+    db.delete(playlistTracks).where(eq(playlistTracks.playlistId, id)).run()
+    db.delete(playlists).where(eq(playlists.id, id)).run()
+  })
+}
+
+export function getPlaylistTracks(playlistId: string): Track[] {
+  const rows = db
+    .select({
+      track: tracks,
+    })
+    .from(playlistTracks)
+    .innerJoin(tracks, eq(playlistTracks.trackId, tracks.id))
+    .where(eq(playlistTracks.playlistId, playlistId))
+    .orderBy(asc(playlistTracks.position), asc(playlistTracks.createdAt))
+    .all()
+
+  return rows.map(row => row.track)
+}
+
+export function getPlaylistTrackIds(playlistId: string): string[] {
+  return db
+    .select({
+      trackId: playlistTracks.trackId,
+    })
+    .from(playlistTracks)
+    .where(eq(playlistTracks.playlistId, playlistId))
+    .orderBy(asc(playlistTracks.position), asc(playlistTracks.createdAt))
+    .all()
+    .map(row => row.trackId)
+}
+
+export function addTrackToPlaylist(playlistId: string, trackId: string): void {
+  const existing = db.select().from(playlistTracks)
+    .where(and(eq(playlistTracks.playlistId, playlistId), eq(playlistTracks.trackId, trackId)))
+    .get()
+
+  if (existing) {
+    throw new Error('Track already exists in playlist')
+  }
+
+  const maxPositionRow = db
+    .select({
+      position: sql<number>`max(${playlistTracks.position})`,
+    })
+    .from(playlistTracks)
+    .where(eq(playlistTracks.playlistId, playlistId))
+    .get()
+
+  db.insert(playlistTracks).values({
+    playlistId,
+    trackId,
+    position: Number(maxPositionRow?.position ?? -1) + 1,
+    createdAt: Date.now(),
+  }).run()
+
+  db.update(playlists)
+    .set({ updatedAt: Date.now() })
+    .where(eq(playlists.id, playlistId))
+    .run()
+}
+
+export function removeTrackFromPlaylist(playlistId: string, trackId: string): boolean {
+  return db.transaction(() => {
+    const deleted = db.delete(playlistTracks)
+      .where(and(eq(playlistTracks.playlistId, playlistId), eq(playlistTracks.trackId, trackId)))
+      .run()
+
+    if (deleted.changes === 0) {
+      return false
+    }
+
+    reindexPlaylistTracksWithinTransaction(playlistId)
+    db.update(playlists)
+      .set({ updatedAt: Date.now() })
+      .where(eq(playlists.id, playlistId))
+      .run()
+    return true
+  })
+}
+
+export function reorderPlaylistTracks(playlistId: string, orderedTrackIds: string[]): void {
+  db.transaction(() => {
+    orderedTrackIds.forEach((trackId, index) => {
+      db.update(playlistTracks)
+        .set({ position: index })
+        .where(and(eq(playlistTracks.playlistId, playlistId), eq(playlistTracks.trackId, trackId)))
+        .run()
+    })
+
+    db.update(playlists)
+      .set({ updatedAt: Date.now() })
+      .where(eq(playlists.id, playlistId))
+      .run()
+  })
+}
+
+export function removeTrackFromAllPlaylists(trackId: string): void {
+  const playlistIds = db
+    .select({
+      playlistId: playlistTracks.playlistId,
+    })
+    .from(playlistTracks)
+    .where(eq(playlistTracks.trackId, trackId))
+    .all()
+    .map(item => item.playlistId)
+
+  if (playlistIds.length === 0) {
+    return
+  }
+
+  db.transaction(() => {
+    db.delete(playlistTracks).where(eq(playlistTracks.trackId, trackId)).run()
+    const uniquePlaylistIds = [...new Set(playlistIds)]
+    uniquePlaylistIds.forEach((playlistId) => {
+      reindexPlaylistTracksWithinTransaction(playlistId)
+      db.update(playlists)
+        .set({ updatedAt: Date.now() })
+        .where(eq(playlists.id, playlistId))
+        .run()
+    })
+  })
+}
 
 export function insertMusicImportCandidates(candidates: Array<Omit<MusicImportCandidate, 'id' | 'createdAt'>>): MusicImportCandidate[] {
   const createdAt = Date.now()

@@ -2,6 +2,7 @@
 import type { Music } from '../api/types.gen'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import AddToPlaylistDialog from '../components/AddToPlaylistDialog.vue'
 import MetadataEditDialog from '../components/MetadataEditDialog.vue'
 import SoundWave from '../components/SoundWave.vue'
 import SourceBadge from '../components/SourceBadge.vue'
@@ -60,6 +61,8 @@ function isDeleting(id: string): boolean {
 
 const editingTrack = ref<Music | null>(null)
 const isEditOpen = computed(() => editingTrack.value !== null)
+const playlistTrack = ref<Music | null>(null)
+const isPlaylistDialogOpen = computed(() => playlistTrack.value !== null)
 
 function openEdit(track: Music, event: MouseEvent): void {
   event.stopPropagation()
@@ -68,6 +71,15 @@ function openEdit(track: Music, event: MouseEvent): void {
 
 function closeEdit(): void {
   editingTrack.value = null
+}
+
+function openPlaylistDialog(track: Music, event: MouseEvent): void {
+  event.stopPropagation()
+  playlistTrack.value = track
+}
+
+function closePlaylistDialog(): void {
+  playlistTrack.value = null
 }
 
 async function handleDelete(id: string): Promise<void> {
@@ -235,6 +247,17 @@ async function handleDelete(id: string): Promise<void> {
           <button
             type="button"
             class="track-action"
+            aria-label="Add to playlist"
+            @click="openPlaylistDialog(track, $event)"
+          >
+            <span
+              class="i-tabler-playlist-add"
+              aria-hidden="true"
+            />
+          </button>
+          <button
+            type="button"
+            class="track-action"
             :aria-label="t('common.actions.editMetadata')"
             @click="openEdit(track, $event)"
           >
@@ -269,6 +292,12 @@ async function handleDelete(id: string): Promise<void> {
       :open="isEditOpen"
       :track="editingTrack"
       @close="closeEdit"
+    />
+
+    <AddToPlaylistDialog
+      :open="isPlaylistDialogOpen"
+      :track="playlistTrack"
+      @close="closePlaylistDialog"
     />
   </section>
 </template>

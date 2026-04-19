@@ -69,6 +69,33 @@ export type MusicDlImportRequest = {
     resultId: string;
 };
 
+export type Playlist = {
+    id: string;
+    name: string;
+    description: string;
+    trackCount: number;
+    totalDurationSeconds: number;
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type PlaylistDetail = Playlist & {
+    tracks: Array<Music>;
+};
+
+export type PlaylistInput = {
+    name: string;
+    description?: string;
+};
+
+export type PlaylistTrackInput = {
+    trackId: string;
+};
+
+export type PlaylistReorderRequest = {
+    trackIds: Array<string>;
+};
+
 export type UpdateMusicRequest = {
     title?: string;
     artists?: string;
@@ -276,6 +303,225 @@ export type GetMusicImportsByIdResponses = {
 };
 
 export type GetMusicImportsByIdResponse = GetMusicImportsByIdResponses[keyof GetMusicImportsByIdResponses];
+
+export type GetPlaylistsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/playlists';
+};
+
+export type GetPlaylistsResponses = {
+    /**
+     * List of playlists
+     */
+    200: Array<Playlist>;
+};
+
+export type GetPlaylistsResponse = GetPlaylistsResponses[keyof GetPlaylistsResponses];
+
+export type PostPlaylistsData = {
+    body?: PlaylistInput;
+    path?: never;
+    query?: never;
+    url: '/playlists';
+};
+
+export type PostPlaylistsResponses = {
+    /**
+     * Created
+     */
+    201: PlaylistDetail;
+};
+
+export type PostPlaylistsResponse = PostPlaylistsResponses[keyof PostPlaylistsResponses];
+
+export type DeletePlaylistsByIdData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/playlists/{id}';
+};
+
+export type DeletePlaylistsByIdErrors = {
+    /**
+     * Not found
+     */
+    404: {
+        message: string;
+    };
+};
+
+export type DeletePlaylistsByIdError = DeletePlaylistsByIdErrors[keyof DeletePlaylistsByIdErrors];
+
+export type DeletePlaylistsByIdResponses = {
+    /**
+     * Deleted
+     */
+    204: void;
+};
+
+export type DeletePlaylistsByIdResponse = DeletePlaylistsByIdResponses[keyof DeletePlaylistsByIdResponses];
+
+export type GetPlaylistsByIdData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/playlists/{id}';
+};
+
+export type GetPlaylistsByIdErrors = {
+    /**
+     * Not found
+     */
+    404: {
+        message: string;
+    };
+};
+
+export type GetPlaylistsByIdError = GetPlaylistsByIdErrors[keyof GetPlaylistsByIdErrors];
+
+export type GetPlaylistsByIdResponses = {
+    /**
+     * Playlist detail
+     */
+    200: PlaylistDetail;
+};
+
+export type GetPlaylistsByIdResponse = GetPlaylistsByIdResponses[keyof GetPlaylistsByIdResponses];
+
+export type PatchPlaylistsByIdData = {
+    body?: PlaylistInput;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/playlists/{id}';
+};
+
+export type PatchPlaylistsByIdErrors = {
+    /**
+     * Not found
+     */
+    404: {
+        message: string;
+    };
+};
+
+export type PatchPlaylistsByIdError = PatchPlaylistsByIdErrors[keyof PatchPlaylistsByIdErrors];
+
+export type PatchPlaylistsByIdResponses = {
+    /**
+     * Updated
+     */
+    200: PlaylistDetail;
+};
+
+export type PatchPlaylistsByIdResponse = PatchPlaylistsByIdResponses[keyof PatchPlaylistsByIdResponses];
+
+export type PostPlaylistsByIdTracksData = {
+    body?: PlaylistTrackInput;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/playlists/{id}/tracks';
+};
+
+export type PostPlaylistsByIdTracksErrors = {
+    /**
+     * Not found
+     */
+    404: {
+        message: string;
+    };
+    /**
+     * Track already exists in playlist
+     */
+    409: {
+        message: string;
+    };
+};
+
+export type PostPlaylistsByIdTracksError = PostPlaylistsByIdTracksErrors[keyof PostPlaylistsByIdTracksErrors];
+
+export type PostPlaylistsByIdTracksResponses = {
+    /**
+     * Updated playlist
+     */
+    200: PlaylistDetail;
+};
+
+export type PostPlaylistsByIdTracksResponse = PostPlaylistsByIdTracksResponses[keyof PostPlaylistsByIdTracksResponses];
+
+export type PatchPlaylistsByIdTracksReorderData = {
+    body?: PlaylistReorderRequest;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/playlists/{id}/tracks/reorder';
+};
+
+export type PatchPlaylistsByIdTracksReorderErrors = {
+    /**
+     * Invalid order
+     */
+    400: {
+        message: string;
+    };
+    /**
+     * Not found
+     */
+    404: {
+        message: string;
+    };
+};
+
+export type PatchPlaylistsByIdTracksReorderError = PatchPlaylistsByIdTracksReorderErrors[keyof PatchPlaylistsByIdTracksReorderErrors];
+
+export type PatchPlaylistsByIdTracksReorderResponses = {
+    /**
+     * Updated playlist
+     */
+    200: PlaylistDetail;
+};
+
+export type PatchPlaylistsByIdTracksReorderResponse = PatchPlaylistsByIdTracksReorderResponses[keyof PatchPlaylistsByIdTracksReorderResponses];
+
+export type DeletePlaylistsByIdTracksByTrackIdData = {
+    body?: never;
+    path: {
+        id: string;
+        trackId: string;
+    };
+    query?: never;
+    url: '/playlists/{id}/tracks/{trackId}';
+};
+
+export type DeletePlaylistsByIdTracksByTrackIdErrors = {
+    /**
+     * Not found
+     */
+    404: {
+        message: string;
+    };
+};
+
+export type DeletePlaylistsByIdTracksByTrackIdError = DeletePlaylistsByIdTracksByTrackIdErrors[keyof DeletePlaylistsByIdTracksByTrackIdErrors];
+
+export type DeletePlaylistsByIdTracksByTrackIdResponses = {
+    /**
+     * Updated playlist
+     */
+    200: PlaylistDetail;
+};
+
+export type DeletePlaylistsByIdTracksByTrackIdResponse = DeletePlaylistsByIdTracksByTrackIdResponses[keyof DeletePlaylistsByIdTracksByTrackIdResponses];
 
 export type DeleteMusicByIdCoverData = {
     body?: never;

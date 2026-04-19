@@ -1,6 +1,6 @@
 import type { ApiReferenceConfiguration } from '@scalar/hono-api-reference'
 import type { ReadableStream } from 'node:stream/web'
-import type { MusicImportJob, MusicImportJobStatus, Track } from './db.js'
+import type { MusicImportJob, MusicImportJobStatus, Playlist, PlaylistSummary, Track } from './db.js'
 import { Readable } from 'node:stream'
 import { serve } from '@hono/node-server'
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
@@ -9,14 +9,25 @@ import { desc, eq } from 'drizzle-orm'
 import { cors } from 'hono/cors'
 import { config } from './config.js'
 import {
+  addTrackToPlaylist,
+  createPlaylist,
   createMusicImportJobFromCandidate,
   db,
+  deletePlaylist,
   getMusicImportCandidateById,
   getMusicImportJobById,
+  getPlaylistById,
+  getPlaylistTrackIds,
+  getPlaylistTracks,
   getTrackById,
   insertMusicImportCandidates,
+  listPlaylists,
   pruneExpiredMusicImportCandidates,
+  removeTrackFromAllPlaylists,
+  removeTrackFromPlaylist,
+  reorderPlaylistTracks,
   tracks,
+  updatePlaylist,
   updateTrackCover,
   updateTrackEditableMetadata,
 } from './db.js'
@@ -69,6 +80,33 @@ function toMusicImportJobResponse(job: MusicImportJob) {
   }
 }
 
+function toPlaylistSummaryResponse(playlist: PlaylistSummary) {
+  return {
+    id: playlist.id,
+    name: playlist.name,
+    description: playlist.description,
+    trackCount: playlist.trackCount,
+    totalDurationSeconds: playlist.totalDurationSeconds,
+    createdAt: new Date(playlist.createdAt).toISOString(),
+    updatedAt: new Date(playlist.updatedAt).toISOString(),
+  }
+}
+
+function toPlaylistDetailResponse(playlist: Playlist, playlistTracks: Track[]) {
+  const totalDurationSeconds = playlistTracks.reduce((sum, track) => sum + (track.durationSeconds ?? 0), 0)
+
+  return {
+    id: playlist.id,
+    name: playlist.name,
+    description: playlist.description,
+    trackCount: playlistTracks.length,
+    totalDurationSeconds,
+    createdAt: new Date(playlist.createdAt).toISOString(),
+    updatedAt: new Date(playlist.updatedAt).toISOString(),
+    tracks: playlistTracks.map(track => toMusicResponse(track)),
+  }
+}
+
 const MusicSchema = z.object({
   id: z.string().openapi({ example: 'a3f9d3d1-9c9d-4a40-a54d-0e4cb7acb8a0' }),
   filename: z.string().openapi({ example: 'track.mp3' }),
@@ -90,6 +128,33 @@ const MusicSchema = z.object({
 const ErrorSchema = z.object({
   message: z.string(),
 })
+
+const PlaylistSchema = z.object({
+  id: z.string().openapi({ example: '3d4fe5c7-280f-4b32-bf8d-7571466ae1a3' }),
+  name: z.string().openapi({ example: 'Favorites' }),
+  description: z.string().nullable().openapi({ example: 'Tracks for focused listening' }),
+  trackCount: z.number().int().nonnegative().openapi({ example: 12 }),
+  totalDurationSeconds: z.number().int().nonnegative().openapi({ example: 2765 }),
+  createdAt: z.string().datetime().openapi({ example: '2024-01-01T12:00:00.000Z' }),
+  updatedAt: z.string().datetime().openapi({ example: '2024-01-02T08:30:00.000Z' }),
+}).openapi('Playlist')
+
+const PlaylistDetailSchema = PlaylistSchema.extend({
+  tracks: z.array(MusicSchema),
+}).openapi('PlaylistDetail')
+
+const PlaylistInputSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  description: z.string().trim().max(2000).nullable().optional(),
+}).openapi('PlaylistInput')
+
+const PlaylistTrackInputSchema = z.object({
+  trackId: z.string().min(1),
+}).openapi('PlaylistTrackInput')
+
+const PlaylistReorderRequestSchema = z.object({
+  trackIds: z.array(z.string().min(1)).max(10_000),
+}).openapi('PlaylistReorderRequest')
 
 const MusicDlSourceSchema = z.enum(musicDlSources).openapi('MusicDlSource')
 
@@ -552,6 +617,396 @@ app.openapi(listMusicRoute, (c) => {
   return c.json(items.map(item => toMusicResponse(item)))
 })
 
+const playlistParamsSchema = z.object({
+  id: z.string().min(1),
+})
+
+const playlistTrackParamsSchema = z.object({
+  id: z.string().min(1),
+  trackId: z.string().min(1),
+})
+
+const listPlaylistsRoute = createRoute({
+  method: 'get',
+  path: '/playlists',
+  summary: 'List playlists',
+  responses: {
+    200: {
+      description: 'List of playlists',
+      content: {
+        'application/json': {
+          schema: z.array(PlaylistSchema),
+        },
+      },
+    },
+  },
+})
+
+app.openapi(listPlaylistsRoute, (c) => {
+  return c.json(listPlaylists().map(item => toPlaylistSummaryResponse(item)), 200)
+})
+
+const createPlaylistRoute = createRoute({
+  method: 'post',
+  path: '/playlists',
+  summary: 'Create a playlist',
+  request: {
+    body: {
+      content: {
+        'application/json': {
+          schema: PlaylistInputSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    201: {
+      description: 'Created',
+      content: {
+        'application/json': {
+          schema: PlaylistDetailSchema,
+        },
+      },
+    },
+  },
+})
+
+app.openapi(createPlaylistRoute, (c) => {
+  const body = c.req.valid('json')
+  const playlist = createPlaylist({
+    name: body.name,
+    description: body.description?.trim() || null,
+  })
+  return c.json(toPlaylistDetailResponse(playlist, []), 201)
+})
+
+const getPlaylistRoute = createRoute({
+  method: 'get',
+  path: '/playlists/{id}',
+  summary: 'Get a playlist',
+  request: {
+    params: playlistParamsSchema,
+  },
+  responses: {
+    200: {
+      description: 'Playlist detail',
+      content: {
+        'application/json': {
+          schema: PlaylistDetailSchema,
+        },
+      },
+    },
+    404: {
+      description: 'Not found',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+})
+
+app.openapi(getPlaylistRoute, (c) => {
+  const { id } = c.req.valid('param')
+  const playlist = getPlaylistById(id)
+
+  if (!playlist) {
+    return c.json({ message: 'Playlist not found' }, 404)
+  }
+
+  return c.json(toPlaylistDetailResponse(playlist, getPlaylistTracks(id)), 200)
+})
+
+const updatePlaylistRoute = createRoute({
+  method: 'patch',
+  path: '/playlists/{id}',
+  summary: 'Update a playlist',
+  request: {
+    params: playlistParamsSchema,
+    body: {
+      content: {
+        'application/json': {
+          schema: PlaylistInputSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: 'Updated',
+      content: {
+        'application/json': {
+          schema: PlaylistDetailSchema,
+        },
+      },
+    },
+    404: {
+      description: 'Not found',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+})
+
+app.openapi(updatePlaylistRoute, (c) => {
+  const { id } = c.req.valid('param')
+  const body = c.req.valid('json')
+  const playlist = getPlaylistById(id)
+
+  if (!playlist) {
+    return c.json({ message: 'Playlist not found' }, 404)
+  }
+
+  updatePlaylist(id, {
+    name: body.name,
+    description: body.description?.trim() || null,
+  })
+
+  const updated = getPlaylistById(id)
+  if (!updated) {
+    return c.json({ message: 'Playlist not found' }, 404)
+  }
+
+  return c.json(toPlaylistDetailResponse(updated, getPlaylistTracks(id)), 200)
+})
+
+const deletePlaylistRoute = createRoute({
+  method: 'delete',
+  path: '/playlists/{id}',
+  summary: 'Delete a playlist',
+  request: {
+    params: playlistParamsSchema,
+  },
+  responses: {
+    204: {
+      description: 'Deleted',
+    },
+    404: {
+      description: 'Not found',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+})
+
+app.openapi(deletePlaylistRoute, (c) => {
+  const { id } = c.req.valid('param')
+  const playlist = getPlaylistById(id)
+
+  if (!playlist) {
+    return c.json({ message: 'Playlist not found' }, 404)
+  }
+
+  deletePlaylist(id)
+  return c.newResponse(null, 204)
+})
+
+const addPlaylistTrackRoute = createRoute({
+  method: 'post',
+  path: '/playlists/{id}/tracks',
+  summary: 'Add a track to a playlist',
+  request: {
+    params: playlistParamsSchema,
+    body: {
+      content: {
+        'application/json': {
+          schema: PlaylistTrackInputSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: 'Updated playlist',
+      content: {
+        'application/json': {
+          schema: PlaylistDetailSchema,
+        },
+      },
+    },
+    404: {
+      description: 'Not found',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+    409: {
+      description: 'Track already exists in playlist',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+})
+
+app.openapi(addPlaylistTrackRoute, (c) => {
+  const { id } = c.req.valid('param')
+  const { trackId } = c.req.valid('json')
+  const playlist = getPlaylistById(id)
+
+  if (!playlist) {
+    return c.json({ message: 'Playlist not found' }, 404)
+  }
+
+  const track = getTrackById(trackId)
+  if (!track) {
+    return c.json({ message: 'Music not found' }, 404)
+  }
+
+  try {
+    addTrackToPlaylist(id, trackId)
+  }
+  catch (error) {
+    if (error instanceof Error && error.message === 'Track already exists in playlist') {
+      return c.json({ message: error.message }, 409)
+    }
+    throw error
+  }
+
+  const updated = getPlaylistById(id)
+  if (!updated) {
+    return c.json({ message: 'Playlist not found' }, 404)
+  }
+
+  return c.json(toPlaylistDetailResponse(updated, getPlaylistTracks(id)), 200)
+})
+
+const reorderPlaylistTracksRoute = createRoute({
+  method: 'patch',
+  path: '/playlists/{id}/tracks/reorder',
+  summary: 'Reorder playlist tracks',
+  request: {
+    params: playlistParamsSchema,
+    body: {
+      content: {
+        'application/json': {
+          schema: PlaylistReorderRequestSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: 'Updated playlist',
+      content: {
+        'application/json': {
+          schema: PlaylistDetailSchema,
+        },
+      },
+    },
+    400: {
+      description: 'Invalid order',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+    404: {
+      description: 'Not found',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+})
+
+app.openapi(reorderPlaylistTracksRoute, (c) => {
+  const { id } = c.req.valid('param')
+  const { trackIds } = c.req.valid('json')
+  const playlist = getPlaylistById(id)
+
+  if (!playlist) {
+    return c.json({ message: 'Playlist not found' }, 404)
+  }
+
+  const normalizedTrackIds = [...new Set(trackIds)]
+  const currentTrackIds = getPlaylistTrackIds(id)
+
+  if (normalizedTrackIds.length !== trackIds.length) {
+    return c.json({ message: 'Track order contains duplicate ids' }, 400)
+  }
+
+  if (normalizedTrackIds.length !== currentTrackIds.length) {
+    return c.json({ message: 'Track order does not match playlist contents' }, 400)
+  }
+
+  const currentTrackIdSet = new Set(currentTrackIds)
+  if (normalizedTrackIds.some(trackId => !currentTrackIdSet.has(trackId))) {
+    return c.json({ message: 'Track order does not match playlist contents' }, 400)
+  }
+
+  reorderPlaylistTracks(id, normalizedTrackIds)
+
+  const updated = getPlaylistById(id)
+  if (!updated) {
+    return c.json({ message: 'Playlist not found' }, 404)
+  }
+
+  return c.json(toPlaylistDetailResponse(updated, getPlaylistTracks(id)), 200)
+})
+
+const removePlaylistTrackRoute = createRoute({
+  method: 'delete',
+  path: '/playlists/{id}/tracks/{trackId}',
+  summary: 'Remove a track from a playlist',
+  request: {
+    params: playlistTrackParamsSchema,
+  },
+  responses: {
+    200: {
+      description: 'Updated playlist',
+      content: {
+        'application/json': {
+          schema: PlaylistDetailSchema,
+        },
+      },
+    },
+    404: {
+      description: 'Not found',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+})
+
+app.openapi(removePlaylistTrackRoute, (c) => {
+  const { id, trackId } = c.req.valid('param')
+  const playlist = getPlaylistById(id)
+
+  if (!playlist) {
+    return c.json({ message: 'Playlist not found' }, 404)
+  }
+
+  const removed = removeTrackFromPlaylist(id, trackId)
+  if (!removed) {
+    return c.json({ message: 'Track not found in playlist' }, 404)
+  }
+
+  const updated = getPlaylistById(id)
+  if (!updated) {
+    return c.json({ message: 'Playlist not found' }, 404)
+  }
+
+  return c.json(toPlaylistDetailResponse(updated, getPlaylistTracks(id)), 200)
+})
+
 const downloadRoute = createRoute({
   method: 'get',
   path: '/music/{id}/download',
@@ -816,6 +1271,7 @@ app.openapi(deleteRoute, async (c) => {
   }
 
   await deleteStoredTrack(record)
+  removeTrackFromAllPlaylists(id)
   db.delete(tracks).where(eq(tracks.id, id)).run()
 
   return c.newResponse(null, 204)
