@@ -81,6 +81,8 @@ function onInput(key: keyof FilamentConfig, event: Event): void {
   model.value = { ...model.value, [key]: n }
 }
 
+const collapsed = ref(true)
+
 const copyStatus = ref<'idle' | 'copied' | 'failed'>('idle')
 
 function formatConfig(c: FilamentConfig): string {

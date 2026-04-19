@@ -37,6 +37,9 @@ const {
   toggleMute,
   getAdjacentTrackId,
   getAutoAdvanceTrackId,
+  getPreviousTrackId,
+  getResumeTime,
+  syncTrackContext,
 } = usePlayerState()
 
 const currentTrack = computed(() => {
@@ -171,6 +174,10 @@ function handleLoaded(): void {
   if (!audio) {
     return
   }
+  const resumeTime = getResumeTime(audio.duration || 0)
+  if (resumeTime > 0) {
+    audio.currentTime = resumeTime
+  }
   updateProgress(audio.currentTime, audio.duration || 0)
   if (isPlaying.value) {
     audio.play().catch(() => {})
@@ -180,15 +187,15 @@ function handleLoaded(): void {
 function handleNext(): void {
   const nextId = getAdjacentTrackId(tracks.value ?? [], 'next')
   if (nextId) {
-    selectTrack(nextId)
+    selectTrack(nextId, { contextTracks: tracks.value ?? [] })
     setPlaying(true)
   }
 }
 
 function handlePrev(): void {
-  const prevId = getAdjacentTrackId(tracks.value ?? [], 'prev')
+  const prevId = getPreviousTrackId(tracks.value ?? [])
   if (prevId) {
-    selectTrack(prevId)
+    selectTrack(prevId, { contextTracks: tracks.value ?? [], history: 'skip' })
     setPlaying(true)
   }
 }
@@ -200,7 +207,7 @@ function togglePlayPause(): void {
   }
   if (audio.paused) {
     if (!currentTrackId.value && resolvedCurrentTrackId.value) {
-      selectTrack(resolvedCurrentTrackId.value)
+      selectTrack(resolvedCurrentTrackId.value, { contextTracks: tracks.value ?? [] })
     }
     audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false))
   }
@@ -364,7 +371,7 @@ function handleEnded(): void {
     audio.play().catch(() => setPlaying(false))
     return
   }
-  selectTrack(nextId)
+  selectTrack(nextId, { contextTracks: tracks.value ?? [] })
   setPlaying(true)
 }
 
@@ -433,6 +440,10 @@ watch(isPlaying, (playing) => {
     audio.pause()
   }
 })
+
+watch(tracks, (items) => {
+  syncTrackContext(items ?? [])
+}, { immediate: true })
 
 onMounted(() => {
   const audio = audioRef.value

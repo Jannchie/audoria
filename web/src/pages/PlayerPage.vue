@@ -52,6 +52,7 @@ const {
   setVolume,
   toggleMute,
   getAdjacentTrackId,
+  getPreviousTrackId,
 } = usePlayerState()
 
 const lyricsContainer = ref<HTMLDivElement | null>(null)
@@ -417,15 +418,15 @@ function handleVolumeCommit(event?: Event): void {
 function handleNext(): void {
   const nextId = getAdjacentTrackId(tracks.value ?? [], 'next')
   if (nextId) {
-    selectTrack(nextId)
+    selectTrack(nextId, { contextTracks: tracks.value ?? [] })
     setPlaying(true)
   }
 }
 
 function handlePrev(): void {
-  const prevId = getAdjacentTrackId(tracks.value ?? [], 'prev')
+  const prevId = getPreviousTrackId(tracks.value ?? [])
   if (prevId) {
-    selectTrack(prevId)
+    selectTrack(prevId, { contextTracks: tracks.value ?? [], history: 'skip' })
     setPlaying(true)
   }
 }
@@ -437,7 +438,7 @@ function togglePlayPause(): void {
   }
   if (audio.paused) {
     if (!currentTrackId.value && resolvedCurrentTrackId.value) {
-      selectTrack(resolvedCurrentTrackId.value)
+      selectTrack(resolvedCurrentTrackId.value, { contextTracks: tracks.value ?? [] })
     }
     audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false))
   }

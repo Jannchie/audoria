@@ -44,7 +44,7 @@ function handleTrackClick(id: string): void {
     setPlaying(!isPlaying.value)
   }
   else {
-    selectTrack(id)
+    selectTrack(id, { contextTracks: tracks.value ?? [] })
     setPlaying(true)
     router.push('/player')
   }
@@ -79,7 +79,7 @@ async function handleDelete(id: string): Promise<void> {
 
   if (currentTrackId.value === id) {
     setPlaying(false)
-    selectTrack(null)
+    selectTrack(null, { history: 'skip' })
   }
 }
 </script>
