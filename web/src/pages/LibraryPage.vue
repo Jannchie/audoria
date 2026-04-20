@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import type { Music } from '../api/types.gen'
+import type { TrackSortKey } from '../composables/useTrackSort'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import MetadataEditDialog from '../components/MetadataEditDialog.vue'
 import SoundWave from '../components/SoundWave.vue'
-import SourceBadge from '../components/SourceBadge.vue'
 import { useContextMenu } from '../composables/useContextMenu'
 import { useListSelection } from '../composables/useListSelection'
 import { resolveApiUrl, useDeleteMusic, useMusicQuery } from '../composables/useMusic'
@@ -12,8 +12,8 @@ import { usePlayerState } from '../composables/usePlayerState'
 import { usePlaylistsQuery } from '../composables/usePlaylists'
 import { useTrackContextMenu } from '../composables/useTrackContextMenu'
 import { sortTracks } from '../composables/useTrackSort'
-import type { TrackSortKey } from '../composables/useTrackSort'
 import { formatTrackDuration } from '../utils/audio'
+import { getSourceDisplay } from '../utils/source'
 
 const librarySearchStateKey = 'audoria.library-search'
 const librarySortStateKey = 'audoria.library-sort'
@@ -67,7 +67,9 @@ function playlistBadgesFor(track: Music): string[] {
 
 function playlistSummaryFor(track: Music): string {
   const names = playlistBadgesFor(track)
-  if (names.length === 0) { return '' }
+  if (names.length === 0) {
+    return ''
+  }
   const head = names.slice(0, 2).join(' · ')
   return names.length > 2 ? `${head} · +${names.length - 2}` : head
 }
@@ -77,12 +79,12 @@ const filteredTracks = computed(() => {
   const list = tracks.value ?? []
   const searched = keyword
     ? list.filter((item) => {
-      const searchable = [item.filename, item.title, item.artists, item.album]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-      return searchable.includes(keyword)
-    })
+        const searchable = [item.filename, item.title, item.artists, item.album]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+        return searchable.includes(keyword)
+      })
     : list
   return sortTracks(searched, sortKey.value)
 })
@@ -90,7 +92,9 @@ const filteredTracks = computed(() => {
 function openSortMenu(event: MouseEvent): void {
   event.stopPropagation()
   const anchor = event.currentTarget as HTMLElement | null
-  if (!anchor) { return }
+  if (!anchor) {
+    return
+  }
   openFromAnchor(anchor, librarySortKeys.map(key => ({
     id: `sort:${key}`,
     label: t(`library.sort.${key}`),
@@ -112,6 +116,10 @@ function handleTrackClick(id: string, event: MouseEvent): void {
   if (handled) {
     return
   }
+  activateTrack(id)
+}
+
+function activateTrack(id: string): void {
   selection.clear()
   if (currentTrackId.value === id) {
     setPlaying(!isPlaying.value)
@@ -286,7 +294,7 @@ function openBatchMenu(event: MouseEvent): void {
       v-if="isError"
       class="empty-state"
     >
-      <span class="i-tabler-alert-circle text-3xl text-[var(--danger)]/50" />
+      <span class="i-tabler-alert-circle text---danger/50 text-(3xl)" />
       <p class="empty-text">
         {{ (error as Error)?.message ?? t('library.loadFailed') }}
       </p>
@@ -320,7 +328,7 @@ function openBatchMenu(event: MouseEvent): void {
       v-else-if="filteredTracks.length === 0"
       class="empty-state"
     >
-      <span class="i-tabler-music-off text-4xl text-[var(--text-tertiary)]/40" />
+      <span class="i-tabler-music-off text---text-tertiary/40 text-(4xl)" />
       <p class="empty-title">
         {{ search ? t('library.noResultsTitle') : t('library.emptyTitle') }}
       </p>
@@ -334,18 +342,21 @@ function openBatchMenu(event: MouseEvent): void {
       v-else
       class="track-list"
     >
-      <button
+      <div
         v-for="track in filteredTracks"
         :key="track.id"
-        type="button"
         class="tr"
         :class="{
           'tr--active': currentTrackId === track.id,
           'tr--selected': selection.isSelected(track.id),
         }"
+        role="button"
+        tabindex="0"
         :aria-label="currentTrackId === track.id && isPlaying ? t('library.pauseTrack', { title: track.title || track.filename }) : t('library.playTrack', { title: track.title || track.filename })"
         :aria-current="currentTrackId === track.id ? 'true' : undefined"
         @click="handleTrackClick(track.id, $event)"
+        @keydown.enter.prevent="activateTrack(track.id)"
+        @keydown.space.prevent="activateTrack(track.id)"
         @contextmenu="handleContextMenu(track, $event)"
       >
         <div class="tr-cover">
@@ -383,11 +394,12 @@ function openBatchMenu(event: MouseEvent): void {
             {{ track.title || track.filename }}
           </p>
           <p class="tr-artist">
-            <SourceBadge
+            <span
               v-if="track.source"
-              :source="track.source"
-              size="xs"
-              class="tr-source"
+              class="tr-source-icon"
+              :class="getSourceDisplay(track.source).icon"
+              :title="getSourceDisplay(track.source).label"
+              aria-hidden="true"
             />
             <span class="tr-artist-name">{{ track.artists || track.filename }}</span>
           </p>
@@ -399,7 +411,7 @@ function openBatchMenu(event: MouseEvent): void {
             class="tr-album"
           >{{ track.album }}</span>
           <span
-            v-if="playlistBadgesFor(track).length"
+            v-if="playlistBadgesFor(track).length > 0"
             class="tr-in"
             :title="t('library.inPlaylists', { names: playlistBadgesFor(track).join(', ') })"
           >{{ playlistSummaryFor(track) }}</span>
@@ -424,7 +436,7 @@ function openBatchMenu(event: MouseEvent): void {
             aria-hidden="true"
           />
         </button>
-      </button>
+      </div>
     </div>
 
     <MetadataEditDialog
@@ -748,7 +760,7 @@ function openBatchMenu(event: MouseEvent): void {
   text-overflow: ellipsis;
 }
 
-.tr-source {
+.tr-source-icon {
   flex-shrink: 0;
 }
 
@@ -759,7 +771,6 @@ function openBatchMenu(event: MouseEvent): void {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 
 /* --- Duration --- */
 .tr-duration {

@@ -6,9 +6,9 @@ import { findLyricLineAtTime, useLyrics } from '../composables/useLyrics'
 import { buildDownloadUrl, resolveApiUrl, useMusicQuery } from '../composables/useMusic'
 import { usePlayerState } from '../composables/usePlayerState'
 import { useQueuePanel } from '../composables/useQueuePanel'
+import { getSourceDisplay } from '../utils/source'
 import IconButton from './IconButton.vue'
 import ProgressPreviewTooltip from './ProgressPreviewTooltip.vue'
-import SourceBadge from './SourceBadge.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -587,11 +587,12 @@ onUnmounted(() => {
             {{ currentTrack?.title || currentTrack?.filename || t('player.noTrackSelected') }}
           </p>
           <p class="text-[11px] text-[var(--text-tertiary)] mt-0.5 flex gap-1 truncate items-center">
-            <SourceBadge
+            <span
               v-if="currentTrack?.source"
-              :source="currentTrack.source"
-              size="xs"
-              :show-label="false"
+              class="shrink-0"
+              :class="getSourceDisplay(currentTrack.source).icon"
+              :title="getSourceDisplay(currentTrack.source).label"
+              aria-hidden="true"
             />
             <span
               v-if="currentTrack?.artists"

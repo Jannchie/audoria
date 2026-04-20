@@ -38,6 +38,8 @@ const sourcePresets: string[] = [
   'KuwoMusicClient',
   'MiguMusicClient',
   'JamendoMusicClient',
+  'Bilibili',
+  'Youtube',
 ]
 
 const lyricsMode = computed<'lrc' | 'plain' | 'empty'>(() => {
@@ -323,19 +325,23 @@ function applySourcePreset(value: string): void {
                     type="button"
                     class="metadata-chip"
                     :class="{ 'metadata-chip--active': source === preset }"
+                    :title="getSourceDisplay(preset).label"
+                    :aria-label="getSourceDisplay(preset).label"
                     :disabled="isSaving"
                     @click="applySourcePreset(preset)"
                   >
                     <span
+                      class="metadata-chip-icon"
                       :class="getSourceDisplay(preset).icon"
                       aria-hidden="true"
                     />
-                    <span>{{ getSourceDisplay(preset).label }}</span>
                   </button>
                   <button
                     type="button"
                     class="metadata-chip"
                     :class="{ 'metadata-chip--active': source === '' }"
+                    :title="t('metadata.sourceNone')"
+                    :aria-label="t('metadata.sourceNone')"
                     :disabled="isSaving"
                     @click="applySourcePreset('')"
                   >
@@ -343,7 +349,6 @@ function applySourcePreset(value: string): void {
                       class="i-tabler-x"
                       aria-hidden="true"
                     />
-                    <span>{{ t('metadata.sourceNone') }}</span>
                   </button>
                 </div>
               </div>
@@ -590,7 +595,7 @@ function applySourcePreset(value: string): void {
   resize: vertical;
   min-height: 10rem;
   line-height: 1.6;
-  font-family: 'SFMono-Regular', ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 0.8125rem;
 }
 
@@ -614,8 +619,10 @@ function applySourcePreset(value: string): void {
 .metadata-chip {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
-  padding: 0.25rem 0.625rem;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
   font-size: 0.75rem;
   border-radius: 999px;
   background: var(--bg-surface);
@@ -623,6 +630,17 @@ function applySourcePreset(value: string): void {
   border: 1px solid transparent;
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.metadata-chip-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  color: currentColor;
+  font-size: 0.9rem;
+  line-height: 1;
 }
 
 .metadata-chip:hover:enabled {

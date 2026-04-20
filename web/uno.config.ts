@@ -2,6 +2,16 @@ import presetIcons from '@unocss/preset-icons'
 import { defineConfig, presetWind4 } from 'unocss'
 
 export default defineConfig({
+  safelist: [
+    'i-simple-icons-neteasecloudmusic',
+    'i-simple-icons-qq',
+    'i-simple-icons-bilibili',
+    'i-simple-icons-youtube',
+    'i-tabler-disc',
+    'i-arcticons-migu',
+    'i-arcticons-jamendo',
+    'i-tabler-world',
+  ],
   presets: [
     presetIcons({
       extraProperties: {

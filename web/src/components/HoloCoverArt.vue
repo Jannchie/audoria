@@ -11,7 +11,6 @@ defineOptions({
 
 const props = defineProps<{
   alt: string
-  backgroundMaskUrl?: string
   effect?: CoverEffectPreset
   foregroundMaskUrl?: string
   imageUrl?: string
@@ -58,14 +57,8 @@ const coverStyle = computed(() => ({
   '--card-opacity': idle.idle.value ? '0' : '1',
   '--background-x': `${37 + pointerX.value * 0.26}%`,
   '--background-y': `${33 + pointerY.value * 0.34}%`,
-  ...(props.backgroundMaskUrl
-    ? {
-        '--mask': `url(${props.backgroundMaskUrl})`,
-      }
-    : {}),
 }))
 
-const backgroundMaskReady = ref(false)
 const foregroundMaskReady = ref(false)
 
 function createDirectMaskStyle(maskUrl?: string) {
@@ -78,10 +71,9 @@ function createDirectMaskStyle(maskUrl?: string) {
   }
 }
 
-const backgroundMaskStyle = computed(() => createDirectMaskStyle(props.backgroundMaskUrl))
 const foregroundMaskStyle = computed(() => createDirectMaskStyle(props.foregroundMaskUrl))
 
-function watchMaskReady(source: () => string | undefined, state: typeof backgroundMaskReady) {
+function watchMaskReady(source: () => string | undefined, state: typeof foregroundMaskReady) {
   let requestId = 0
 
   watch(source, (url) => {
@@ -114,8 +106,6 @@ function watchMaskReady(source: () => string | undefined, state: typeof backgrou
     image.src = url
   }, { immediate: true })
 }
-
-watchMaskReady(() => props.backgroundMaskUrl, backgroundMaskReady)
 watchMaskReady(() => props.foregroundMaskUrl, foregroundMaskReady)
 </script>
 
@@ -127,7 +117,7 @@ watchMaskReady(() => props.foregroundMaskUrl, foregroundMaskReady)
     <ParallaxCard class="holo-cover-card">
       <div
         ref="target"
-        class="holo-cover card masked"
+        class="holo-cover card"
         :class="{ 'holo-cover--playing': playing }"
         :data-number="effectAttributes.number"
         :data-rarity="effectAttributes.rarity"
@@ -147,15 +137,13 @@ watchMaskReady(() => props.foregroundMaskUrl, foregroundMaskReady)
           decoding="async"
         >
         <div
-          v-if="imageUrl && backgroundMaskUrl && backgroundMaskReady"
-          class="holo-cover__foil holo-cover__masked card__shine"
-          :style="backgroundMaskStyle"
+          v-if="imageUrl"
+          class="holo-cover__foil card__shine"
           aria-hidden="true"
         />
         <div
-          v-if="imageUrl && backgroundMaskUrl && backgroundMaskReady"
-          class="holo-cover__glare holo-cover__masked card__glare"
-          :style="backgroundMaskStyle"
+          v-if="imageUrl"
+          class="holo-cover__glare card__glare"
           aria-hidden="true"
         />
         <img
@@ -281,9 +269,9 @@ watchMaskReady(() => props.foregroundMaskUrl, foregroundMaskReady)
   background: transparent;
   background-size: cover;
   background-position: center;
-  filter: brightness(.85) contrast(2.75) saturate(.65);
+  filter: brightness(.58) contrast(1.7) saturate(.38);
   mix-blend-mode: color-dodge;
-  opacity: var(--card-opacity);
+  opacity: calc(var(--card-opacity) * 0.3);
 }
 
 .card__shine::before,
@@ -329,23 +317,12 @@ watchMaskReady(() => props.foregroundMaskUrl, foregroundMaskReady)
   overflow: hidden;
   background-image: radial-gradient(
     farthest-corner circle at var(--pointer-x) var(--pointer-y),
-    hsla(0, 0%, 100%, 0.8) 10%,
-    hsla(0, 0%, 100%, 0.65) 20%,
-    hsla(0, 0%, 0%, 0.5) 90%
+    hsla(0, 0%, 100%, 0.1) 5%,
+    hsla(0, 0%, 100%, 0.035) 12%,
+    hsla(0, 0%, 0%, 0.04) 90%
   );
-  opacity: var(--card-opacity);
+  opacity: calc(var(--card-opacity) * 0.16);
   mix-blend-mode: overlay;
-}
-
-.card.masked .card__shine,
-.card.masked .card__shine::before,
-.card.masked .card__shine::after {
-  -webkit-mask-image: var(--mask);
-  mask-image: var(--mask);
-  -webkit-mask-size: cover;
-  mask-size: cover;
-  -webkit-mask-position: center center;
-  mask-position: center center;
 }
 
 .card[data-rarity="rare holo"] .card__glare::after,

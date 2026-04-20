@@ -3,10 +3,9 @@ import type { MusicDlSearchResult, MusicDlSource } from '../api/types.gen'
 import { useQueryClient } from '@tanstack/vue-query'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import SourceBadge from '../components/SourceBadge.vue'
 import { useImportJobQuery, useImportMusic, useMusicQuery, useSearchMusicImport } from '../composables/useMusic'
 import { formatTrackSpecs } from '../utils/audio'
-import { isKnownSource } from '../utils/source'
+import { getSourceDisplay, isKnownSource } from '../utils/source'
 
 const importPageStateKey = 'audoria.import-page-state'
 interface PersistedImportPageState {
@@ -609,10 +608,17 @@ function isImporting(id: string): boolean {
         </div>
 
         <div class="result-right">
-          <SourceBadge
-            :source="result.source"
+          <span
             class="result-source"
-          />
+            :title="getSourceDisplay(result.source).label"
+            :aria-label="getSourceDisplay(result.source).label"
+          >
+            <span
+              class="result-source-icon"
+              :class="getSourceDisplay(result.source).icon"
+              aria-hidden="true"
+            />
+          </span>
           <span
             v-if="isImporting(result.id)"
             class="result-badge result-badge--importing"
@@ -1052,16 +1058,13 @@ function isImporting(id: string): boolean {
 }
 
 .result-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
   color: var(--text-tertiary);
 }
 
-.result-source :deep(.source-badge__label) {
-  display: none;
-}
-
-@media (min-width: 640px) {
-  .result-source :deep(.source-badge__label) {
-    display: inline;
-  }
+.result-source-icon {
+  flex-shrink: 0;
 }
 </style>

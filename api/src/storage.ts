@@ -8,6 +8,7 @@ import { Readable } from 'node:stream'
 import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import sharp from 'sharp'
 import { config } from './config.js'
+import { generateCoverMaskPng, getCoverMaskContentType } from './coverMask.js'
 import { db, tracks } from './db.js'
 import { formatDurationText, probeDurationSeconds } from './probeAudio.js'
 
@@ -36,6 +37,7 @@ type StoredCover = {
 type CoverVariant = 'cover' | 'thumb'
 
 const COVER_CONTENT_TYPE = 'image/webp'
+const COVER_MASK_KEY_SUFFIX = 'mask-v1'
 const COVER_VARIANT_OPTIONS: Record<CoverVariant, { width: number, height: number, quality: number, suffix: string }> = {
   cover: {
     width: 1200,
@@ -278,6 +280,10 @@ function getTrackObjectRef(record: Track): ObjectRef {
   }
 }
 
+function getTrackCoverMaskKey(trackId: string): string {
+  return `covers/${trackId}/${COVER_MASK_KEY_SUFFIX}.png`
+}
+
 function getCoverObjectRef(record: Track, variant: CoverVariant = 'cover'): ObjectRef | null {
   if (variant === 'thumb' && record.coverThumbStorageBackend && record.coverThumbStorageKey) {
     return {
@@ -294,10 +300,21 @@ function getCoverObjectRef(record: Track, variant: CoverVariant = 'cover'): Obje
   }
 }
 
+function getCoverMaskObjectRef(record: Track): ObjectRef | null {
+  if (!record.coverStorageBackend || !record.coverStorageKey) {
+    return null
+  }
+  return {
+    backend: record.coverStorageBackend as StorageBackend,
+    key: getTrackCoverMaskKey(record.id),
+  }
+}
+
 function listCoverObjectRefs(record: Track): ObjectRef[] {
   const refs = [
     getCoverObjectRef(record, 'cover'),
     getCoverObjectRef(record, 'thumb'),
+    getCoverMaskObjectRef(record),
   ].filter((value): value is ObjectRef => value !== null)
 
   return refs.filter((ref, index) =>
@@ -397,9 +414,13 @@ export async function storeTrackCover({
     createCoverVariant(body, 'cover'),
     createCoverVariant(body, 'thumb'),
   ])
+  const maskBodyPromise = generateCoverMaskPng(coverBody, COVER_CONTENT_TYPE)
 
   const coverKey = `covers/${trackId}/${COVER_VARIANT_OPTIONS.cover.suffix}.webp`
   const thumbKey = `covers/${trackId}/${COVER_VARIANT_OPTIONS.thumb.suffix}.webp`
+  const maskKey = getTrackCoverMaskKey(trackId)
+  const maskContentType = getCoverMaskContentType()
+  const maskBody = await maskBodyPromise
 
   await Promise.all([
     driver.putObject({
@@ -411,6 +432,11 @@ export async function storeTrackCover({
       key: thumbKey,
       body: thumbBody,
       contentType: COVER_CONTENT_TYPE,
+    }),
+    driver.putObject({
+      key: maskKey,
+      body: maskBody,
+      contentType: maskContentType,
     }),
   ])
 
@@ -436,9 +462,40 @@ export async function getStoredTrackCover(record: Track, variant: CoverVariant =
   return getStorageDriver(ref.backend).getObject({ key: ref.key })
 }
 
+export async function getStoredTrackCoverMask(record: Track): Promise<StoredObject> {
+  const ref = getCoverMaskObjectRef(record)
+  if (!ref) {
+    throw new Error('Track cover mask is not stored')
+  }
+  return getStorageDriver(ref.backend).getObject({ key: ref.key })
+}
+
 export async function readStoredTrackCoverBuffer(record: Track, variant: CoverVariant = 'cover'): Promise<Buffer> {
   const object = await getStoredTrackCover(record, variant)
   return readReadableToBuffer(object.body)
+}
+
+export async function readStoredTrackCoverMaskBuffer(record: Track): Promise<Buffer> {
+  const object = await getStoredTrackCoverMask(record)
+  return readReadableToBuffer(object.body)
+}
+
+export async function storeTrackCoverMask(record: Track): Promise<void> {
+  const ref = getCoverMaskObjectRef(record)
+  if (!ref) {
+    throw new Error('Track cover is not stored')
+  }
+  const coverObject = await getStoredTrackCover(record)
+  const coverBody = await readReadableToBuffer(coverObject.body)
+  const maskBody = await generateCoverMaskPng(
+    coverBody,
+    coverObject.contentType ?? record.coverContentType ?? COVER_CONTENT_TYPE,
+  )
+  await getStorageDriver(ref.backend).putObject({
+    key: ref.key,
+    body: maskBody,
+    contentType: getCoverMaskContentType(),
+  })
 }
 
 export async function deleteStoredTrack(record: Track): Promise<void> {
@@ -465,4 +522,20 @@ export async function getStoredTrack(record: Track, range?: ByteRange): Promise<
     key: ref.key,
     range,
   })
+}
+
+export function isStorageObjectMissingError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') {
+    return false
+  }
+  const candidate = error as {
+    code?: string
+    name?: string
+    $metadata?: { httpStatusCode?: number }
+  }
+  return candidate.code === 'ENOENT'
+    || candidate.code === 'NoSuchKey'
+    || candidate.name === 'NoSuchKey'
+    || candidate.name === 'NotFound'
+    || candidate.$metadata?.httpStatusCode === 404
 }

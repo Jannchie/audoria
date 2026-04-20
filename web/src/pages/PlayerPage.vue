@@ -8,13 +8,13 @@ import MetadataEditDialog from '../components/MetadataEditDialog.vue'
 import ProgressPreviewTooltip from '../components/ProgressPreviewTooltip.vue'
 import ShaderProgressBar from '../components/ShaderProgressBar.vue'
 import ShaderProgressControls from '../components/ShaderProgressControls.vue'
-import SourceBadge from '../components/SourceBadge.vue'
 import { useCoverPalette } from '../composables/useCoverPalette'
 import { findLyricLineAtTime, useLyrics } from '../composables/useLyrics'
 import { resolveApiUrl, useMusicQuery } from '../composables/useMusic'
 import { usePlayerState } from '../composables/usePlayerState'
 import { useSettings } from '../composables/useSettings'
 import { formatTrackSpecs } from '../utils/audio'
+import { getSourceDisplay } from '../utils/source'
 
 const { data: tracks } = useMusicQuery()
 const { t } = useI18n()
@@ -93,13 +93,7 @@ const currentTrackForegroundMaskUrl = computed(() => {
   if (!currentTrack.value?.coverUrl) {
     return ''
   }
-  return resolveApiUrl(`/music/${currentTrack.value.id}/cover/mask?layer=foreground`)
-})
-const currentTrackBackgroundMaskUrl = computed(() => {
-  if (!currentTrack.value?.coverUrl) {
-    return ''
-  }
-  return resolveApiUrl(`/music/${currentTrack.value.id}/cover/mask?layer=background`)
+  return resolveApiUrl(`/music/${currentTrack.value.id}/cover/mask`)
 })
 
 const { colors: paletteColors } = useCoverPalette(currentTrackCoverUrl)
@@ -540,7 +534,6 @@ onUnmounted(() => {
           <HoloCoverArt
             class="cover-art"
             :alt="title"
-            :background-mask-url="currentTrackBackgroundMaskUrl"
             :effect="coverEffect"
             :foreground-mask-url="currentTrackForegroundMaskUrl"
             :image-url="currentTrackCoverUrl"
@@ -565,11 +558,12 @@ onUnmounted(() => {
               v-if="trackSpecs || currentTrack?.source"
               class="track-specs"
             >
-              <SourceBadge
+              <span
                 v-if="currentTrack?.source"
-                :source="currentTrack.source"
-                size="xs"
                 class="track-source"
+                :class="getSourceDisplay(currentTrack.source).icon"
+                :title="getSourceDisplay(currentTrack.source).label"
+                aria-hidden="true"
               />
               <span v-if="trackSpecs">{{ trackSpecs }}</span>
             </p>

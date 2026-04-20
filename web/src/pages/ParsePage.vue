@@ -68,10 +68,10 @@ const completedTrack = computed(() => {
 
 function sourceDisplay(source: string | null | undefined): { label: string, icon: string } {
   if (source === 'Bilibili') {
-    return { label: 'Bilibili', icon: 'i-tabler-brand-bilibili' }
+    return { label: 'Bilibili', icon: 'i-simple-icons-bilibili' }
   }
   if (source === 'Youtube') {
-    return { label: 'YouTube', icon: 'i-tabler-brand-youtube' }
+    return { label: 'YouTube', icon: 'i-simple-icons-youtube' }
   }
   return { label: source || t('common.unknown'), icon: 'i-tabler-world' }
 }
@@ -386,14 +386,14 @@ watch(
       <ul class="empty-hints">
         <li>
           <span
-            class="i-tabler-brand-bilibili"
+            class="i-simple-icons-bilibili"
             aria-hidden="true"
           />
           https://www.bilibili.com/video/BVxxxxx
         </li>
         <li>
           <span
-            class="i-tabler-brand-youtube"
+            class="i-simple-icons-youtube"
             aria-hidden="true"
           />
           https://youtu.be/xxxxxxxxxxx

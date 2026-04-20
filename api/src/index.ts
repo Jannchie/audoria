@@ -8,7 +8,6 @@ import { Scalar } from '@scalar/hono-api-reference'
 import { desc, eq } from 'drizzle-orm'
 import { cors } from 'hono/cors'
 import { config } from './config.js'
-import { getTrackCoverMask } from './coverMask.js'
 import {
   addTrackToPlaylist,
   createPlaylist,
@@ -35,7 +34,16 @@ import {
   updateTrackEditableMetadata,
 } from './db.js'
 import { MusicDlBridgeError, musicDlSources, MusicDlUnavailableError, resolveMusicDlSongInfo, resolveMusicUrl, searchMusicDl } from './musicdl.js'
-import { deleteStoredTrack, deleteTrackCover, getStoredTrack, getStoredTrackCover, storeTrack, storeTrackCover } from './storage.js'
+import {
+  deleteStoredTrack,
+  deleteTrackCover,
+  getStoredTrack,
+  getStoredTrackCover,
+  isStorageObjectMissingError,
+  readStoredTrackCoverMaskBuffer,
+  storeTrack,
+  storeTrackCover,
+} from './storage.js'
 
 function buildCoverPath(id: string, variant: 'cover' | 'thumb' = 'cover'): string {
   if (variant === 'thumb') {
@@ -1116,13 +1124,10 @@ const coverThumbRoute = createRoute({
 const coverMaskRoute = createRoute({
   method: 'get',
   path: '/music/{id}/cover/mask',
-  summary: 'Get a generated foreground or background mask for a track cover',
+  summary: 'Get a generated foreground mask for a track cover',
   request: {
     params: z.object({
       id: z.string().min(1),
-    }),
-    query: z.object({
-      layer: z.enum(['foreground', 'background']).optional(),
     }),
   },
   responses: {
@@ -1245,27 +1250,32 @@ app.openapi(coverThumbRoute, async (c) => {
 
 app.openapi(coverMaskRoute, async (c) => {
   const { id } = c.req.valid('param')
-  const { layer = 'foreground' } = c.req.valid('query')
   const record = db.select().from(tracks).where(eq(tracks.id, id)).get()
 
   if (!record || !record.coverStorageKey || !record.coverStorageBackend) {
     return c.json({ message: 'Cover not found' }, 404)
   }
 
-  const mask = await getTrackCoverMask(record, layer)
-  const bodyBytes = new Uint8Array(mask.byteLength)
-  bodyBytes.set(mask)
-  const body = new Blob([
-    bodyBytes,
-  ], { type: 'image/png' })
+  try {
+    const buffer = await readStoredTrackCoverMaskBuffer(record)
+    const body = new Blob([
+      new Uint8Array(buffer),
+    ], { type: 'image/png' })
 
-  return new Response(body, {
-    status: 200,
-    headers: {
-      'Content-Type': 'image/png',
-      'Cache-Control': 'public, max-age=3600',
-    },
-  })
+    return new Response(body, {
+      status: 200,
+      headers: {
+        'Content-Type': 'image/png',
+        'Cache-Control': 'public, max-age=3600',
+      },
+    })
+  }
+  catch (error) {
+    if (isStorageObjectMissingError(error)) {
+      return c.json({ message: 'Cover mask not found' }, 404)
+    }
+    throw error
+  }
 })
 
 app.openapi(downloadRoute, async (c) => {
