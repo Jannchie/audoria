@@ -61,6 +61,12 @@ export const messages = {
     settings: {
       title: 'Settings',
       description: 'Manage interface preferences for this browser.',
+      groups: {
+        appearance: 'Appearance',
+        playback: 'Playback effects',
+      },
+      on: 'On',
+      off: 'Off',
       language: {
         title: 'Interface language',
         description: 'Changes apply immediately and are stored locally on this device.',
@@ -68,8 +74,12 @@ export const messages = {
         currentValue: 'Currently using {language}',
         effectiveLocale: 'Effective language',
       },
+      coverEffectEnabled: {
+        title: 'Cover foil effect',
+        description: 'Turn off to hide the holographic overlay on the player cover.',
+      },
       coverEffect: {
-        title: 'Player cover effect',
+        title: 'Player cover style',
         description: 'Choose the foil style used on the player cover.',
         currentValue: 'Current effect: {effect}',
         options: {
@@ -78,6 +88,10 @@ export const messages = {
           vMax: 'VMAX',
           vStar: 'VSTAR',
         },
+      },
+      progressEffectEnabled: {
+        title: 'Progress bar shader',
+        description: 'Turn off to use a minimal progress bar instead of the animated shader.',
       },
     },
     library: {
@@ -327,6 +341,12 @@ export const messages = {
     settings: {
       title: '设置',
       description: '管理当前浏览器中的界面偏好。',
+      groups: {
+        appearance: '外观',
+        playback: '播放器特效',
+      },
+      on: '开启',
+      off: '关闭',
       language: {
         title: '界面语言',
         description: '修改会立即生效，并保存在当前设备本地。',
@@ -334,8 +354,12 @@ export const messages = {
         currentValue: '当前使用 {language}',
         effectiveLocale: '当前生效语言',
       },
+      coverEffectEnabled: {
+        title: '封面闪卡特效',
+        description: '关闭后，播放器封面不再叠加全息闪卡效果。',
+      },
       coverEffect: {
-        title: '播放器封面特效',
+        title: '封面样式',
         description: '选择播放器封面使用的闪卡样式。',
         currentValue: '当前特效：{effect}',
         options: {
@@ -344,6 +368,10 @@ export const messages = {
           vMax: 'VMAX',
           vStar: 'VSTAR',
         },
+      },
+      progressEffectEnabled: {
+        title: '进度条着色器特效',
+        description: '关闭后使用简洁进度条替代动态着色器。',
       },
     },
     library: {

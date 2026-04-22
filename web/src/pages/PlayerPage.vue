@@ -18,7 +18,7 @@ import { getSourceDisplay } from '../utils/source'
 
 const { data: tracks } = useMusicQuery()
 const { t } = useI18n()
-const { coverEffect } = useSettings()
+const { coverEffect, coverEffectEnabled, progressEffectEnabled } = useSettings()
 const isDev = import.meta.env.DEV
 const filamentConfig = ref<FilamentConfig>({
   gain: 2.1,
@@ -538,6 +538,7 @@ onUnmounted(() => {
             class="cover-art"
             :alt="title"
             :effect="coverEffect"
+            :effect-enabled="coverEffectEnabled"
             :foreground-mask-url="currentTrackForegroundMaskUrl"
             :image-url="currentTrackCoverUrl"
             :playing="isPlaying"
@@ -644,6 +645,7 @@ onUnmounted(() => {
           @keydown="handleProgressKeydown"
         >
           <ShaderProgressBar
+            v-if="progressEffectEnabled"
             :progress="progress / 100"
             :colors="paletteColors"
             :playing="isPlaying"
@@ -652,6 +654,21 @@ onUnmounted(() => {
             :lyric-tick="lyricTick"
             :filament="filamentConfig"
           />
+          <div
+            v-else
+            class="plain-progress"
+            :class="{ 'plain-progress--active': isProgressHovered || isScrubbing }"
+          >
+            <div class="plain-progress__track" />
+            <div
+              class="plain-progress__fill"
+              :style="{ width: `${progress}%` }"
+            />
+            <div
+              class="plain-progress__thumb"
+              :style="{ left: `${progress}%` }"
+            />
+          </div>
           <ProgressPreviewTooltip
             :lyric="previewTooltipLyric"
             :ratio="previewRatio"
@@ -1054,6 +1071,56 @@ onUnmounted(() => {
 .progress-hit {
   padding: 0.375rem 0;
   cursor: pointer;
+}
+
+.plain-progress {
+  position: relative;
+  height: 6px;
+  width: 100%;
+  transition: height 180ms ease;
+}
+.plain-progress--active {
+  height: 10px;
+}
+.plain-progress__track {
+  position: absolute;
+  inset: 50% 0 auto 0;
+  height: 2px;
+  transform: translateY(-50%);
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  transition: height 180ms ease;
+}
+.plain-progress--active .plain-progress__track {
+  height: 3px;
+}
+.plain-progress__fill {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  height: 2px;
+  transform: translateY(-50%);
+  background: var(--accent, #fff);
+  border-radius: 999px;
+  transition: height 180ms ease;
+}
+.plain-progress--active .plain-progress__fill {
+  height: 3px;
+}
+.plain-progress__thumb {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin-left: -5px;
+  border-radius: 50%;
+  background: var(--accent, #fff);
+  transform: translateY(-50%) scale(0);
+  transition: transform 180ms ease;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.35);
+}
+.plain-progress--active .plain-progress__thumb {
+  transform: translateY(-50%) scale(1);
 }
 
 .progress-time {

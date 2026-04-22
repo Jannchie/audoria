@@ -9,13 +9,16 @@ defineOptions({
   inheritAttrs: false,
 })
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   alt: string
   effect?: CoverEffectPreset
+  effectEnabled?: boolean
   foregroundMaskUrl?: string
   imageUrl?: string
   playing?: boolean
-}>()
+}>(), {
+  effectEnabled: true,
+})
 
 const target = ref<HTMLDivElement | null>(null)
 const idle = useIdle(3000)
@@ -140,17 +143,17 @@ watchMaskReady(() => props.foregroundMaskUrl, foregroundMaskReady)
           decoding="async"
         >
         <div
-          v-if="imageUrl"
+          v-if="imageUrl && effectEnabled"
           class="holo-cover__foil card__shine"
           aria-hidden="true"
         />
         <div
-          v-if="imageUrl"
+          v-if="imageUrl && effectEnabled"
           class="holo-cover__glare card__glare"
           aria-hidden="true"
         />
         <img
-          v-if="imageUrl && foregroundMaskUrl && foregroundMaskReady"
+          v-if="imageUrl && effectEnabled && foregroundMaskUrl && foregroundMaskReady"
           :src="imageUrl"
           :alt="alt"
           class="holo-cover__image holo-cover__image--foreground holo-cover__masked"

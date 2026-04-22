@@ -9,11 +9,15 @@ const settingsStorageKey = 'audoria.settings'
 interface AppSettings {
   localePreference: LocalePreference
   coverEffect: CoverEffectPreset
+  coverEffectEnabled: boolean
+  progressEffectEnabled: boolean
 }
 
 const defaultSettings: AppSettings = {
   localePreference: 'system',
   coverEffect: defaultCoverEffectPreset,
+  coverEffectEnabled: true,
+  progressEffectEnabled: true,
 }
 
 function canUseStorage(): boolean {
@@ -44,6 +48,12 @@ function readPersistedSettings(): AppSettings {
       coverEffect: isCoverEffectPreset(normalizedCoverEffect)
         ? normalizedCoverEffect
         : defaultSettings.coverEffect,
+      coverEffectEnabled: typeof parsed.coverEffectEnabled === 'boolean'
+        ? parsed.coverEffectEnabled
+        : defaultSettings.coverEffectEnabled,
+      progressEffectEnabled: typeof parsed.progressEffectEnabled === 'boolean'
+        ? parsed.progressEffectEnabled
+        : defaultSettings.progressEffectEnabled,
     }
   }
   catch {
@@ -76,6 +86,16 @@ export function setCoverEffect(coverEffect: CoverEffectPreset): void {
   persistSettings()
 }
 
+export function setCoverEffectEnabled(enabled: boolean): void {
+  settings.coverEffectEnabled = enabled
+  persistSettings()
+}
+
+export function setProgressEffectEnabled(enabled: boolean): void {
+  settings.progressEffectEnabled = enabled
+  persistSettings()
+}
+
 export function useSettings() {
   const effectiveLocale = computed(() => resolveLocale(settings.localePreference))
 
@@ -83,8 +103,12 @@ export function useSettings() {
     settings: readonly(settings),
     localePreference: computed(() => settings.localePreference),
     coverEffect: computed(() => settings.coverEffect),
+    coverEffectEnabled: computed(() => settings.coverEffectEnabled),
+    progressEffectEnabled: computed(() => settings.progressEffectEnabled),
     effectiveLocale,
     setLocalePreference,
     setCoverEffect,
+    setCoverEffectEnabled,
+    setProgressEffectEnabled,
   }
 }
