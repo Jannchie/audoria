@@ -17,10 +17,10 @@ const cardStyle = computed(() => ({
 </script>
 
 <template>
-  <div class="relative h-full w-full">
+  <div class="h-full w-full relative">
     <div
       ref="target"
-      class="flex h-full w-full items-center justify-center perspective-1000px"
+      class="flex h-full w-full perspective-1000px items-center justify-center"
     >
       <div :style="cardStyle">
         <slot />

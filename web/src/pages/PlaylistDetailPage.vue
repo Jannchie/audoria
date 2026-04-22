@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { TrackSortKey } from '../composables/useTrackSort'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -8,9 +9,6 @@ import { useContextMenu } from '../composables/useContextMenu'
 import { useListSelection } from '../composables/useListSelection'
 import { resolveApiUrl } from '../composables/useMusic'
 import { usePlayerState } from '../composables/usePlayerState'
-import { sortTracks } from '../composables/useTrackSort'
-import type { TrackSortKey } from '../composables/useTrackSort'
-import { formatTrackDuration } from '../utils/audio'
 import {
   useDeletePlaylist,
   usePlaylistDetailQuery,
@@ -18,6 +16,8 @@ import {
   useUpdatePlaylist,
 } from '../composables/usePlaylists'
 import { useTrackContextMenu } from '../composables/useTrackContextMenu'
+import { sortTracks } from '../composables/useTrackSort'
+import { formatTrackDuration } from '../utils/audio'
 
 const { t } = useI18n()
 const route = useRoute()

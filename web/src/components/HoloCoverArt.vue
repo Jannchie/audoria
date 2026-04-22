@@ -18,7 +18,7 @@ const props = defineProps<{
 }>()
 
 const target = ref<HTMLDivElement | null>(null)
-const idle = useIdle(2000)
+const idle = useIdle(3000)
 const {
   elementX,
   elementY,
@@ -54,7 +54,7 @@ const coverStyle = computed(() => ({
   )),
   '--pointer-from-top': String(pointerY.value / 100),
   '--pointer-from-left': String(pointerX.value / 100),
-  '--card-opacity': idle.idle.value ? '0' : '1',
+  '--card-opacity': (!props.playing || idle.idle.value) ? '0' : '1',
   '--background-x': `${37 + pointerX.value * 0.26}%`,
   '--background-y': `${33 + pointerY.value * 0.34}%`,
 }))
@@ -118,7 +118,10 @@ watchMaskReady(() => props.foregroundMaskUrl, foregroundMaskReady)
       <div
         ref="target"
         class="holo-cover card"
-        :class="{ 'holo-cover--playing': playing }"
+        :class="{
+          'holo-cover--playing': playing,
+          'holo-cover--idle': idle.idle.value,
+        }"
         :data-number="effectAttributes.number"
         :data-rarity="effectAttributes.rarity"
         :data-set="effectAttributes.set"
@@ -170,6 +173,54 @@ watchMaskReady(() => props.foregroundMaskUrl, foregroundMaskReady)
 <style scoped>
 @import "../styles/pokemon-card-effects.css";
 
+@property --card-opacity {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+
+@property --pointer-x {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+@property --pointer-y {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+@property --pointer-from-center {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+
+@property --pointer-from-top {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0.5;
+}
+
+@property --pointer-from-left {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0.5;
+}
+
+@property --background-x {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+@property --background-y {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
 .holo-cover-root {
   width: 100%;
   aspect-ratio: 1;
@@ -207,11 +258,24 @@ watchMaskReady(() => props.foregroundMaskUrl, foregroundMaskReady)
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: #18181b;
   isolation: isolate;
-  transition: border-color 220ms ease;
+  transition: border-color 220ms ease, --card-opacity 600ms ease;
 }
 
 .holo-cover--playing {
   border-color: rgba(255, 255, 255, 0.16);
+}
+
+.holo-cover--idle {
+  transition:
+    border-color 220ms ease,
+    --card-opacity 600ms ease,
+    --pointer-x 600ms ease,
+    --pointer-y 600ms ease,
+    --pointer-from-center 600ms ease,
+    --pointer-from-top 600ms ease,
+    --pointer-from-left 600ms ease,
+    --background-x 600ms ease,
+    --background-y 600ms ease;
 }
 
 .holo-cover__image,

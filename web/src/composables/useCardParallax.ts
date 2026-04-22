@@ -1,7 +1,7 @@
-import { computed, nextTick, reactive, watchEffect } from 'vue'
-import { defaultWindow, useDeviceOrientation, useIdle, useMouseInElement } from '@vueuse/core'
 import type { ConfigurableWindow, MaybeElementRef } from '@vueuse/core'
 import type { ComputedRef } from 'vue'
+import { defaultWindow, useDeviceOrientation, useIdle, useMouseInElement } from '@vueuse/core'
+import { computed, nextTick, reactive, watchEffect } from 'vue'
 
 export interface UseCardParallaxOptions extends ConfigurableWindow {
   deviceOrientationTiltAdjust?: (i: number) => number

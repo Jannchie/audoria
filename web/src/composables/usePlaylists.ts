@@ -39,13 +39,19 @@ function patchMusicCachePlaylistIds(
   updater: (current: string[]) => string[],
 ): void {
   queryClient.setQueryData<Music[] | undefined>(musicQueryKey, (current) => {
-    if (!current) { return current }
+    if (!current) {
+      return current
+    }
     let changed = false
     const next = current.map((track) => {
-      if (track.id !== trackId) { return track }
+      if (track.id !== trackId) {
+        return track
+      }
       const before = track.playlistIds ?? []
       const after = updater(before)
-      if (after === before) { return track }
+      if (after === before) {
+        return track
+      }
       changed = true
       return { ...track, playlistIds: after }
     })
@@ -59,7 +65,9 @@ function patchPlaylistListSummary(
   updater: (playlist: Playlist) => Playlist | null,
 ): void {
   queryClient.setQueryData<Playlist[] | undefined>(playlistsQueryKey, (current) => {
-    if (!current) { return current }
+    if (!current) {
+      return current
+    }
     let changed = false
     const next: Playlist[] = []
     for (const playlist of current) {
@@ -138,8 +146,12 @@ export function useCreatePlaylist() {
           createdAt: playlist.createdAt,
           updatedAt: playlist.updatedAt,
         }
-        if (!current) { return [summary] }
-        if (current.some(item => item.id === playlist.id)) { return current }
+        if (!current) {
+          return [summary]
+        }
+        if (current.some(item => item.id === playlist.id)) {
+          return current
+        }
         return [summary, ...current]
       })
       queryClient.setQueryData(playlistDetailQueryKey(playlist.id), playlist)
@@ -175,7 +187,9 @@ export function useUpdatePlaylist() {
         description: description ?? null,
       }))
       queryClient.setQueryData<PlaylistDetail | undefined>(playlistDetailQueryKey(id), (current) => {
-        if (!current) { return current }
+        if (!current) {
+          return current
+        }
         return { ...current, name, description: description ?? null }
       })
     },
@@ -202,10 +216,14 @@ export function useDeletePlaylist() {
       queryClient.removeQueries({ queryKey: playlistDetailQueryKey(id) })
       // Strip this playlist id from every track's playlistIds so chips disappear instantly.
       queryClient.setQueryData<Music[] | undefined>(musicQueryKey, (current) => {
-        if (!current) { return current }
+        if (!current) {
+          return current
+        }
         let changed = false
         const next = current.map((track) => {
-          if (!(track.playlistIds ?? []).includes(id)) { return track }
+          if (!(track.playlistIds ?? []).includes(id)) {
+            return track
+          }
           changed = true
           return { ...track, playlistIds: (track.playlistIds ?? []).filter(pid => pid !== id) }
         })
@@ -235,7 +253,9 @@ export function useAddTrackToPlaylist() {
     onMutate: ({ playlistId, trackId }) => {
       // Add the playlist id to the track's playlistIds so chips appear immediately.
       patchMusicCachePlaylistIds(queryClient, trackId, (current) => {
-        if (current.includes(playlistId)) { return current }
+        if (current.includes(playlistId)) {
+          return current
+        }
         return [...current, playlistId]
       })
       // Bump the playlist's track count in the summary list so the count updates.
@@ -273,9 +293,13 @@ export function useRemoveTrackFromPlaylist() {
       }))
       // Also patch the playlist detail cache so removal is instant on that page.
       queryClient.setQueryData<PlaylistDetail | undefined>(playlistDetailQueryKey(playlistId), (current) => {
-        if (!current) { return current }
+        if (!current) {
+          return current
+        }
         const nextTracks = current.tracks.filter(track => track.id !== trackId)
-        if (nextTracks.length === current.tracks.length) { return current }
+        if (nextTracks.length === current.tracks.length) {
+          return current
+        }
         return {
           ...current,
           tracks: nextTracks,
@@ -307,10 +331,14 @@ export function useReorderPlaylistTracks() {
     onMutate: ({ playlistId, trackIds }) => {
       // Reorder the detail cache immediately so the list doesn't "snap back" while waiting.
       queryClient.setQueryData<PlaylistDetail | undefined>(playlistDetailQueryKey(playlistId), (current) => {
-        if (!current) { return current }
+        if (!current) {
+          return current
+        }
         const byId = new Map(current.tracks.map(track => [track.id, track]))
-        const ordered = trackIds.map(id => byId.get(id)).filter((track): track is PlaylistDetail['tracks'][number] => Boolean(track))
-        if (ordered.length !== current.tracks.length) { return current }
+        const ordered = trackIds.map(id => byId.get(id)).filter(Boolean)
+        if (ordered.length !== current.tracks.length) {
+          return current
+        }
         return { ...current, tracks: ordered }
       })
     },

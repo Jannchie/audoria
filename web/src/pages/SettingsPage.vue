@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import type { LocalePreference } from '../i18n/locales'
-import { coverEffectDefinitions } from '../constants/coverEffects'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useSettings } from '../composables/useSettings'
+import { coverEffectDefinitions } from '../constants/coverEffects'
 import { localeLabels } from '../i18n/locales'
 
 const { t } = useI18n()

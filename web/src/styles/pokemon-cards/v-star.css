@@ -125,7 +125,7 @@
     );
   
   mix-blend-mode: hard-light;
-  opacity: calc(var(--card-opacity)*(var(--pointer-from-center)*.75));
+  opacity: calc(var(--card-opacity)*(var(--pointer-from-center)*.3));
 
 }
 

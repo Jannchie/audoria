@@ -511,7 +511,10 @@ onUnmounted(() => {
 <template>
   <section class="player-page">
     <!-- Animated shader gradient background -->
-    <div class="bg-shader">
+    <div
+      class="bg-shader"
+      :class="{ 'bg-shader--paused': !isPlaying }"
+    >
       <ShaderGradientCanvas
         v-bind="canvasProps"
         class="shader-canvas"
@@ -792,6 +795,10 @@ onUnmounted(() => {
   pointer-events: none;
   background: #0e0e10;
   animation: bg-shader-fade 700ms ease-out;
+  transition: filter 1500ms ease;
+}
+.bg-shader--paused {
+  filter: saturate(0.45) brightness(0.72);
 }
 .shader-canvas {
   position: absolute !important;

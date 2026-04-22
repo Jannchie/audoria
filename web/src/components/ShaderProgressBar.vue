@@ -75,6 +75,7 @@ const FRAGMENT = /* glsl */`
   uniform float uTime;
   uniform float uProgress;  // progress in the hit region [0, 1]
   uniform float uIntensity;
+  uniform float uAlive;     // 0 = paused (dim), 1 = playing; gates filaments and playhead decorations
   uniform float uAspect;
   uniform float uPulse;
   uniform float uSweep;     // 0 = idle, rises 0 → 1.2 then decays; drives a travelling highlight
@@ -242,7 +243,7 @@ const FRAGMENT = /* glsl */`
       float pulsePhase = uTime * uFPulseFreq * 6.28318 + fi * 0.85;
       float rhythm = 1.0 - uFPulseDepth + uFPulseDepth * (0.5 + 0.5 * sin(pulsePhase));
 
-      float aContrib = strand * (0.32 - fi * 0.045) * lenMask * uFGain * rhythm * enabled;
+      float aContrib = strand * (0.32 - fi * 0.045) * lenMask * uFGain * rhythm * enabled * uAlive;
       filamentA += aContrib;
 
       vec3 strandCol = mix(uColor2, uColor3, fract(fi * 0.37 + uTime * 0.07));
@@ -292,10 +293,10 @@ const FRAGMENT = /* glsl */`
                * (0.3 + 0.6 * uPulse + 0.18 * breath) * armMask;
 
     float head = headCore * 0.9
-               + headBloom * 0.35
-               + streakH * (0.5 + 0.2 * uIntensity)
-               + streakV * (0.65 + 0.25 * uIntensity)
-               + ring * 0.55;
+               + headBloom * 0.35 * uAlive
+               + streakH * (0.5 + 0.2 * uIntensity) * uAlive
+               + streakV * (0.65 + 0.25 * uIntensity) * uAlive
+               + ring * 0.55 * uAlive;
 
     vec3 headCol = mix(uColor3, vec3(1.0), 0.6);
     vec3 flareCol = mix(uColor3, vec3(1.0), 0.85);
@@ -306,10 +307,10 @@ const FRAGMENT = /* glsl */`
     col += filamentCol * 0.8;
     col += headCol * head;
     // extra hot glow along the cross streaks so the star reads clearly
-    col += flareCol * streakH * 0.18;
-    col += flareCol * streakV * 0.25;
+    col += flareCol * streakH * 0.18 * uAlive;
+    col += flareCol * streakV * 0.25 * uAlive;
 
-    float shimmer = sin((uv.x - uTime * 0.12) * 80.0) * 0.02 * playedA;
+    float shimmer = sin((uv.x - uTime * 0.12) * 80.0) * 0.02 * playedA * uAlive;
     col += shimmer;
 
     // lyric sweep: travelling highlight band (in canvas x)
@@ -328,6 +329,7 @@ interface ShaderUniforms {
   uTime: { value: number }
   uProgress: { value: number }
   uIntensity: { value: number }
+  uAlive: { value: number }
   uAspect: { value: number }
   uPulse: { value: number }
   uSweep: { value: number }
@@ -418,6 +420,19 @@ function animate(ts: number): void {
   }
   uniforms.uIntensity.value += (targetIntensity - uniforms.uIntensity.value) * Math.min(1, dt * 6)
 
+  // Fade filaments and playhead decorations when paused; hover/scrub keep them alive.
+  let targetAlive = 0
+  if (props.playing) {
+    targetAlive = 1
+  }
+  if (props.hovered) {
+    targetAlive = Math.max(targetAlive, 0.7)
+  }
+  if (props.scrubbing) {
+    targetAlive = 1
+  }
+  uniforms.uAlive.value += (targetAlive - uniforms.uAlive.value) * Math.min(1, dt * 2.5)
+
   // smooth progress so seeking doesn't look teleporty in the shader
   const diff = props.progress - renderedProgress
   if (Math.abs(diff) > 0.0005) {
@@ -494,6 +509,7 @@ onMounted(() => {
     uTime: { value: 0 },
     uProgress: { value: props.progress },
     uIntensity: { value: 0.4 },
+    uAlive: { value: props.playing ? 1 : 0 },
     uAspect: { value: 1 },
     uPulse: { value: 0 },
     uSweep: { value: 0 },

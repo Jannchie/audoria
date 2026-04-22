@@ -45,7 +45,7 @@ export const defaultCoverEffectPreset: CoverEffectPreset = 'vStar'
 export const coverEffectPresets = coverEffectDefinitions.map(definition => definition.value)
 
 export const legacyCoverEffectPresetMap = {
-  rainbow: 'radiantHolo',
+  'rainbow': 'radiantHolo',
   'v-series': 'vMax',
 } as const satisfies Record<string, CoverEffectPreset>
 

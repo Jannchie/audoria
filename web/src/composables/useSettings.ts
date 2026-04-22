@@ -1,7 +1,7 @@
 import type { CoverEffectPreset } from '../constants/coverEffects'
 import type { LocalePreference } from '../i18n/locales'
-import { defaultCoverEffectPreset, isCoverEffectPreset, legacyCoverEffectPresetMap } from '../constants/coverEffects'
 import { computed, reactive, readonly } from 'vue'
+import { defaultCoverEffectPreset, isCoverEffectPreset, legacyCoverEffectPresetMap } from '../constants/coverEffects'
 import { isLocalePreference, resolveLocale } from '../i18n/locales'
 
 const settingsStorageKey = 'audoria.settings'
