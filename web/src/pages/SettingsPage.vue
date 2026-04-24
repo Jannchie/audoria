@@ -669,8 +669,6 @@ const activeLanguageHint = computed(() => {
 <style scoped>
 .settings-page {
   width: 100%;
-  max-width: 720px;
-  margin: 0 auto;
   padding: 1rem 0 3rem;
   display: flex;
   flex-direction: column;
@@ -715,8 +713,8 @@ const activeLanguageHint = computed(() => {
 }
 
 .group-card {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-surface) 25%, var(--bg-base));
+  border: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
   border-radius: 0.875rem;
   overflow: hidden;
 }
@@ -730,7 +728,7 @@ const activeLanguageHint = computed(() => {
   align-items: center;
   gap: 1rem;
   padding: 1rem 1.125rem;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
   transition: opacity 180ms ease;
 }
 
