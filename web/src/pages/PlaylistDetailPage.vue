@@ -887,7 +887,7 @@ function handleDragEnd(): void {
   gap: 12px;
   width: 100%;
   height: 56px;
-  padding: 0 10px;
+  padding: 0 10px 0 6px;
   border: none;
   background: transparent;
   border-radius: 10px;
@@ -906,7 +906,7 @@ function handleDragEnd(): void {
   .tr {
     grid-template-columns: 22px 40px minmax(0, 1.1fr) minmax(0, 1fr) 44px 28px;
     height: 52px;
-    padding: 0 12px;
+    padding: 0 12px 0 6px;
   }
   .tr-secondary {
     display: flex;
@@ -924,9 +924,6 @@ function handleDragEnd(): void {
   background: var(--bg-surface);
 }
 
-.tr--active {
-  box-shadow: inset 3px 0 0 var(--accent);
-}
 .tr--active:hover {
   background: color-mix(in srgb, var(--accent) 6%, var(--bg-surface));
 }
@@ -943,9 +940,7 @@ function handleDragEnd(): void {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 36%, transparent);
 }
 .tr--active.tr--selected {
-  box-shadow:
-    inset 3px 0 0 var(--accent),
-    inset 0 0 0 1px color-mix(in srgb, var(--accent) 36%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 36%, transparent);
 }
 
 .tr--dragging {

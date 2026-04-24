@@ -67,6 +67,8 @@
 
 html {
   scrollbar-width: none; /* Firefox */
+  text-autospace: normal;
+  text-autospace: ideograph-alpha ideograph-numeric punctuation replace;
 }
 
 body {
