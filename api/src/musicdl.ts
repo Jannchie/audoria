@@ -1,32 +1,20 @@
 import type { OpenedTrackStream, TrackDetail, TrackLookup, TrackSummary } from '@jannchie/mdl-sdk'
-import type { MusicDlConfig } from './config.js'
+import type { MusicDlConfig, MusicDlRuntimeConfig } from './config.js'
+import type { MusicDlSource, MusicDlUrlSource } from './musicSources.js'
 import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { Readable } from 'node:stream'
 import { createClient } from '@jannchie/mdl-sdk'
+import { isMusicDlSource, isMusicDlUrlSource, musicDlSources, musicDlUrlSources } from './musicSources.js'
 
 const musicClient = createClient()
 
-export const musicDlSources = [
-  'NeteaseMusicClient',
-  'QQMusicClient',
-  'KuwoMusicClient',
-  'MiguMusicClient',
-  'JamendoMusicClient',
-] as const
-
-const aggregateMusicDlSources = musicDlSources
-
-export const musicDlUrlSources = ['Bilibili', 'Youtube'] as const
-export type MusicDlUrlSource = (typeof musicDlUrlSources)[number]
 const ytdlpSources: ReadonlySet<string> = new Set<MusicDlUrlSource>(musicDlUrlSources)
 
 const defaultSearchSizePerSource = 10
 // Use a small page size so paginated sources fetch results with multiple upstream requests.
 const searchSizePerPage = 2
-
-export type MusicDlSource = (typeof musicDlSources)[number]
 
 export interface MusicDlSongInfo {
   source: string | null
@@ -80,12 +68,16 @@ export class MusicDlBridgeError extends Error {}
 const defaultConfig = {
   searchTimeoutMs: 30_000,
   downloadTimeoutMs: 180_000,
-} satisfies Required<MusicDlConfig>
+  sources: musicDlSources,
+  urlSources: musicDlUrlSources,
+} satisfies MusicDlRuntimeConfig
 
-function resolveConfig(config: MusicDlConfig = {}): Required<MusicDlConfig> {
+function resolveConfig(config: MusicDlConfig = {}): MusicDlRuntimeConfig {
   return {
     searchTimeoutMs: config.searchTimeoutMs ?? defaultConfig.searchTimeoutMs,
     downloadTimeoutMs: config.downloadTimeoutMs ?? defaultConfig.downloadTimeoutMs,
+    sources: config.sources ?? defaultConfig.sources,
+    urlSources: config.urlSources ?? defaultConfig.urlSources,
   }
 }
 
@@ -110,7 +102,13 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: s
   }
 }
 
-function ensureSourceAvailable(source: string): void {
+function ensureSourceAvailable(source: string, config: MusicDlRuntimeConfig): void {
+  if (isMusicDlSource(source) && !config.sources.includes(source)) {
+    throw new MusicDlUnavailableError(`musicdl source is disabled: ${source}`)
+  }
+  if (isMusicDlUrlSource(source) && !config.urlSources.includes(source)) {
+    throw new MusicDlUnavailableError(`musicdl URL source is disabled: ${source}`)
+  }
   if (!musicClient.listSources().includes(source)) {
     throw new MusicDlUnavailableError(`musicdl source is unavailable: ${source}`)
   }
@@ -254,7 +252,7 @@ function buildRequestOptions(source: string, timeoutMs: number) {
   }
 }
 
-async function fetchTrackDetail(track: TrackLookup, config: Required<MusicDlConfig>): Promise<TrackDetail> {
+async function fetchTrackDetail(track: TrackLookup, config: MusicDlRuntimeConfig): Promise<TrackDetail> {
   return await withTimeout(
     musicClient.fetchDetail(
       track,
@@ -268,7 +266,7 @@ async function fetchTrackDetail(track: TrackLookup, config: Required<MusicDlConf
 async function searchSourceTracks(
   keyword: string,
   source: MusicDlSource,
-  config: Required<MusicDlConfig>,
+  config: MusicDlRuntimeConfig,
   limitPerSource: number,
 ): Promise<TrackSummary[]> {
   const result = await withTimeout(
@@ -331,7 +329,7 @@ function pickBestQqTrackMatch(songInfo: MusicDlSongInfo, tracks: TrackSummary[])
   return tracks[0] ?? null
 }
 
-async function fetchQqTrackDetailFallback(songInfo: MusicDlSongInfo, config: Required<MusicDlConfig>): Promise<TrackDetail | null> {
+async function fetchQqTrackDetailFallback(songInfo: MusicDlSongInfo, config: MusicDlRuntimeConfig): Promise<TrackDetail | null> {
   for (const keyword of buildQqFallbackKeywords(songInfo)) {
     const tracks = await searchSourceTracks(keyword, 'QQMusicClient', config, defaultSearchSizePerSource)
     const matchedTrack = pickBestQqTrackMatch(songInfo, tracks)
@@ -353,11 +351,11 @@ async function fetchQqTrackDetailFallback(songInfo: MusicDlSongInfo, config: Req
 async function searchSingleSource(
   keyword: string,
   source: MusicDlSource,
-  config: Required<MusicDlConfig>,
+  config: MusicDlRuntimeConfig,
   limitPerSource: number,
 ): Promise<MusicDlSearchItem[]> {
   try {
-    ensureSourceAvailable(source)
+    ensureSourceAvailable(source, config)
     const tracks = await searchSourceTracks(keyword, source, config, limitPerSource)
     return tracks.map(toMusicDlSearchItem)
   }
@@ -426,7 +424,7 @@ export async function searchMusicDl(
   }
   else {
     const settledResults = await Promise.allSettled(
-      aggregateMusicDlSources.map(async currentSource => ({
+      resolvedConfig.sources.map(async currentSource => ({
         source: currentSource,
         items: await searchSingleSource(keyword, currentSource, {
           ...resolvedConfig,
@@ -460,7 +458,7 @@ export async function resolveMusicDlSongInfo(songInfo: MusicDlSongInfo, config: 
   const trackLookup = toTrackLookup(songInfo)
 
   try {
-    ensureSourceAvailable(trackLookup.source)
+    ensureSourceAvailable(trackLookup.source, resolvedConfig)
 
     let trackDetail: TrackDetail
     try {
@@ -503,7 +501,7 @@ export async function openMusicDlStream(songInfo: MusicDlSongInfo, config: Music
   }
 
   try {
-    ensureSourceAvailable(songInfo.source)
+    ensureSourceAvailable(songInfo.source, resolvedConfig)
 
     if (ytdlpSources.has(songInfo.source)) {
       return await openMusicDlViaDownload(songInfo, resolvedConfig)
@@ -534,7 +532,7 @@ function toSdkTrackForDownload(songInfo: MusicDlSongInfo): TrackDetail {
 
 async function openMusicDlViaDownload(
   songInfo: MusicDlSongInfo,
-  resolvedConfig: Required<MusicDlConfig>,
+  resolvedConfig: MusicDlRuntimeConfig,
 ): Promise<MusicDlOpenedTrack> {
   if (!songInfo.source) {
     throw new MusicDlBridgeError('Import result is missing source information.')
@@ -621,7 +619,7 @@ export async function resolveMusicUrl(rawUrl: string, config: MusicDlConfig = {}
   const resolvedConfig = resolveConfig(config)
 
   try {
-    ensureSourceAvailable(parsed.source)
+    ensureSourceAvailable(parsed.source, resolvedConfig)
     const detail = await fetchTrackDetail(
       { source: parsed.source, identifier: parsed.identifier },
       resolvedConfig,

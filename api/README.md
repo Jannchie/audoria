@@ -46,6 +46,19 @@ S3_FORCE_PATH_STYLE=true
 
 S3 settings are only required when `STORAGE_BACKEND=s3`.
 
+## Import sources
+
+Configure the searchable music providers and URL import providers with comma-separated source names:
+
+```bash
+MUSICDL_SOURCES=NeteaseMusicClient,QQMusicClient,KuwoMusicClient,MiguMusicClient,JamendoMusicClient
+MUSICDL_URL_SOURCES=Bilibili,Youtube
+MUSICDL_SEARCH_TIMEOUT_MS=30000
+MUSICDL_DOWNLOAD_TIMEOUT_MS=180000
+```
+
+`MUSICDL_SOURCES` controls the import page source filter and aggregate search. `MUSICDL_URL_SOURCES` controls link imports.
+
 ## Worker
 
 The import flow now uses an asynchronous worker. In local development, `pnpm dev` starts:

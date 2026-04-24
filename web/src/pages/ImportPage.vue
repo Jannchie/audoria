@@ -3,6 +3,7 @@ import type { MusicDlSearchResult, MusicDlSource } from '../api/types.gen'
 import { useQueryClient } from '@tanstack/vue-query'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useAppConfigQuery } from '../composables/useAppConfig'
 import { useImportJobQuery, useImportMusic, useMusicQuery, useSearchMusicImport } from '../composables/useMusic'
 import { formatTrackSpecs } from '../utils/audio'
 import { getSourceDisplay, isKnownSource } from '../utils/source'
@@ -21,6 +22,13 @@ interface PersistedImportPageState {
 
 const initialLimitPerSource = 10
 const loadMoreStep = 10
+const fallbackSources: MusicDlSource[] = [
+  'NeteaseMusicClient',
+  'QQMusicClient',
+  'KuwoMusicClient',
+  'MiguMusicClient',
+  'JamendoMusicClient',
+]
 const skeletonTitleWidths = [70, 55, 80, 48, 66, 60]
 const skeletonMetaWidths = [38, 30, 44, 26, 40, 34]
 
@@ -49,14 +57,15 @@ function isMusicDlSource(value: string): value is MusicDlSource {
 
 const queryClient = useQueryClient()
 const { data: tracks } = useMusicQuery()
+const appConfigQuery = useAppConfigQuery()
 const { t } = useI18n()
+const configuredImportSources = computed<MusicDlSource[]>(() => appConfigQuery.data.value?.musicdl.sources ?? fallbackSources)
 const sourceOptions = computed<Array<{ value: MusicDlSource | null, label: string }>>(() => [
   { value: null, label: t('import.allSources') },
-  { value: 'NeteaseMusicClient', label: 'Netease' },
-  { value: 'QQMusicClient', label: 'QQ' },
-  { value: 'KuwoMusicClient', label: 'Kuwo' },
-  { value: 'MiguMusicClient', label: 'Migu' },
-  { value: 'JamendoMusicClient', label: 'Jamendo' },
+  ...configuredImportSources.value.map(source => ({
+    value: source,
+    label: getSourceDisplay(source).label,
+  })),
 ])
 const searchKeyword = ref(persistedState?.searchKeyword ?? '')
 const selectedSource = ref<MusicDlSource | null>(
@@ -75,6 +84,12 @@ const searchMutation = useSearchMusicImport()
 const importMutation = useImportMusic()
 const importJobQuery = useImportJobQuery(activeImportJobId)
 type LibraryMatchState = 'confirmed' | 'possible' | null
+
+watch(configuredImportSources, (sources) => {
+  if (selectedSource.value && !sources.includes(selectedSource.value)) {
+    selectedSource.value = null
+  }
+}, { immediate: true })
 
 function normalizePart(value: string | null | undefined): string {
   return (value ?? '')

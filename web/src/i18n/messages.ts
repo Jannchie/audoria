@@ -62,6 +62,7 @@ export const messages = {
       title: 'Settings',
       description: 'Manage interface preferences for this browser.',
       groups: {
+        runtime: 'Runtime configuration',
         appearance: 'Appearance',
         playback: 'Playback effects',
       },
@@ -92,6 +93,58 @@ export const messages = {
       progressEffectEnabled: {
         title: 'Progress bar shader',
         description: 'Turn off to use a minimal progress bar instead of the animated shader.',
+      },
+      runtime: {
+        loading: {
+          title: 'Loading server configuration',
+          description: 'Reading the current API runtime settings.',
+        },
+        loadFailed: {
+          title: 'Server configuration unavailable',
+          description: 'Check that the API server is reachable.',
+        },
+        sources: {
+          title: 'Song sources',
+          description: 'Configured by MUSICDL_SOURCES.',
+        },
+        urlSources: {
+          title: 'URL import sources',
+          description: 'Configured by MUSICDL_URL_SOURCES.',
+        },
+        metadata: {
+          title: 'Metadata storage',
+          description: 'Configured by DB_PATH.',
+        },
+        storage: {
+          title: 'Audio and cover storage',
+          description: 'Configured by STORAGE_BACKEND.',
+          backends: {
+            fs: 'Filesystem',
+            s3: 'S3 compatible',
+          },
+        },
+        imports: {
+          title: 'Import worker',
+          description: 'Configured by MUSICDL_* and IMPORT_* values.',
+        },
+        keys: {
+          backend: 'Backend',
+        },
+        values: {
+          defaultEndpoint: 'AWS default endpoint',
+        },
+        credentials: {
+          configured: 'S3 credentials are configured.',
+          missing: 'S3 credentials are missing.',
+          keepExisting: 'Leave blank to keep existing',
+        },
+        save: {
+          action: 'Save overrides',
+          saving: 'Saving...',
+          saved: 'Overrides saved.',
+          savedRestart: 'Overrides saved. Restart API and worker to apply startup settings.',
+          failed: 'Failed to save overrides',
+        },
       },
     },
     library: {
@@ -342,6 +395,7 @@ export const messages = {
       title: '设置',
       description: '管理当前浏览器中的界面偏好。',
       groups: {
+        runtime: '运行配置',
         appearance: '外观',
         playback: '播放器特效',
       },
@@ -372,6 +426,58 @@ export const messages = {
       progressEffectEnabled: {
         title: '进度条着色器特效',
         description: '关闭后使用简洁进度条替代动态着色器。',
+      },
+      runtime: {
+        loading: {
+          title: '正在加载服务端配置',
+          description: '读取当前 API 运行设置。',
+        },
+        loadFailed: {
+          title: '无法读取服务端配置',
+          description: '请确认 API 服务可以访问。',
+        },
+        sources: {
+          title: '歌曲来源',
+          description: '由 MUSICDL_SOURCES 配置。',
+        },
+        urlSources: {
+          title: '链接导入来源',
+          description: '由 MUSICDL_URL_SOURCES 配置。',
+        },
+        metadata: {
+          title: '元数据存储',
+          description: '由 DB_PATH 配置。',
+        },
+        storage: {
+          title: '音频与封面存储',
+          description: '由 STORAGE_BACKEND 配置。',
+          backends: {
+            fs: '文件系统',
+            s3: 'S3 兼容',
+          },
+        },
+        imports: {
+          title: '导入 worker',
+          description: '由 MUSICDL_* 和 IMPORT_* 值配置。',
+        },
+        keys: {
+          backend: '后端',
+        },
+        values: {
+          defaultEndpoint: 'AWS 默认端点',
+        },
+        credentials: {
+          configured: 'S3 凭据已配置。',
+          missing: '缺少 S3 凭据。',
+          keepExisting: '留空则保留现有值',
+        },
+        save: {
+          action: '保存覆盖',
+          saving: '保存中...',
+          saved: '覆盖已保存。',
+          savedRestart: '覆盖已保存。重启 API 和 worker 后启动期配置会完整生效。',
+          failed: '保存覆盖失败',
+        },
       },
     },
     library: {

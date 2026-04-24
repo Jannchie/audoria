@@ -1,17 +1,20 @@
 import type { ApiReferenceConfiguration } from '@scalar/hono-api-reference'
 import type { ReadableStream } from 'node:stream/web'
+import type { EnvOverrides } from './configOverrides.js'
 import type { MusicImportJob, MusicImportJobStatus, Playlist, PlaylistSummary, Track } from './db.js'
+import { env } from 'node:process'
 import { Readable } from 'node:stream'
 import { serve } from '@hono/node-server'
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import { Scalar } from '@scalar/hono-api-reference'
 import { desc, eq } from 'drizzle-orm'
 import { cors } from 'hono/cors'
-import { config } from './config.js'
+import { config, loadConfig } from './config.js'
+import { applyEnvOverrides, writeProjectEnvOverrides } from './configOverrides.js'
 import {
   addTrackToPlaylist,
-  createPlaylist,
   createMusicImportJobFromCandidate,
+  createPlaylist,
   db,
   deletePlaylist,
   getMusicImportCandidateById,
@@ -33,7 +36,8 @@ import {
   updateTrackCover,
   updateTrackEditableMetadata,
 } from './db.js'
-import { MusicDlBridgeError, musicDlSources, MusicDlUnavailableError, resolveMusicDlSongInfo, resolveMusicUrl, searchMusicDl } from './musicdl.js'
+import { MusicDlBridgeError, MusicDlUnavailableError, resolveMusicDlSongInfo, resolveMusicUrl, searchMusicDl } from './musicdl.js'
+import { musicDlSources, musicDlUrlSources } from './musicSources.js'
 import {
   deleteStoredTrack,
   deleteTrackCover,
@@ -183,6 +187,7 @@ const PlaylistReorderRequestSchema = z.object({
 }).openapi('PlaylistReorderRequest')
 
 const MusicDlSourceSchema = z.enum(musicDlSources).openapi('MusicDlSource')
+const MusicDlUrlSourceSchema = z.enum(musicDlUrlSources).openapi('MusicDlUrlSource')
 
 const MusicDlSearchRequestSchema = z.object({
   keyword: z.string().trim().min(1).max(120),
@@ -236,6 +241,183 @@ const UpdateMusicRequestSchema = z.object({
 const MusicDlParseUrlRequestSchema = z.object({
   url: z.string().trim().min(1).max(512),
 }).openapi('MusicDlParseUrlRequest')
+
+const AppConfigSchema = z.object({
+  api: z.object({
+    port: z.number().int().openapi({ example: 8787 }),
+  }),
+  metadata: z.object({
+    backend: z.literal('sqlite').openapi({ example: 'sqlite' }),
+    dbPath: z.string().openapi({ example: './api/data/audoria.sqlite' }),
+  }),
+  storage: z.discriminatedUnion('backend', [
+    z.object({
+      backend: z.literal('fs'),
+      rootDir: z.string().openapi({ example: './api/data/storage' }),
+    }),
+    z.object({
+      backend: z.literal('s3'),
+      bucket: z.string().openapi({ example: 'audoria' }),
+      endpoint: z.string().nullable().openapi({ example: 'http://127.0.0.1:9000' }),
+      region: z.string().openapi({ example: 'us-east-1' }),
+      forcePathStyle: z.boolean().openapi({ example: true }),
+      accessKeyConfigured: z.boolean().openapi({ example: true }),
+      secretKeyConfigured: z.boolean().openapi({ example: true }),
+    }),
+  ]),
+  musicdl: z.object({
+    sources: z.array(MusicDlSourceSchema).openapi({ example: ['NeteaseMusicClient', 'QQMusicClient'] }),
+    urlSources: z.array(MusicDlUrlSourceSchema).openapi({ example: ['Bilibili', 'Youtube'] }),
+    searchTimeoutMs: z.number().int().openapi({ example: 30_000 }),
+    downloadTimeoutMs: z.number().int().openapi({ example: 180_000 }),
+  }),
+  imports: z.object({
+    candidateTtlMs: z.number().int().openapi({ example: 1_800_000 }),
+    workerPollMs: z.number().int().openapi({ example: 3000 }),
+  }),
+}).openapi('AppConfig')
+
+const AppConfigUpdateSchema = z.object({
+  metadata: z.object({
+    dbPath: z.string().trim().min(1).optional(),
+  }).optional(),
+  storage: z.discriminatedUnion('backend', [
+    z.object({
+      backend: z.literal('fs'),
+      rootDir: z.string().trim().min(1),
+    }),
+    z.object({
+      backend: z.literal('s3'),
+      bucket: z.string().trim().min(1),
+      endpoint: z.string().trim().nullable().optional(),
+      region: z.string().trim().min(1),
+      forcePathStyle: z.boolean(),
+      accessKeyId: z.string().optional(),
+      secretAccessKey: z.string().optional(),
+    }),
+  ]).optional(),
+  musicdl: z.object({
+    sources: z.array(MusicDlSourceSchema).min(1).optional(),
+    urlSources: z.array(MusicDlUrlSourceSchema).min(1).optional(),
+    searchTimeoutMs: z.number().int().min(1).optional(),
+    downloadTimeoutMs: z.number().int().min(1).optional(),
+  }).optional(),
+  imports: z.object({
+    candidateTtlMs: z.number().int().min(1).optional(),
+    workerPollMs: z.number().int().min(1).optional(),
+  }).optional(),
+}).openapi('AppConfigUpdate')
+
+const AppConfigUpdateResponseSchema = z.object({
+  config: AppConfigSchema,
+  restartRequired: z.boolean(),
+}).openapi('AppConfigUpdateResponse')
+
+type AppConfigUpdate = z.infer<typeof AppConfigUpdateSchema>
+
+function toAppConfigResponse(appConfig = loadConfig()) {
+  const storage = appConfig.storage.backend === 'fs'
+    ? {
+        backend: 'fs' as const,
+        rootDir: appConfig.storage.fs?.rootDir ?? '',
+      }
+    : {
+        backend: 's3' as const,
+        bucket: appConfig.storage.s3?.bucket ?? '',
+        endpoint: appConfig.storage.s3?.endpoint ?? null,
+        region: appConfig.storage.s3?.region ?? '',
+        forcePathStyle: appConfig.storage.s3?.forcePathStyle ?? true,
+        accessKeyConfigured: Boolean(appConfig.storage.s3?.accessKeyId),
+        secretKeyConfigured: Boolean(appConfig.storage.s3?.secretAccessKey),
+      }
+
+  return {
+    api: {
+      port: appConfig.port,
+    },
+    metadata: {
+      backend: 'sqlite' as const,
+      dbPath: appConfig.dbPath,
+    },
+    storage,
+    musicdl: {
+      sources: [...appConfig.musicdl.sources],
+      urlSources: [...appConfig.musicdl.urlSources],
+      searchTimeoutMs: appConfig.musicdl.searchTimeoutMs,
+      downloadTimeoutMs: appConfig.musicdl.downloadTimeoutMs,
+    },
+    imports: {
+      candidateTtlMs: appConfig.importCandidateTtlMs,
+      workerPollMs: appConfig.importWorkerPollMs,
+    },
+  }
+}
+
+function assignOptionalSecret(overrides: EnvOverrides, key: string, value: string | undefined): void {
+  const trimmed = value?.trim()
+  if (trimmed) {
+    overrides[key] = trimmed
+  }
+}
+
+function toConfigEnvOverrides(update: AppConfigUpdate): EnvOverrides {
+  const overrides: EnvOverrides = {}
+
+  if (update.metadata?.dbPath) {
+    overrides.DB_PATH = update.metadata.dbPath
+  }
+
+  if (update.storage?.backend === 'fs') {
+    overrides.STORAGE_BACKEND = 'fs'
+    overrides.STORAGE_FS_ROOT = update.storage.rootDir
+  }
+  if (update.storage?.backend === 's3') {
+    overrides.STORAGE_BACKEND = 's3'
+    overrides.S3_BUCKET = update.storage.bucket
+    overrides.S3_ENDPOINT = update.storage.endpoint?.trim() || null
+    overrides.S3_REGION = update.storage.region
+    overrides.S3_FORCE_PATH_STYLE = update.storage.forcePathStyle ? 'true' : 'false'
+    assignOptionalSecret(overrides, 'S3_ACCESS_KEY_ID', update.storage.accessKeyId)
+    assignOptionalSecret(overrides, 'S3_SECRET_ACCESS_KEY', update.storage.secretAccessKey)
+  }
+
+  if (update.musicdl?.sources) {
+    overrides.MUSICDL_SOURCES = update.musicdl.sources.join(',')
+  }
+  if (update.musicdl?.urlSources) {
+    overrides.MUSICDL_URL_SOURCES = update.musicdl.urlSources.join(',')
+  }
+  if (update.musicdl?.searchTimeoutMs) {
+    overrides.MUSICDL_SEARCH_TIMEOUT_MS = String(update.musicdl.searchTimeoutMs)
+  }
+  if (update.musicdl?.downloadTimeoutMs) {
+    overrides.MUSICDL_DOWNLOAD_TIMEOUT_MS = String(update.musicdl.downloadTimeoutMs)
+  }
+
+  if (update.imports?.candidateTtlMs) {
+    overrides.IMPORT_CANDIDATE_TTL_MS = String(update.imports.candidateTtlMs)
+  }
+  if (update.imports?.workerPollMs) {
+    overrides.IMPORT_WORKER_POLL_MS = String(update.imports.workerPollMs)
+  }
+
+  return overrides
+}
+
+function requiresRestart(overrides: EnvOverrides): boolean {
+  return Object.keys(overrides).some(key =>
+    key === 'DB_PATH'
+    || key === 'PORT'
+    || key.startsWith('STORAGE_')
+    || key.startsWith('S3_'),
+  )
+}
+
+function applyLiveConfig(nextConfig: typeof config): void {
+  config.musicdl = nextConfig.musicdl
+  config.importCandidateTtlMs = nextConfig.importCandidateTtlMs
+  config.importWorkerPollMs = nextConfig.importWorkerPollMs
+}
 
 const app = new OpenAPIHono()
 
@@ -1553,6 +1735,84 @@ app.openapi(deleteCoverRoute, async (c) => {
     return c.json({ message: 'Music not found' }, 404)
   }
   return c.json(toMusicResponse(updated, getPlaylistIdsForTracks([updated.id]).get(updated.id) ?? []), 200)
+})
+
+const getAppConfigRoute = createRoute({
+  method: 'get',
+  path: '/app/config',
+  summary: 'Get non-sensitive runtime configuration',
+  responses: {
+    200: {
+      description: 'Runtime configuration',
+      content: {
+        'application/json': {
+          schema: AppConfigSchema,
+        },
+      },
+    },
+  },
+})
+
+app.openapi(getAppConfigRoute, (c) => {
+  return c.json(toAppConfigResponse(), 200)
+})
+
+const updateAppConfigRoute = createRoute({
+  method: 'patch',
+  path: '/app/config',
+  summary: 'Update project environment overrides',
+  request: {
+    body: {
+      content: {
+        'application/json': {
+          schema: AppConfigUpdateSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: 'Updated runtime configuration',
+      content: {
+        'application/json': {
+          schema: AppConfigUpdateResponseSchema,
+        },
+      },
+    },
+    400: {
+      description: 'Invalid configuration',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+})
+
+app.openapi(updateAppConfigRoute, async (c) => {
+  const update = c.req.valid('json')
+  const overrides = toConfigEnvOverrides(update)
+  const candidateEnv = { ...env }
+  applyEnvOverrides(candidateEnv, overrides)
+
+  let nextConfig: typeof config
+  try {
+    nextConfig = loadConfig(candidateEnv)
+  }
+  catch (error) {
+    const message = error instanceof Error ? error.message : 'Invalid configuration'
+    return c.json({ message }, 400)
+  }
+
+  await writeProjectEnvOverrides(overrides)
+  applyEnvOverrides(env, overrides)
+  applyLiveConfig(nextConfig)
+
+  return c.json({
+    config: toAppConfigResponse(nextConfig),
+    restartRequired: requiresRestart(overrides),
+  }, 200)
 })
 
 app.get('/', c => c.json({ status: 'ok' }))

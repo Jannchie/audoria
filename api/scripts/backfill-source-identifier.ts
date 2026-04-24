@@ -1,7 +1,8 @@
-import type { MusicDlSource } from '../src/musicdl.js'
+import type { MusicDlSource } from '../src/musicSources.js'
 import { and, eq, isNotNull, isNull, or } from 'drizzle-orm'
 import { db, tracks } from '../src/db.js'
-import { musicDlSources, searchMusicDl } from '../src/musicdl.js'
+import { searchMusicDl } from '../src/musicdl.js'
+import { musicDlSources } from '../src/musicSources.js'
 
 function normalizePart(value: string | null | undefined): string {
   return (value ?? '')

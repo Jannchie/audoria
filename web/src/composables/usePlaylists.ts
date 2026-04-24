@@ -335,7 +335,7 @@ export function useReorderPlaylistTracks() {
           return current
         }
         const byId = new Map(current.tracks.map(track => [track.id, track]))
-        const ordered = trackIds.map(id => byId.get(id)).filter(Boolean)
+        const ordered = trackIds.map(id => byId.get(id)).filter((track): track is Music => track !== undefined)
         if (ordered.length !== current.tracks.length) {
           return current
         }
