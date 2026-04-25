@@ -269,6 +269,15 @@ export const messages = {
       openPlayerTrack: 'Open player · {title}',
       playFromTime: 'Play from {time}',
       toggleQueue: 'Toggle queue',
+      lyrics: {
+        offsetLabel: 'Timestamp shift amount',
+        shiftAmount: 'Shift',
+        earlier: 'Move LRC timestamps earlier',
+        later: 'Move LRC timestamps later',
+        showTools: 'Adjust lyric timestamps',
+        hideTools: 'Hide lyric timestamp tools',
+        saveFailed: 'Failed to save lyrics',
+      },
       queue: {
         title: 'Queue',
         nowPlaying: 'Now playing',
@@ -602,6 +611,15 @@ export const messages = {
       openPlayerTrack: '打开播放器 · {title}',
       playFromTime: '从 {time} 播放',
       toggleQueue: '切换队列',
+      lyrics: {
+        offsetLabel: '时间戳偏移量',
+        shiftAmount: '移动',
+        earlier: '提前 LRC 时间戳',
+        later: '延后 LRC 时间戳',
+        showTools: '调整歌词时间戳',
+        hideTools: '隐藏歌词时间戳工具',
+        saveFailed: '保存歌词失败',
+      },
       queue: {
         title: '播放队列',
         nowPlaying: '正在播放',

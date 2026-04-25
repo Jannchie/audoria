@@ -9,8 +9,8 @@ import ProgressPreviewTooltip from '../components/ProgressPreviewTooltip.vue'
 import ShaderProgressBar from '../components/ShaderProgressBar.vue'
 import ShaderProgressControls from '../components/ShaderProgressControls.vue'
 import { useCoverPalette } from '../composables/useCoverPalette'
-import { findLyricLineAtTime, useLyrics } from '../composables/useLyrics'
-import { resolveApiUrl, useMusicQuery } from '../composables/useMusic'
+import { findLyricLineAtTime, shiftLrcTimestamps, useLyrics } from '../composables/useLyrics'
+import { resolveApiUrl, useMusicQuery, useUpdateMusic } from '../composables/useMusic'
 import { usePlayerState } from '../composables/usePlayerState'
 import { useSettings } from '../composables/useSettings'
 import { formatTrackSpecs } from '../utils/audio'
@@ -42,6 +42,10 @@ const previewRatio = ref<number | null>(null)
 const hoverPreviewTime = ref<number | null>(null)
 const scrubPreviewTime = ref<number | null>(null)
 const volumePreview = ref<number | null>(null)
+const lyricShiftMs = ref(100)
+const lyricError = ref('')
+const isLyricsToolbarOpen = ref(false)
+const updateLyricsMutation = useUpdateMusic()
 const {
   currentTrackId,
   isPlaying,
@@ -151,12 +155,12 @@ const title = computed(() => currentTrack.value?.title || currentTrack.value?.fi
 const artist = computed(() => currentTrack.value?.artists || t('player.unknownArtist'))
 const album = computed(() => currentTrack.value?.album || '')
 const trackSpecs = computed(() => currentTrack.value ? formatTrackSpecs(currentTrack.value) : '')
+const currentLyrics = computed(() => currentTrack.value?.lyrics)
+const isSavingLyrics = computed(() => updateLyricsMutation.isPending.value)
 
-const { parsed, isTimeSynced, plainText, currentLineIndex } = useLyrics(
-  () => currentTrack.value?.lyrics,
-)
+const { parsed, isTimeSynced, plainText, currentLineIndex } = useLyrics(() => currentLyrics.value)
 
-const hasLyrics = computed(() => Boolean(currentTrack.value?.lyrics?.trim()))
+const hasLyrics = computed(() => Boolean(currentLyrics.value?.trim()))
 
 const progress = computed(() => {
   if (isScrubbing.value && scrubPreviewTime.value !== null && duration.value) {
@@ -409,6 +413,10 @@ function closeEdit(): void {
   isEditOpen.value = false
 }
 
+function toggleLyricsToolbar(): void {
+  isLyricsToolbarOpen.value = !isLyricsToolbarOpen.value
+}
+
 function handleLyricClick(line: { time: number }): void {
   seekTo(line.time)
   const audio = getAudioElement()
@@ -417,6 +425,38 @@ function handleLyricClick(line: { time: number }): void {
   }
   if (!isPlaying.value) {
     setPlaying(true)
+  }
+}
+
+function handleLyricShiftInput(event: Event): void {
+  const input = event.target as HTMLInputElement
+  const nextShift = Number(input.value)
+  if (!Number.isFinite(nextShift)) {
+    return
+  }
+  lyricShiftMs.value = Math.max(1, Math.round(Math.abs(nextShift)))
+}
+
+async function shiftCurrentLyrics(direction: -1 | 1): Promise<void> {
+  const track = currentTrack.value
+  const rawLyrics = currentLyrics.value
+  if (!track || !rawLyrics || isSavingLyrics.value) {
+    return
+  }
+  const deltaMs = direction * lyricShiftMs.value
+  const shiftedLyrics = shiftLrcTimestamps(rawLyrics, deltaMs)
+  if (shiftedLyrics === rawLyrics) {
+    return
+  }
+  lyricError.value = ''
+  try {
+    await updateLyricsMutation.mutateAsync({
+      id: track.id,
+      patch: { lyrics: shiftedLyrics },
+    })
+  }
+  catch (error) {
+    lyricError.value = error instanceof Error ? error.message : t('player.lyrics.saveFailed')
   }
 }
 
@@ -501,6 +541,11 @@ watch(currentLineIndex, async (idx, prev) => {
   container.scrollTo({ top: targetScroll, behavior: 'smooth' })
 })
 
+watch([resolvedCurrentTrackId, isTimeSynced], () => {
+  lyricError.value = ''
+  isLyricsToolbarOpen.value = false
+})
+
 onUnmounted(() => {
   globalThis.removeEventListener('pointermove', handleProgressPointerMove)
   globalThis.removeEventListener('pointerup', handleProgressPointerUp)
@@ -572,6 +617,74 @@ onUnmounted(() => {
               <span v-if="trackSpecs">{{ trackSpecs }}</span>
             </p>
           </div>
+
+          <div
+            v-if="currentTrack && isTimeSynced && isLyricsToolbarOpen"
+            class="lyrics-toolbar"
+          >
+            <div
+              class="lyrics-offset-control"
+              :aria-label="t('player.lyrics.offsetLabel')"
+            >
+              <button
+                type="button"
+                class="lyrics-tool-btn lyrics-tool-btn--icon"
+                :aria-label="t('player.lyrics.earlier')"
+                :title="t('player.lyrics.earlier')"
+                :disabled="isSavingLyrics"
+                @click="shiftCurrentLyrics(-1)"
+              >
+                <span
+                  class="i-tabler-minus"
+                  aria-hidden="true"
+                />
+              </button>
+              <label class="lyrics-offset-field">
+                <span>{{ t('player.lyrics.shiftAmount') }}</span>
+                <input
+                  :value="lyricShiftMs"
+                  type="number"
+                  min="1"
+                  step="50"
+                  inputmode="numeric"
+                  :aria-label="t('player.lyrics.offsetLabel')"
+                  :disabled="isSavingLyrics"
+                  @input="handleLyricShiftInput"
+                >
+                <span class="lyrics-offset-unit">ms</span>
+              </label>
+              <button
+                type="button"
+                class="lyrics-tool-btn lyrics-tool-btn--icon"
+                :aria-label="t('player.lyrics.later')"
+                :title="t('player.lyrics.later')"
+                :disabled="isSavingLyrics"
+                @click="shiftCurrentLyrics(1)"
+              >
+                <span
+                  class="i-tabler-plus"
+                  aria-hidden="true"
+                />
+              </button>
+              <span
+                v-if="isSavingLyrics"
+                class="lyrics-saving"
+              >
+                <span
+                  class="i-tabler-loader-2 animate-spin"
+                  aria-hidden="true"
+                />
+              </span>
+            </div>
+          </div>
+
+          <p
+            v-if="lyricError"
+            class="lyrics-error"
+            role="alert"
+          >
+            {{ lyricError }}
+          </p>
 
           <!-- Lyrics with fade edges -->
           <div class="lyrics-wrapper">
@@ -735,6 +848,21 @@ onUnmounted(() => {
           </div>
 
           <div class="controls-side controls-side--right">
+            <button
+              v-if="currentTrack && isTimeSynced"
+              type="button"
+              class="ctrl-btn ctrl-btn--sm"
+              :class="{ 'ctrl-btn--active': isLyricsToolbarOpen }"
+              :aria-label="isLyricsToolbarOpen ? t('player.lyrics.hideTools') : t('player.lyrics.showTools')"
+              :aria-expanded="isLyricsToolbarOpen"
+              :title="isLyricsToolbarOpen ? t('player.lyrics.hideTools') : t('player.lyrics.showTools')"
+              @click="toggleLyricsToolbar"
+            >
+              <span
+                class="i-tabler-adjustments-horizontal"
+                aria-hidden="true"
+              />
+            </button>
             <button
               type="button"
               class="ctrl-btn ctrl-btn--sm"
@@ -935,6 +1063,100 @@ onUnmounted(() => {
   color: rgba(255, 255, 255, 0.5);
 }
 
+.lyrics-toolbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.lyrics-offset-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.lyrics-tool-btn,
+.lyrics-offset-field {
+  min-height: 2rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.72);
+  border-radius: 0.5rem;
+}
+
+.lyrics-tool-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0 0.7rem;
+  cursor: pointer;
+  font-size: 0.8125rem;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.lyrics-tool-btn:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.lyrics-tool-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.lyrics-tool-btn--icon {
+  width: 2rem;
+  padding: 0;
+}
+
+.lyrics-offset-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0 0.55rem;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.46);
+}
+
+.lyrics-offset-field input {
+  width: 4.5rem;
+  border: none;
+  background: transparent;
+  color: white;
+  font: inherit;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  outline: none;
+}
+
+.lyrics-offset-field input:disabled {
+  cursor: not-allowed;
+}
+
+.lyrics-offset-unit {
+  color: rgba(255, 255, 255, 0.32);
+}
+
+.lyrics-saving {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  color: rgba(255, 255, 255, 0.52);
+}
+
+.lyrics-error {
+  flex-shrink: 0;
+  text-align: center;
+  font-size: 0.75rem;
+  color: #fca5a5;
+}
+
 /* ---- Right panel ---- */
 .player-right {
   flex: 1;
@@ -983,6 +1205,12 @@ onUnmounted(() => {
   }
   .track-specs {
     font-size: 0.8125rem;
+  }
+  .lyrics-toolbar {
+    justify-content: flex-start;
+  }
+  .lyrics-error {
+    text-align: left;
   }
 }
 
@@ -1158,7 +1386,7 @@ onUnmounted(() => {
     display: flex;
     align-items: center;
     gap: 0.25rem;
-    width: 140px;
+    width: 172px;
   }
   .controls-side--right {
     justify-content: flex-end;

@@ -7,6 +7,27 @@ export interface LyricLine {
 }
 
 const LRC_LINE_RE = /^\[(\d{1,3}):(\d{2})(?:\.(\d{1,3}))?\]\s?(.*)$/
+const LRC_TIMESTAMP_RE = /\[(\d{1,3}):(\d{2})(?:\.(\d{1,3}))?\]/g
+
+function formatLrcTimestamp(totalMs: number): string {
+  const clampedMs = Math.max(0, Math.round(totalMs))
+  const minutes = Math.floor(clampedMs / 60_000)
+  const seconds = Math.floor((clampedMs % 60_000) / 1000)
+  const milliseconds = clampedMs % 1000
+  return `[${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}]`
+}
+
+export function shiftLrcTimestamps(raw: string, offsetMs: number): string {
+  if (!Number.isFinite(offsetMs) || offsetMs === 0) {
+    return raw
+  }
+  return raw.replaceAll(LRC_TIMESTAMP_RE, (_timestamp, minutesRaw: string, secondsRaw: string, msRaw?: string) => {
+    const minutes = Number.parseInt(minutesRaw, 10)
+    const seconds = Number.parseInt(secondsRaw, 10)
+    const milliseconds = msRaw ? Number.parseInt(msRaw.padEnd(3, '0'), 10) : 0
+    return formatLrcTimestamp(minutes * 60_000 + seconds * 1000 + milliseconds + offsetMs)
+  })
+}
 
 export function parseLrc(raw: string): LyricLine[] {
   const lines: LyricLine[] = []

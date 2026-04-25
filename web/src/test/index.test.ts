@@ -110,6 +110,28 @@ describe('useplayerstate', () => {
     expect(persisted.isPlaying).toBe(true)
   })
 
+  it('shifts LRC timestamps in the lyrics text', async () => {
+    const { shiftLrcTimestamps } = await import('../composables/useLyrics')
+
+    expect(shiftLrcTimestamps('[00:10.00]First\n[00:00.05]Intro', -100))
+      .toBe('[00:09.900]First\n[00:00.000]Intro')
+    expect(shiftLrcTimestamps('[00:10][00:12.50]Echo', 250))
+      .toBe('[00:10.250][00:12.750]Echo')
+  })
+
+  it('resolves the current lyric line from LRC timestamps', async () => {
+    const { usePlayerState } = await loadPlayerState()
+    const { useLyrics } = await import('../composables/useLyrics')
+    const player = usePlayerState()
+    const lyrics = useLyrics(() => '[00:10.00]First\n[00:12.00]Second')
+
+    player.updateProgress(11, 120)
+    expect(lyrics.currentLineIndex.value).toBe(0)
+
+    player.updateProgress(13, 120)
+    expect(lyrics.currentLineIndex.value).toBe(1)
+  })
+
   it('keeps playlist contexts isolated when syncing track order', async () => {
     globalThis.localStorage.setItem(playerStateStorageKey, JSON.stringify({
       context: {
