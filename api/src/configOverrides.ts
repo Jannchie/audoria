@@ -1,21 +1,48 @@
-import { readFile, writeFile } from 'node:fs/promises'
-import { projectRootEnvPath } from './config.js'
+import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises'
+import path from 'node:path'
+import { appConfigJsonPath, secretConfigKeys, secretsJsonPath } from './config.js'
 
-export type EnvOverrides = Record<string, string | null>
+export type ConfigOverrides = Record<string, string | null>
 
-const envLinePattern = /^\s*([a-z_]\w*)\s*=/i
-
-function encodeEnvValue(value: string): string {
-  if (!value) {
-    return ''
+async function readJsonStringMap(filePath: string): Promise<Record<string, string>> {
+  let raw = ''
+  try {
+    raw = await readFile(filePath, 'utf8')
   }
-  if (/[\s#"'\\]/.test(value)) {
-    return JSON.stringify(value)
+  catch (error) {
+    if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT') {
+      throw error
+    }
+    return {}
   }
-  return value
+
+  const parsed = JSON.parse(raw) as unknown
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error(`Invalid config file: ${filePath}`)
+  }
+
+  const values: Record<string, string> = {}
+  for (const [key, value] of Object.entries(parsed)) {
+    if (typeof value !== 'string') {
+      throw new Error(`Invalid config value for ${key} in ${filePath}`)
+    }
+    values[key] = value
+  }
+  return values
 }
 
-export function applyEnvOverrides(target: Record<string, string | undefined>, overrides: EnvOverrides): void {
+async function writeJsonStringMap(filePath: string, values: Record<string, string>, mode?: number): Promise<void> {
+  const sortedValues = Object.fromEntries(
+    Object.entries(values).sort(([left], [right]) => left.localeCompare(right)),
+  )
+  await mkdir(path.dirname(filePath), { recursive: true })
+  await writeFile(filePath, `${JSON.stringify(sortedValues, null, 2)}\n`, { mode })
+  if (mode !== undefined) {
+    await chmod(filePath, mode)
+  }
+}
+
+export function applyConfigOverrides(target: Record<string, string | undefined>, overrides: ConfigOverrides): void {
   for (const [key, value] of Object.entries(overrides)) {
     if (value === null) {
       delete target[key]
@@ -25,51 +52,23 @@ export function applyEnvOverrides(target: Record<string, string | undefined>, ov
   }
 }
 
-export async function writeProjectEnvOverrides(overrides: EnvOverrides): Promise<void> {
-  let raw = ''
-  try {
-    raw = await readFile(projectRootEnvPath, 'utf8')
-  }
-  catch (error) {
-    if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT') {
-      throw error
-    }
-  }
+export async function writePersistedConfigOverrides(overrides: ConfigOverrides): Promise<void> {
+  const appConfigOverrides: ConfigOverrides = {}
+  const secretOverrides: ConfigOverrides = {}
 
-  const lines = raw ? raw.replaceAll('\r\n', '\n').split('\n') : []
-  if (lines.at(-1) === '') {
-    lines.pop()
-  }
-
-  const keyToIndex = new Map<string, number>()
-  for (const [index, line] of lines.entries()) {
-    const match = line.match(envLinePattern)
-    if (match) {
-      keyToIndex.set(match[1], index)
-    }
-  }
-
-  const removedIndexes = new Set<number>()
   for (const [key, value] of Object.entries(overrides)) {
-    const existingIndex = keyToIndex.get(key)
-    if (value === null) {
-      if (existingIndex !== undefined) {
-        removedIndexes.add(existingIndex)
-      }
-      continue
+    if (secretConfigKeys.has(key)) {
+      secretOverrides[key] = value
     }
-
-    const line = `${key}=${encodeEnvValue(value)}`
-    if (existingIndex === undefined) {
-      lines.push(line)
-      continue
+    else {
+      appConfigOverrides[key] = value
     }
-    lines[existingIndex] = line
   }
 
-  const next = lines
-    .filter((_, index) => !removedIndexes.has(index))
-    .join('\n')
-
-  await writeFile(projectRootEnvPath, `${next}\n`)
+  const appConfig = await readJsonStringMap(appConfigJsonPath)
+  const secrets = await readJsonStringMap(secretsJsonPath)
+  applyConfigOverrides(appConfig, appConfigOverrides)
+  applyConfigOverrides(secrets, secretOverrides)
+  await writeJsonStringMap(appConfigJsonPath, appConfig)
+  await writeJsonStringMap(secretsJsonPath, secrets, 0o600)
 }

@@ -20,6 +20,8 @@ interface RuntimeForm {
   s3ForcePathStyle: boolean
   s3AccessKeyId: string
   s3SecretAccessKey: string
+  openaiApiKey: string
+  removeOpenaiApiKey: boolean
   sources: MusicDlSource[]
   urlSources: MusicDlUrlSource[]
   searchTimeoutMs: number
@@ -27,6 +29,8 @@ interface RuntimeForm {
   candidateTtlMs: number
   workerPollMs: number
 }
+
+type SettingsSection = 'runtime' | 'appearance'
 
 const allMusicSources: MusicDlSource[] = [
   'NeteaseMusicClient',
@@ -89,6 +93,8 @@ const runtimeForm = reactive<RuntimeForm>({
   s3ForcePathStyle: true,
   s3AccessKeyId: '',
   s3SecretAccessKey: '',
+  openaiApiKey: '',
+  removeOpenaiApiKey: false,
   sources: [...allMusicSources],
   urlSources: [...allUrlSources],
   searchTimeoutMs: 30_000,
@@ -100,6 +106,7 @@ const runtimeForm = reactive<RuntimeForm>({
 const runtimeSaveError = ref('')
 const runtimeSaveSucceeded = ref(false)
 const runtimeRestartRequired = ref(false)
+const activeSection = ref<SettingsSection>('runtime')
 
 watch(appConfig, (config) => {
   if (!config) {
@@ -127,6 +134,8 @@ watch(appConfig, (config) => {
 
   runtimeForm.s3AccessKeyId = ''
   runtimeForm.s3SecretAccessKey = ''
+  runtimeForm.openaiApiKey = ''
+  runtimeForm.removeOpenaiApiKey = false
 }, { immediate: true })
 
 const credentialStatus = computed(() => {
@@ -137,6 +146,25 @@ const credentialStatus = computed(() => {
   return storage.accessKeyConfigured && storage.secretKeyConfigured
     ? t('settings.runtime.credentials.configured')
     : t('settings.runtime.credentials.missing')
+})
+
+const openaiApiKeyConfigured = computed(() => Boolean(appConfig.value?.ai.providers.openai.apiKeyConfigured))
+const openaiApiKeyFromEnvironment = computed(() => appConfig.value?.ai.providers.openai.apiKeySource === 'environment')
+
+const openaiCredentialStatus = computed(() => {
+  const openai = appConfig.value?.ai.providers.openai
+  if (!openai) {
+    return ''
+  }
+  if (runtimeForm.removeOpenaiApiKey) {
+    return t('settings.runtime.apiKeys.removePending')
+  }
+  if (openai.apiKeySource === 'environment') {
+    return t('settings.runtime.apiKeys.configuredByEnvironment')
+  }
+  return openai.apiKeyConfigured
+    ? t('settings.runtime.apiKeys.configured')
+    : t('settings.runtime.apiKeys.missing')
 })
 
 const runtimeSaveDisabled = computed(() => {
@@ -154,28 +182,64 @@ function isUrlSourceSelected(source: MusicDlUrlSource): boolean {
   return runtimeForm.urlSources.includes(source)
 }
 
-function toggleMusicSource(source: MusicDlSource): void {
+async function saveSourceConfig(previousSources: MusicDlSource[], previousUrlSources: MusicDlUrlSource[]): Promise<void> {
+  runtimeSaveError.value = ''
+  runtimeSaveSucceeded.value = false
+  runtimeRestartRequired.value = false
+  try {
+    const result = await updateAppConfig.mutateAsync({
+      musicdl: {
+        sources: runtimeForm.sources,
+        urlSources: runtimeForm.urlSources,
+      },
+    })
+    runtimeSaveSucceeded.value = true
+    runtimeRestartRequired.value = result.restartRequired
+  }
+  catch (error) {
+    runtimeForm.sources = previousSources
+    runtimeForm.urlSources = previousUrlSources
+    runtimeSaveError.value = error instanceof Error ? error.message : t('settings.runtime.save.failed')
+  }
+}
+
+async function toggleMusicSource(source: MusicDlSource): Promise<void> {
+  const previousSources = [...runtimeForm.sources]
+  const previousUrlSources = [...runtimeForm.urlSources]
   if (runtimeForm.sources.includes(source)) {
     if (runtimeForm.sources.length > 1) {
       runtimeForm.sources = runtimeForm.sources.filter(item => item !== source)
+      await saveSourceConfig(previousSources, previousUrlSources)
     }
     return
   }
   runtimeForm.sources = [...runtimeForm.sources, source]
+  await saveSourceConfig(previousSources, previousUrlSources)
 }
 
-function toggleUrlSource(source: MusicDlUrlSource): void {
+async function toggleUrlSource(source: MusicDlUrlSource): Promise<void> {
+  const previousSources = [...runtimeForm.sources]
+  const previousUrlSources = [...runtimeForm.urlSources]
   if (runtimeForm.urlSources.includes(source)) {
     if (runtimeForm.urlSources.length > 1) {
       runtimeForm.urlSources = runtimeForm.urlSources.filter(item => item !== source)
+      await saveSourceConfig(previousSources, previousUrlSources)
     }
     return
   }
   runtimeForm.urlSources = [...runtimeForm.urlSources, source]
+  await saveSourceConfig(previousSources, previousUrlSources)
 }
 
 function positiveInteger(value: number): number {
   return Math.max(1, Math.floor(Number(value) || 1))
+}
+
+function toggleOpenaiApiKeyRemoval(): void {
+  runtimeForm.removeOpenaiApiKey = !runtimeForm.removeOpenaiApiKey
+  if (runtimeForm.removeOpenaiApiKey) {
+    runtimeForm.openaiApiKey = ''
+  }
 }
 
 function buildRuntimeUpdate(): AppConfigUpdate {
@@ -197,6 +261,14 @@ function buildRuntimeUpdate(): AppConfigUpdate {
           accessKeyId: runtimeForm.s3AccessKeyId.trim() || undefined,
           secretAccessKey: runtimeForm.s3SecretAccessKey.trim() || undefined,
         },
+    ai: {
+      providers: {
+        openai: {
+          apiKey: runtimeForm.openaiApiKey.trim() || undefined,
+          removeApiKey: runtimeForm.removeOpenaiApiKey || undefined,
+        },
+      },
+    },
     musicdl: {
       sources: runtimeForm.sources,
       urlSources: runtimeForm.urlSources,
@@ -241,7 +313,44 @@ const activeLanguageHint = computed(() => {
       </p>
     </header>
 
-    <section class="settings-group">
+    <div class="settings-shell">
+      <aside
+        class="settings-sidebar"
+        :aria-label="t('settings.sections.label')"
+      >
+        <button
+          type="button"
+          class="settings-tab"
+          :class="{ 'settings-tab--active': activeSection === 'runtime' }"
+          :aria-current="activeSection === 'runtime' ? 'page' : undefined"
+          @click="activeSection = 'runtime'"
+        >
+          <span
+            class="i-tabler-server-cog settings-tab__icon"
+            aria-hidden="true"
+          />
+          <span>{{ t('settings.groups.runtime') }}</span>
+        </button>
+        <button
+          type="button"
+          class="settings-tab"
+          :class="{ 'settings-tab--active': activeSection === 'appearance' }"
+          :aria-current="activeSection === 'appearance' ? 'page' : undefined"
+          @click="activeSection = 'appearance'"
+        >
+          <span
+            class="i-tabler-palette settings-tab__icon"
+            aria-hidden="true"
+          />
+          <span>{{ t('settings.groups.appearance') }}</span>
+        </button>
+      </aside>
+
+      <main class="settings-main">
+        <section
+          v-if="activeSection === 'runtime'"
+          class="settings-group"
+        >
       <h2 class="group-title">
         {{ t('settings.groups.runtime') }}
       </h2>
@@ -295,6 +404,7 @@ const activeLanguageHint = computed(() => {
                 type="button"
                 class="source-pill"
                 :class="{ 'source-pill--active': isMusicSourceSelected(source) }"
+                :disabled="runtimeSaving"
                 :aria-pressed="isMusicSourceSelected(source)"
                 @click="toggleMusicSource(source)"
               >
@@ -324,6 +434,7 @@ const activeLanguageHint = computed(() => {
                 type="button"
                 class="source-pill"
                 :class="{ 'source-pill--active': isUrlSourceSelected(source) }"
+                :disabled="runtimeSaving"
                 :aria-pressed="isUrlSourceSelected(source)"
                 @click="toggleUrlSource(source)"
               >
@@ -522,6 +633,44 @@ const activeLanguageHint = computed(() => {
             </div>
           </div>
 
+          <div class="field-row field-row--stacked">
+            <div class="field-text">
+              <div class="field-label">
+                {{ t('settings.runtime.ai.title') }}
+              </div>
+              <div class="field-hint">
+                {{ t('settings.runtime.ai.description') }}
+              </div>
+            </div>
+            <div class="config-fields">
+              <label class="config-field">
+                <span>OPENAI_API_KEY</span>
+                <input
+                  v-model="runtimeForm.openaiApiKey"
+                  class="config-input"
+                  type="password"
+                  autocomplete="new-password"
+                  :disabled="runtimeForm.removeOpenaiApiKey || openaiApiKeyFromEnvironment"
+                  :placeholder="t('settings.runtime.apiKeys.keepExisting')"
+                >
+              </label>
+              <button
+                v-if="openaiApiKeyConfigured && !openaiApiKeyFromEnvironment"
+                type="button"
+                class="settings-button config-action-button"
+                @click="toggleOpenaiApiKeyRemoval"
+              >
+                {{ runtimeForm.removeOpenaiApiKey ? t('settings.runtime.apiKeys.keep') : t('settings.runtime.apiKeys.remove') }}
+              </button>
+              <p
+                v-if="openaiCredentialStatus"
+                class="runtime-note"
+              >
+                {{ openaiCredentialStatus }}
+              </p>
+            </div>
+          </div>
+
           <div class="runtime-actions">
             <p
               v-if="runtimeSaveError"
@@ -547,7 +696,8 @@ const activeLanguageHint = computed(() => {
       </div>
     </section>
 
-    <section class="settings-group">
+    <template v-else>
+      <section class="settings-group">
       <h2 class="group-title">
         {{ t('settings.groups.appearance') }}
       </h2>
@@ -581,7 +731,7 @@ const activeLanguageHint = computed(() => {
       </div>
     </section>
 
-    <section class="settings-group">
+      <section class="settings-group">
       <h2 class="group-title">
         {{ t('settings.groups.playback') }}
       </h2>
@@ -663,6 +813,9 @@ const activeLanguageHint = computed(() => {
         </div>
       </div>
     </section>
+    </template>
+      </main>
+    </div>
   </section>
 </template>
 
@@ -694,6 +847,63 @@ const activeLanguageHint = computed(() => {
   margin: 0;
   font-size: 0.875rem;
   color: var(--text-secondary);
+}
+
+.settings-shell {
+  display: grid;
+  grid-template-columns: minmax(9rem, 13rem) minmax(0, 1fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.settings-sidebar {
+  position: sticky;
+  top: 4.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.settings-tab {
+  width: 100%;
+  min-height: 2.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0 0.75rem;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.settings-tab:hover {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+.settings-tab--active {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
+}
+
+.settings-tab__icon {
+  flex-shrink: 0;
+  width: 1rem;
+  height: 1rem;
+}
+
+.settings-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
 }
 
 .settings-group {
@@ -819,9 +1029,19 @@ const activeLanguageHint = computed(() => {
   background: var(--bg-elevated);
 }
 
+.source-pill:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .source-pill--active {
-  border-color: var(--accent);
-  background: var(--accent-soft);
+  border-color: transparent;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
+}
+
+.source-pill--active .source-pill__icon {
+  color: var(--accent);
 }
 
 .source-pill__icon {
@@ -915,8 +1135,18 @@ const activeLanguageHint = computed(() => {
   outline: none;
 }
 
+.config-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .config-input::placeholder {
   color: var(--text-secondary);
+}
+
+.config-action-button {
+  align-self: end;
+  min-height: 2.5rem;
 }
 
 .runtime-note {
@@ -991,9 +1221,9 @@ const activeLanguageHint = computed(() => {
 }
 
 .chip--active {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-  color: var(--text-primary);
+  border-color: transparent;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
 }
 
 .chip:disabled {
@@ -1040,6 +1270,25 @@ const activeLanguageHint = computed(() => {
 }
 
 @media (max-width: 640px) {
+  .settings-shell {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .settings-sidebar {
+    position: static;
+    flex-direction: row;
+    overflow-x: auto;
+    padding-bottom: 0.125rem;
+  }
+
+  .settings-tab {
+    width: auto;
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
   .field-row {
     flex-direction: column;
     align-items: stretch;

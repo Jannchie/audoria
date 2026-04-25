@@ -1,5 +1,5 @@
 import type { MusicDlSource, MusicDlUrlSource } from './musicSources.js'
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { env } from 'node:process'
 import { fileURLToPath } from 'node:url'
@@ -10,10 +10,24 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const projectRootDir = path.resolve(__dirname, '../..')
 export const projectRootEnvPath = path.resolve(projectRootDir, '.env')
+export const appDataDir = path.resolve(projectRootDir, 'api/data')
+export const appConfigJsonPath = path.resolve(appDataDir, 'app-config.json')
+export const secretsJsonPath = path.resolve(appDataDir, 'secrets.json')
 
-type EnvSource = Record<string, string | undefined>
+export type ConfigSource = Record<string, string | undefined>
 
 export type StorageBackend = 's3' | 'fs'
+
+export const aiProviderApiKeyEnvNames = {
+  openai: 'OPENAI_API_KEY',
+} as const
+export type AiProvider = keyof typeof aiProviderApiKeyEnvNames
+
+export const secretConfigKeys = new Set([
+  'S3_ACCESS_KEY_ID',
+  'S3_SECRET_ACCESS_KEY',
+  aiProviderApiKeyEnvNames.openai,
+])
 
 export interface S3Config {
   bucket: string
@@ -42,6 +56,15 @@ export interface MusicDlConfig {
   urlSources?: readonly MusicDlUrlSource[]
 }
 
+export interface AiProviderConfig {
+  apiKeyEnvName: string
+  apiKey?: string
+}
+
+export interface AiConfig {
+  providers: Record<AiProvider, AiProviderConfig>
+}
+
 export interface AppConfig {
   port: number
   dbPath: string
@@ -50,12 +73,13 @@ export interface AppConfig {
     s3?: S3Config
     fs?: FsStorageConfig
   }
+  ai: AiConfig
   musicdl: MusicDlRuntimeConfig
   importCandidateTtlMs: number
   importWorkerPollMs: number
 }
 
-function requireEnv(source: EnvSource, key: string): string {
+function requireEnv(source: ConfigSource, key: string): string {
   const value = source[key]
   if (!value) {
     throw new Error(`Missing required environment variable: ${key}`)
@@ -68,7 +92,7 @@ function resolveProjectPath(value: string): string {
 }
 
 function readCsvEnv<T extends string>(
-  source: EnvSource,
+  source: ConfigSource,
   key: string,
   availableValues: readonly T[],
   fallback: readonly T[],
@@ -95,7 +119,7 @@ function readCsvEnv<T extends string>(
   return [...new Set(values)] as T[]
 }
 
-function loadStorageConfig(source: EnvSource): AppConfig['storage'] {
+function loadStorageConfig(source: ConfigSource): AppConfig['storage'] {
   const backendValue = source.STORAGE_BACKEND ?? 's3'
   if (backendValue !== 's3' && backendValue !== 'fs') {
     throw new Error(`Unsupported STORAGE_BACKEND: ${backendValue}`)
@@ -123,7 +147,7 @@ function loadStorageConfig(source: EnvSource): AppConfig['storage'] {
   }
 }
 
-function loadMusicDlConfig(source: EnvSource): MusicDlRuntimeConfig {
+function loadMusicDlConfig(source: ConfigSource): MusicDlRuntimeConfig {
   return {
     searchTimeoutMs: Number(source.MUSICDL_SEARCH_TIMEOUT_MS ?? '30000'),
     downloadTimeoutMs: Number(source.MUSICDL_DOWNLOAD_TIMEOUT_MS ?? '180000'),
@@ -132,7 +156,80 @@ function loadMusicDlConfig(source: EnvSource): MusicDlRuntimeConfig {
   }
 }
 
-export function loadConfig(source: EnvSource = env): AppConfig {
+function loadAiConfig(source: ConfigSource): AiConfig {
+  const openaiApiKey = source[aiProviderApiKeyEnvNames.openai]?.trim()
+  return {
+    providers: {
+      openai: {
+        apiKeyEnvName: aiProviderApiKeyEnvNames.openai,
+        apiKey: openaiApiKey || undefined,
+      },
+    },
+  }
+}
+
+function readJsonStringMap(filePath: string): ConfigSource {
+  let raw = ''
+  try {
+    raw = readFileSync(filePath, 'utf8')
+  }
+  catch (error) {
+    if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT') {
+      throw error
+    }
+    return {}
+  }
+
+  const parsed = JSON.parse(raw) as unknown
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error(`Invalid config file: ${filePath}`)
+  }
+
+  const source: ConfigSource = {}
+  for (const [key, value] of Object.entries(parsed)) {
+    if (typeof value !== 'string') {
+      throw new Error(`Invalid config value for ${key} in ${filePath}`)
+    }
+    source[key] = value
+  }
+  return source
+}
+
+export function pickSecretConfigSource(source: ConfigSource): ConfigSource {
+  const secrets: ConfigSource = {}
+  for (const key of secretConfigKeys) {
+    const value = source[key]
+    if (value?.trim()) {
+      secrets[key] = value
+    }
+  }
+  return secrets
+}
+
+export function readPersistedConfigSource(): ConfigSource {
+  return {
+    ...readJsonStringMap(appConfigJsonPath),
+    ...readJsonStringMap(secretsJsonPath),
+  }
+}
+
+export function mergeConfigSources(...sources: ConfigSource[]): ConfigSource {
+  const merged: ConfigSource = {}
+  for (const source of sources) {
+    for (const [key, value] of Object.entries(source)) {
+      if (value?.trim()) {
+        merged[key] = value
+      }
+    }
+  }
+  return merged
+}
+
+export function readEffectiveConfigSource(source: ConfigSource = env): ConfigSource {
+  return mergeConfigSources(source, readPersistedConfigSource(), pickSecretConfigSource(source))
+}
+
+export function loadConfig(source: ConfigSource = readEffectiveConfigSource()): AppConfig {
   const dbPath = resolveProjectPath(source.DB_PATH ?? './api/data/audoria.sqlite')
   mkdirSync(path.dirname(dbPath), { recursive: true })
 
@@ -140,6 +237,7 @@ export function loadConfig(source: EnvSource = env): AppConfig {
     port: Number(source.PORT ?? '8787'),
     dbPath,
     storage: loadStorageConfig(source),
+    ai: loadAiConfig(source),
     musicdl: loadMusicDlConfig(source),
     importCandidateTtlMs: Number(source.IMPORT_CANDIDATE_TTL_MS ?? 30 * 60 * 1000),
     importWorkerPollMs: Number(source.IMPORT_WORKER_POLL_MS ?? 3000),

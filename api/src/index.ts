@@ -1,6 +1,6 @@
 import type { ApiReferenceConfiguration } from '@scalar/hono-api-reference'
 import type { ReadableStream } from 'node:stream/web'
-import type { EnvOverrides } from './configOverrides.js'
+import type { ConfigOverrides } from './configOverrides.js'
 import type { MusicImportJob, MusicImportJobStatus, Playlist, PlaylistSummary, Track } from './db.js'
 import { env } from 'node:process'
 import { Readable } from 'node:stream'
@@ -9,8 +9,8 @@ import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import { Scalar } from '@scalar/hono-api-reference'
 import { desc, eq } from 'drizzle-orm'
 import { cors } from 'hono/cors'
-import { config, loadConfig } from './config.js'
-import { applyEnvOverrides, writeProjectEnvOverrides } from './configOverrides.js'
+import { aiProviderApiKeyEnvNames, config, loadConfig, mergeConfigSources, pickSecretConfigSource, readPersistedConfigSource } from './config.js'
+import { applyConfigOverrides, writePersistedConfigOverrides } from './configOverrides.js'
 import {
   addTrackToPlaylist,
   createMusicImportJobFromCandidate,
@@ -265,6 +265,15 @@ const AppConfigSchema = z.object({
       secretKeyConfigured: z.boolean().openapi({ example: true }),
     }),
   ]),
+  ai: z.object({
+    providers: z.object({
+      openai: z.object({
+        apiKeyEnvName: z.string().openapi({ example: 'OPENAI_API_KEY' }),
+        apiKeyConfigured: z.boolean().openapi({ example: true }),
+        apiKeySource: z.enum(['environment', 'settings']).nullable().openapi({ example: 'settings' }),
+      }),
+    }),
+  }),
   musicdl: z.object({
     sources: z.array(MusicDlSourceSchema).openapi({ example: ['NeteaseMusicClient', 'QQMusicClient'] }),
     urlSources: z.array(MusicDlUrlSourceSchema).openapi({ example: ['Bilibili', 'Youtube'] }),
@@ -296,6 +305,14 @@ const AppConfigUpdateSchema = z.object({
       secretAccessKey: z.string().optional(),
     }),
   ]).optional(),
+  ai: z.object({
+    providers: z.object({
+      openai: z.object({
+        apiKey: z.string().optional(),
+        removeApiKey: z.boolean().optional(),
+      }).optional(),
+    }).optional(),
+  }).optional(),
   musicdl: z.object({
     sources: z.array(MusicDlSourceSchema).min(1).optional(),
     urlSources: z.array(MusicDlUrlSourceSchema).min(1).optional(),
@@ -315,6 +332,13 @@ const AppConfigUpdateResponseSchema = z.object({
 
 type AppConfigUpdate = z.infer<typeof AppConfigUpdateSchema>
 
+function getConfiguredValueSource(key: string, configured: boolean): 'environment' | 'settings' | null {
+  if (!configured) {
+    return null
+  }
+  return env[key]?.trim() ? 'environment' : 'settings'
+}
+
 function toAppConfigResponse(appConfig = loadConfig()) {
   const storage = appConfig.storage.backend === 'fs'
     ? {
@@ -331,6 +355,8 @@ function toAppConfigResponse(appConfig = loadConfig()) {
         secretKeyConfigured: Boolean(appConfig.storage.s3?.secretAccessKey),
       }
 
+  const openaiApiKeyConfigured = Boolean(appConfig.ai.providers.openai.apiKey)
+
   return {
     api: {
       port: appConfig.port,
@@ -340,6 +366,15 @@ function toAppConfigResponse(appConfig = loadConfig()) {
       dbPath: appConfig.dbPath,
     },
     storage,
+    ai: {
+      providers: {
+        openai: {
+          apiKeyEnvName: appConfig.ai.providers.openai.apiKeyEnvName,
+          apiKeyConfigured: openaiApiKeyConfigured,
+          apiKeySource: getConfiguredValueSource(aiProviderApiKeyEnvNames.openai, openaiApiKeyConfigured),
+        },
+      },
+    },
     musicdl: {
       sources: [...appConfig.musicdl.sources],
       urlSources: [...appConfig.musicdl.urlSources],
@@ -353,15 +388,15 @@ function toAppConfigResponse(appConfig = loadConfig()) {
   }
 }
 
-function assignOptionalSecret(overrides: EnvOverrides, key: string, value: string | undefined): void {
+function assignOptionalSecret(overrides: ConfigOverrides, key: string, value: string | undefined): void {
   const trimmed = value?.trim()
   if (trimmed) {
     overrides[key] = trimmed
   }
 }
 
-function toConfigEnvOverrides(update: AppConfigUpdate): EnvOverrides {
-  const overrides: EnvOverrides = {}
+function toConfigOverrides(update: AppConfigUpdate): ConfigOverrides {
+  const overrides: ConfigOverrides = {}
 
   if (update.metadata?.dbPath) {
     overrides.DB_PATH = update.metadata.dbPath
@@ -379,6 +414,14 @@ function toConfigEnvOverrides(update: AppConfigUpdate): EnvOverrides {
     overrides.S3_FORCE_PATH_STYLE = update.storage.forcePathStyle ? 'true' : 'false'
     assignOptionalSecret(overrides, 'S3_ACCESS_KEY_ID', update.storage.accessKeyId)
     assignOptionalSecret(overrides, 'S3_SECRET_ACCESS_KEY', update.storage.secretAccessKey)
+  }
+
+  const openaiUpdate = update.ai?.providers?.openai
+  if (openaiUpdate?.removeApiKey) {
+    overrides[aiProviderApiKeyEnvNames.openai] = null
+  }
+  else {
+    assignOptionalSecret(overrides, aiProviderApiKeyEnvNames.openai, openaiUpdate?.apiKey)
   }
 
   if (update.musicdl?.sources) {
@@ -404,7 +447,7 @@ function toConfigEnvOverrides(update: AppConfigUpdate): EnvOverrides {
   return overrides
 }
 
-function requiresRestart(overrides: EnvOverrides): boolean {
+function requiresRestart(overrides: ConfigOverrides): boolean {
   return Object.keys(overrides).some(key =>
     key === 'DB_PATH'
     || key === 'PORT'
@@ -414,6 +457,7 @@ function requiresRestart(overrides: EnvOverrides): boolean {
 }
 
 function applyLiveConfig(nextConfig: typeof config): void {
+  config.ai = nextConfig.ai
   config.musicdl = nextConfig.musicdl
   config.importCandidateTtlMs = nextConfig.importCandidateTtlMs
   config.importWorkerPollMs = nextConfig.importWorkerPollMs
@@ -1792,21 +1836,21 @@ const updateAppConfigRoute = createRoute({
 
 app.openapi(updateAppConfigRoute, async (c) => {
   const update = c.req.valid('json')
-  const overrides = toConfigEnvOverrides(update)
-  const candidateEnv = { ...env }
-  applyEnvOverrides(candidateEnv, overrides)
+  const overrides = toConfigOverrides(update)
+  const candidatePersistedSource = readPersistedConfigSource()
+  applyConfigOverrides(candidatePersistedSource, overrides)
+  const candidateSource = mergeConfigSources(env, candidatePersistedSource, pickSecretConfigSource(env))
 
   let nextConfig: typeof config
   try {
-    nextConfig = loadConfig(candidateEnv)
+    nextConfig = loadConfig(candidateSource)
   }
   catch (error) {
     const message = error instanceof Error ? error.message : 'Invalid configuration'
     return c.json({ message }, 400)
   }
 
-  await writeProjectEnvOverrides(overrides)
-  applyEnvOverrides(env, overrides)
+  await writePersistedConfigOverrides(overrides)
   applyLiveConfig(nextConfig)
 
   return c.json({

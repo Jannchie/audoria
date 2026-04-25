@@ -14,7 +14,7 @@ pnpm install
 pnpm dev
 ```
 
-The API loads environment variables from the project root `.env`.
+The API loads environment variables from the project root `.env`. Settings saved from the web app are written to `api/data/app-config.json` and `api/data/secrets.json`. Saved settings override environment variables for regular runtime options; secret environment variables still take precedence over saved secrets.
 
 The music import flow now uses `@jannchie/mdl-sdk` directly and no longer requires a local Python virtual environment.
 The worker stores imported audio through a configurable storage backend without writing temporary audio files to disk.
@@ -58,6 +58,16 @@ MUSICDL_DOWNLOAD_TIMEOUT_MS=180000
 ```
 
 `MUSICDL_SOURCES` controls the import page source filter and aggregate search. `MUSICDL_URL_SOURCES` controls link imports.
+
+## AI providers
+
+Provider API keys can be injected with each provider's default environment variable name, or saved from the web settings page. Saved keys stay in `api/data/secrets.json` and are never returned to the web client.
+
+```bash
+OPENAI_API_KEY=sk-...
+```
+
+Only OpenAI is currently supported.
 
 ## Worker
 

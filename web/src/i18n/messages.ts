@@ -66,6 +66,9 @@ export const messages = {
         appearance: 'Appearance',
         playback: 'Playback effects',
       },
+      sections: {
+        label: 'Settings sections',
+      },
       on: 'On',
       off: 'Off',
       language: {
@@ -127,6 +130,10 @@ export const messages = {
           title: 'Import worker',
           description: 'Configured by MUSICDL_* and IMPORT_* values.',
         },
+        ai: {
+          title: 'AI providers',
+          description: 'Configure provider API keys. OpenAI currently uses OPENAI_API_KEY.',
+        },
         keys: {
           backend: 'Backend',
         },
@@ -137,6 +144,15 @@ export const messages = {
           configured: 'S3 credentials are configured.',
           missing: 'S3 credentials are missing.',
           keepExisting: 'Leave blank to keep existing',
+        },
+        apiKeys: {
+          configured: 'OpenAI API key is configured.',
+          configuredByEnvironment: 'OpenAI API key is provided by OPENAI_API_KEY.',
+          missing: 'OpenAI API key is missing.',
+          keepExisting: 'Leave blank to keep existing',
+          remove: 'Remove saved key',
+          keep: 'Keep saved key',
+          removePending: 'OpenAI API key will be removed when saved.',
         },
         save: {
           action: 'Save overrides',
@@ -408,6 +424,9 @@ export const messages = {
         appearance: '外观',
         playback: '播放器特效',
       },
+      sections: {
+        label: '设置分区',
+      },
       on: '开启',
       off: '关闭',
       language: {
@@ -469,6 +488,10 @@ export const messages = {
           title: '导入 worker',
           description: '由 MUSICDL_* 和 IMPORT_* 值配置。',
         },
+        ai: {
+          title: 'AI 提供商',
+          description: '配置提供商 API Key。当前 OpenAI 使用 OPENAI_API_KEY。',
+        },
         keys: {
           backend: '后端',
         },
@@ -479,6 +502,15 @@ export const messages = {
           configured: 'S3 凭据已配置。',
           missing: '缺少 S3 凭据。',
           keepExisting: '留空则保留现有值',
+        },
+        apiKeys: {
+          configured: 'OpenAI API Key 已配置。',
+          configuredByEnvironment: 'OpenAI API Key 由 OPENAI_API_KEY 提供。',
+          missing: '缺少 OpenAI API Key。',
+          keepExisting: '留空则保留现有值',
+          remove: '移除已保存 Key',
+          keep: '保留已保存 Key',
+          removePending: '保存后将移除 OpenAI API Key。',
         },
         save: {
           action: '保存覆盖',
