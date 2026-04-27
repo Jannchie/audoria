@@ -3,6 +3,7 @@ import type { Music } from '../api/types.gen'
 import type { TrackSortKey } from '../composables/useTrackSort'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import LazyCoverImage from '../components/LazyCoverImage.vue'
 import MetadataEditDialog from '../components/MetadataEditDialog.vue'
 import SoundWave from '../components/SoundWave.vue'
 import { useContextMenu } from '../composables/useContextMenu'
@@ -360,15 +361,14 @@ function openBatchMenu(event: MouseEvent): void {
         @contextmenu="handleContextMenu(track, $event)"
       >
         <div class="tr-cover">
-          <img
+          <LazyCoverImage
             v-if="track.coverUrl"
             :src="trackCoverUrl(track)"
             :alt="track.title || track.filename"
+            :thumbhash="track.coverThumbhash"
             width="44"
             height="44"
-            loading="lazy"
-            decoding="async"
-          >
+          />
           <span
             v-else
             class="i-tabler-music tr-cover-placeholder"
@@ -659,13 +659,6 @@ function openBatchMenu(event: MouseEvent): void {
     width: 40px;
     height: 40px;
   }
-}
-
-.tr-cover img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
 }
 
 .tr-cover-placeholder {

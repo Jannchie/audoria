@@ -3,6 +3,7 @@ import type { CoverEffectPreset } from '../constants/coverEffects'
 import { useIdle, useMouseInElement } from '@vueuse/core'
 import { computed, ref, watch } from 'vue'
 import { coverEffectAttributesByPreset, defaultCoverEffectPreset } from '../constants/coverEffects'
+import { thumbhashPlaceholderStyle } from '../utils/thumbhash'
 import ParallaxCard from './ParallaxCard.vue'
 
 defineOptions({
@@ -16,6 +17,7 @@ const props = withDefaults(defineProps<{
   foregroundMaskUrl?: string
   imageUrl?: string
   playing?: boolean
+  thumbhash?: string | null
 }>(), {
   effectEnabled: true,
 })
@@ -63,6 +65,7 @@ const coverStyle = computed(() => ({
 }))
 
 const foregroundMaskReady = ref(false)
+const baseImageReady = ref(false)
 
 function createDirectMaskStyle(maskUrl?: string) {
   if (!maskUrl) {
@@ -75,6 +78,14 @@ function createDirectMaskStyle(maskUrl?: string) {
 }
 
 const foregroundMaskStyle = computed(() => createDirectMaskStyle(props.foregroundMaskUrl))
+const placeholderStyle = computed(() => thumbhashPlaceholderStyle(props.thumbhash))
+const foregroundImageStyle = computed(() => ({
+  ...foregroundMaskStyle.value,
+}))
+
+watch(() => props.imageUrl, () => {
+  baseImageReady.value = false
+})
 
 function watchMaskReady(source: () => string | undefined, state: typeof foregroundMaskReady) {
   let requestId = 0
@@ -131,16 +142,19 @@ watchMaskReady(() => props.foregroundMaskUrl, foregroundMaskReady)
         :data-subtypes="effectAttributes.subtypes"
         :data-supertype="effectAttributes.supertype"
         :data-trainer-gallery="effectAttributes.trainerGallery"
-        :style="coverStyle"
+        :style="{ ...coverStyle, ...placeholderStyle }"
       >
         <img
           v-if="imageUrl"
           :src="imageUrl"
           :alt="alt"
           class="holo-cover__image holo-cover__image--base"
+          :class="{ 'holo-cover__image--ready': baseImageReady }"
           width="1200"
           height="1200"
           decoding="async"
+          @load="baseImageReady = true"
+          @error="baseImageReady = false"
         >
         <div
           v-if="imageUrl && effectEnabled"
@@ -153,11 +167,11 @@ watchMaskReady(() => props.foregroundMaskUrl, foregroundMaskReady)
           aria-hidden="true"
         />
         <img
-          v-if="imageUrl && effectEnabled && foregroundMaskUrl && foregroundMaskReady"
+          v-if="imageUrl && effectEnabled && foregroundMaskUrl && foregroundMaskReady && baseImageReady"
           :src="imageUrl"
           :alt="alt"
-          class="holo-cover__image holo-cover__image--foreground holo-cover__masked"
-          :style="foregroundMaskStyle"
+          class="holo-cover__image holo-cover__image--foreground holo-cover__masked holo-cover__image--ready"
+          :style="foregroundImageStyle"
           width="1200"
           height="1200"
           decoding="async"
@@ -295,6 +309,15 @@ watchMaskReady(() => props.foregroundMaskUrl, foregroundMaskReady)
 .holo-cover__image {
   display: block;
   object-fit: cover;
+  opacity: 0;
+  transition:
+    opacity 220ms ease,
+    filter 360ms ease,
+    transform 360ms ease;
+}
+
+.holo-cover__image--ready {
+  opacity: 1;
 }
 
 .holo-cover__masked {
@@ -310,12 +333,18 @@ watchMaskReady(() => props.foregroundMaskUrl, foregroundMaskReady)
 
 .holo-cover__image--base {
   z-index: 1;
+  filter: brightness(0.92) contrast(1.04) blur(10px);
+  transform: scale(1.025);
+}
+
+.holo-cover__image--base.holo-cover__image--ready {
   filter: brightness(0.92) contrast(1.04);
+  transform: scale(1);
 }
 
 .holo-cover__image--foreground {
   z-index: 4;
-  transform: translateZ(18px) scale(1.015);
+  transform: translateZ(18px);
 }
 
 .card__shine,

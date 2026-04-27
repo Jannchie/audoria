@@ -101,6 +101,7 @@ async function processNextJob(): Promise<boolean> {
       coverThumbStorageBackend: storedCover?.thumb.backend ?? null,
       coverThumbStorageKey: storedCover?.thumb.key ?? null,
       coverThumbContentType: storedCover?.thumb.contentType ?? null,
+      coverThumbhash: storedCover?.thumbhash ?? null,
       lyrics: songInfo.lyric,
       title: songInfo.song_name,
       artists: songInfo.singers,

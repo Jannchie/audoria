@@ -17,6 +17,7 @@ export const tracks = sqliteTable('tracks', {
   coverThumbStorageBackend: text('cover_thumb_storage_backend'),
   coverThumbStorageKey: text('cover_thumb_storage_key'),
   coverThumbContentType: text('cover_thumb_content_type'),
+  coverThumbhash: text('cover_thumbhash'),
   title: text('title'),
   artists: text('artists'),
   album: text('album'),
@@ -92,6 +93,7 @@ export interface PlaylistSummary extends Playlist {
   totalDurationSeconds: number
   trackCount: number
   previewTrackIds: string[]
+  previewCoverThumbhashes: Array<string | null>
 }
 
 const sqlite = new Database(config.dbPath)
@@ -111,6 +113,7 @@ function rebuildLegacyTracksTable(): void {
       cover_thumb_storage_backend TEXT,
       cover_thumb_storage_key TEXT,
       cover_thumb_content_type TEXT,
+      cover_thumbhash TEXT,
       title TEXT,
       artists TEXT,
       album TEXT,
@@ -135,6 +138,7 @@ function rebuildLegacyTracksTable(): void {
       cover_thumb_storage_backend,
       cover_thumb_storage_key,
       cover_thumb_content_type,
+      cover_thumbhash,
       title,
       artists,
       album,
@@ -158,6 +162,7 @@ function rebuildLegacyTracksTable(): void {
       cover_thumb_storage_backend,
       cover_thumb_storage_key,
       cover_thumb_content_type,
+      cover_thumbhash,
       title,
       artists,
       album,
@@ -190,6 +195,7 @@ sqlite.exec(`
     cover_thumb_storage_backend TEXT,
     cover_thumb_storage_key TEXT,
     cover_thumb_content_type TEXT,
+    cover_thumbhash TEXT,
     title TEXT,
     artists TEXT,
     album TEXT,
@@ -285,6 +291,9 @@ if (!trackColumns.some(column => column.name === 'cover_thumb_storage_key')) {
 }
 if (!trackColumns.some(column => column.name === 'cover_thumb_content_type')) {
   sqlite.exec('ALTER TABLE tracks ADD COLUMN cover_thumb_content_type TEXT')
+}
+if (!trackColumns.some(column => column.name === 'cover_thumbhash')) {
+  sqlite.exec('ALTER TABLE tracks ADD COLUMN cover_thumbhash TEXT')
 }
 if (!trackColumns.some(column => column.name === 'title')) {
   sqlite.exec('ALTER TABLE tracks ADD COLUMN title TEXT')
@@ -393,8 +402,11 @@ export function listPlaylists(): PlaylistSummary[] {
       .where(eq(playlistTracks.playlistId, playlist.id))
       .get()
 
-    const previewTrackIds = db
-      .select({ trackId: playlistTracks.trackId })
+    const previewCovers = db
+      .select({
+        trackId: playlistTracks.trackId,
+        coverThumbhash: tracks.coverThumbhash,
+      })
       .from(playlistTracks)
       .innerJoin(tracks, eq(playlistTracks.trackId, tracks.id))
       .where(and(
@@ -404,13 +416,13 @@ export function listPlaylists(): PlaylistSummary[] {
       .orderBy(asc(playlistTracks.position), asc(playlistTracks.createdAt))
       .limit(4)
       .all()
-      .map(row => row.trackId)
 
     return {
       ...playlist,
       trackCount: Number(aggregates?.trackCount ?? 0),
       totalDurationSeconds: Number(aggregates?.totalDurationSeconds ?? 0),
-      previewTrackIds,
+      previewTrackIds: previewCovers.map(row => row.trackId),
+      previewCoverThumbhashes: previewCovers.map(row => row.coverThumbhash),
     }
   })
 }
@@ -800,6 +812,7 @@ export function updateTrackCover(id: string, cover: {
   thumbBackend: string | null
   thumbKey: string | null
   thumbContentType: string | null
+  thumbhash: string | null
 }): void {
   db.update(tracks)
     .set({
@@ -809,6 +822,7 @@ export function updateTrackCover(id: string, cover: {
       coverThumbStorageBackend: cover.thumbBackend,
       coverThumbStorageKey: cover.thumbKey,
       coverThumbContentType: cover.thumbContentType,
+      coverThumbhash: cover.thumbhash,
     })
     .where(eq(tracks.id, id))
     .run()
@@ -825,6 +839,7 @@ export function updateTrackImportedMetadata(id: string, metadata: {
   coverThumbStorageBackend: string | null
   coverThumbStorageKey: string | null
   coverThumbContentType: string | null
+  coverThumbhash: string | null
   lyrics: string | null
   title: string | null
   artists: string | null
@@ -842,6 +857,7 @@ export function updateTrackImportedMetadata(id: string, metadata: {
       coverThumbStorageBackend: metadata.coverThumbStorageBackend,
       coverThumbStorageKey: metadata.coverThumbStorageKey,
       coverThumbContentType: metadata.coverThumbContentType,
+      coverThumbhash: metadata.coverThumbhash,
       lyrics: metadata.lyrics,
       title: metadata.title,
       artists: metadata.artists,

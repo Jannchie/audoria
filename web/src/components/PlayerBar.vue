@@ -8,6 +8,7 @@ import { usePlayerState } from '../composables/usePlayerState'
 import { useQueuePanel } from '../composables/useQueuePanel'
 import { getSourceDisplay } from '../utils/source'
 import IconButton from './IconButton.vue'
+import LazyCoverImage from './LazyCoverImage.vue'
 import ProgressPreviewTooltip from './ProgressPreviewTooltip.vue'
 
 const router = useRouter()
@@ -568,15 +569,15 @@ onUnmounted(() => {
         @click="goToPlayer"
       >
         <div class="rounded-lg bg-[var(--bg-elevated)] flex shrink-0 h-11 w-11 items-center justify-center overflow-hidden">
-          <img
+          <LazyCoverImage
             v-if="currentTrackCoverUrl"
-            :src="currentTrackCoverUrl"
             :alt="currentTrack?.filename ?? t('player.trackCover')"
-            class="h-full w-full object-cover"
+            :src="currentTrackCoverUrl"
+            :thumbhash="currentTrack?.coverThumbhash"
             width="48"
             height="48"
-            decoding="async"
-          >
+            loading="eager"
+          />
           <span
             v-else
             class="i-tabler-music text-[var(--text-tertiary)]"

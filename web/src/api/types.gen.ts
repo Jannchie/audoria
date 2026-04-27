@@ -11,6 +11,7 @@ export type Music = {
     contentType: string;
     coverUrl: string;
     coverThumbUrl: string;
+    coverThumbhash: string | null;
     lyrics: string;
     title: string;
     artists: string;
@@ -77,6 +78,7 @@ export type Playlist = {
     trackCount: number;
     totalDurationSeconds: number;
     previewCoverUrls: Array<string>;
+    previewCoverThumbhashes: Array<string | null>;
     createdAt: string;
     updatedAt: string;
 };

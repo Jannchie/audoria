@@ -65,6 +65,9 @@ importers:
       sharp:
         specifier: ^0.34.5
         version: 0.34.5
+      thumbhash:
+        specifier: ^0.1.1
+        version: 0.1.1
       zod:
         specifier: ^4.3.6
         version: 4.3.6
@@ -99,6 +102,9 @@ importers:
       three:
         specifier: ^0.183.2
         version: 0.183.2
+      thumbhash:
+        specifier: ^0.1.1
+        version: 0.1.1
       vue:
         specifier: ^3.5.32
         version: 3.5.32(typescript@6.0.3)
@@ -5213,6 +5219,9 @@ packages:
 
   three@0.183.2:
     resolution: {integrity: sha512-di3BsL2FEQ1PA7Hcvn4fyJOlxRRgFYBpMTcyOgkwJIaDOdJMebEFPA+t98EvjuljDx4hNulAGwF6KIjtwI5jgQ==}
+
+  thumbhash@0.1.1:
+    resolution: {integrity: sha512-kH5pKeIIBPQXAOni2AiY/Cu/NKdkFREdpH+TLdM0g6WA7RriCv0kPLgP731ady67MhTAqrVG/4mnEeibVuCJcg==}
 
   tinybench@2.9.0:
     resolution: {integrity: sha512-0+DUvqWMValLmha6lr4kD8iAMK1HzV0/aKnCtWb9v9641TnP/MFb7Pc2bxoxQjTXAErryXVgUOfv2YqNllqGeg==}
@@ -11802,6 +11811,8 @@ snapshots:
       source-map-support: 0.5.21
 
   three@0.183.2: {}
+
+  thumbhash@0.1.1: {}
 
   tinybench@2.9.0: {}
 

@@ -143,6 +143,7 @@ export function useCreatePlaylist() {
           trackCount: playlist.trackCount,
           totalDurationSeconds: playlist.totalDurationSeconds,
           previewCoverUrls: playlist.previewCoverUrls,
+          previewCoverThumbhashes: playlist.previewCoverThumbhashes,
           createdAt: playlist.createdAt,
           updatedAt: playlist.updatedAt,
         }

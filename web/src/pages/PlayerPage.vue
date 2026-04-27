@@ -587,6 +587,7 @@ onUnmounted(() => {
             :foreground-mask-url="currentTrackForegroundMaskUrl"
             :image-url="currentTrackCoverUrl"
             :playing="isPlaying"
+            :thumbhash="currentTrack?.coverThumbhash"
           />
         </div>
 

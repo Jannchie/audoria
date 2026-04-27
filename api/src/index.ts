@@ -64,6 +64,7 @@ function toMusicResponse(row: Track, playlistIds: string[] = []) {
     contentType: row.contentType,
     coverUrl: row.coverStorageKey ? buildCoverPath(row.id, 'cover') : null,
     coverThumbUrl: row.coverStorageKey ? buildCoverPath(row.id, 'thumb') : null,
+    coverThumbhash: row.coverThumbhash,
     lyrics: row.lyrics,
     title: row.title,
     artists: row.artists,
@@ -104,6 +105,7 @@ function toPlaylistSummaryResponse(playlist: PlaylistSummary) {
     trackCount: playlist.trackCount,
     totalDurationSeconds: playlist.totalDurationSeconds,
     previewCoverUrls: playlist.previewTrackIds.map(id => buildCoverPath(id, 'thumb')),
+    previewCoverThumbhashes: playlist.previewCoverThumbhashes,
     createdAt: new Date(playlist.createdAt).toISOString(),
     updatedAt: new Date(playlist.updatedAt).toISOString(),
   }
@@ -111,10 +113,10 @@ function toPlaylistSummaryResponse(playlist: PlaylistSummary) {
 
 function toPlaylistDetailResponse(playlist: Playlist, playlistTracks: Track[]) {
   const totalDurationSeconds = playlistTracks.reduce((sum, track) => sum + (track.durationSeconds ?? 0), 0)
-  const previewCoverUrls = playlistTracks
+  const previewCoverTracks = playlistTracks
     .filter(track => track.coverThumbStorageKey || track.coverStorageKey)
     .slice(0, 4)
-    .map(track => buildCoverPath(track.id, 'thumb'))
+  const previewCoverUrls = previewCoverTracks.map(track => buildCoverPath(track.id, 'thumb'))
   const trackIdToPlaylistIds = getPlaylistIdsForTracks(playlistTracks.map(track => track.id))
 
   return {
@@ -124,6 +126,7 @@ function toPlaylistDetailResponse(playlist: Playlist, playlistTracks: Track[]) {
     trackCount: playlistTracks.length,
     totalDurationSeconds,
     previewCoverUrls,
+    previewCoverThumbhashes: previewCoverTracks.map(track => track.coverThumbhash),
     createdAt: new Date(playlist.createdAt).toISOString(),
     updatedAt: new Date(playlist.updatedAt).toISOString(),
     tracks: playlistTracks.map(track => toMusicResponse(track, trackIdToPlaylistIds.get(track.id) ?? [])),
@@ -137,6 +140,7 @@ const MusicSchema = z.object({
   contentType: z.string().nullable().openapi({ example: 'audio/mpeg' }),
   coverUrl: z.string().nullable().openapi({ example: '/music/a3f9d3d1-9c9d-4a40-a54d-0e4cb7acb8a0/cover' }),
   coverThumbUrl: z.string().nullable().openapi({ example: '/music/a3f9d3d1-9c9d-4a40-a54d-0e4cb7acb8a0/cover/thumb' }),
+  coverThumbhash: z.string().nullable().openapi({ example: '2OcRJYB4d3h/iIeHeEh3eIhw+j2A=' }),
   lyrics: z.string().nullable().openapi({ example: '[00:00.00] Lyrics line' }),
   title: z.string().nullable().openapi({ example: '稻香' }),
   artists: z.string().nullable().openapi({ example: '周杰伦' }),
@@ -164,6 +168,9 @@ const PlaylistSchema = z.object({
   totalDurationSeconds: z.number().int().nonnegative().openapi({ example: 2765 }),
   previewCoverUrls: z.array(z.string()).max(4).openapi({
     example: ['/music/a3f9d3d1-9c9d-4a40-a54d-0e4cb7acb8a0/cover/thumb'],
+  }),
+  previewCoverThumbhashes: z.array(z.string().nullable()).max(4).openapi({
+    example: ['2OcRJYB4d3h/iIeHeEh3eIhw+j2A='],
   }),
   createdAt: z.string().datetime().openapi({ example: '2024-01-01T12:00:00.000Z' }),
   updatedAt: z.string().datetime().openapi({ example: '2024-01-02T08:30:00.000Z' }),
@@ -1720,6 +1727,7 @@ app.openapi(updateCoverRoute, async (c) => {
     thumbBackend: storedCover.thumb.backend,
     thumbKey: storedCover.thumb.key,
     thumbContentType: storedCover.thumb.contentType,
+    thumbhash: storedCover.thumbhash,
   })
   const updated = getTrackById(id)
   if (!updated) {
@@ -1772,6 +1780,7 @@ app.openapi(deleteCoverRoute, async (c) => {
       thumbBackend: null,
       thumbKey: null,
       thumbContentType: null,
+      thumbhash: null,
     })
   }
   const updated = getTrackById(id)

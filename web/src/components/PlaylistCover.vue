@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { resolveApiUrl } from '../composables/useMusic'
+import LazyCoverImage from './LazyCoverImage.vue'
 
 const props = withDefaults(defineProps<{
+  thumbhashes?: Array<string | null>
   urls: string[]
   size?: 'sm' | 'md' | 'lg'
   rounded?: boolean
@@ -13,9 +15,16 @@ const props = withDefaults(defineProps<{
 
 const resolved = computed(() =>
   (props.urls ?? [])
-    .filter(url => typeof url === 'string' && url.length > 0)
+    .map((url, index) => ({
+      thumbhash: props.thumbhashes?.[index] ?? null,
+      url,
+    }))
+    .filter(item => typeof item.url === 'string' && item.url.length > 0)
     .slice(0, 4)
-    .map(url => resolveApiUrl(url)),
+    .map(item => ({
+      ...item,
+      url: resolveApiUrl(item.url),
+    })),
 )
 
 const layout = computed<'empty' | 'single' | 'grid'>(() => {
@@ -30,19 +39,19 @@ const layout = computed<'empty' | 'single' | 'grid'>(() => {
 })
 
 // When we only have 2 or 3 covers, repeat them to fill the 4-cell grid
-const gridUrls = computed(() => {
-  const urls = resolved.value
-  const n = urls.length
+const gridCovers = computed(() => {
+  const covers = resolved.value
+  const n = covers.length
   if (n >= 4) {
-    return urls.slice(0, 4)
+    return covers.slice(0, 4)
   }
   if (n === 3) {
-    return [urls[0], urls[1], urls[2], urls[0]]
+    return [covers[0], covers[1], covers[2], covers[0]]
   }
   if (n === 2) {
-    return [urls[0], urls[1], urls[1], urls[0]]
+    return [covers[0], covers[1], covers[1], covers[0]]
   }
-  return urls
+  return covers
 })
 </script>
 
@@ -52,25 +61,23 @@ const gridUrls = computed(() => {
     :class="[`playlist-cover--${size}`, { 'playlist-cover--rounded': rounded }]"
   >
     <template v-if="layout === 'single'">
-      <img
-        :src="resolved[0]"
+      <LazyCoverImage
+        :src="resolved[0].url"
+        :thumbhash="resolved[0].thumbhash"
         alt=""
-        loading="lazy"
-        decoding="async"
         class="playlist-cover-img"
-      >
+      />
     </template>
     <template v-else-if="layout === 'grid'">
       <div class="playlist-cover-grid">
-        <img
-          v-for="(url, index) in gridUrls"
-          :key="`${index}-${url}`"
-          :src="url"
+        <LazyCoverImage
+          v-for="(cover, index) in gridCovers"
+          :key="`${index}-${cover.url}`"
+          :src="cover.url"
+          :thumbhash="cover.thumbhash"
           alt=""
-          loading="lazy"
-          decoding="async"
           class="playlist-cover-tile"
-        >
+        />
       </div>
     </template>
     <template v-else>

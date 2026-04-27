@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { isLrcFormat } from '../composables/useLyrics'
 import { resolveApiUrl, useDeleteCover, useUpdateCover, useUpdateMusic } from '../composables/useMusic'
 import { getSourceDisplay } from '../utils/source'
+import LazyCoverImage from './LazyCoverImage.vue'
 
 const props = defineProps<{
   open: boolean
@@ -66,6 +67,10 @@ const displayCoverUrl = computed(() => {
   }
   return existingCoverUrl.value
 })
+
+const displayCoverThumbhash = computed(() =>
+  pendingCoverPreview.value || removeCoverPending.value ? null : props.track?.coverThumbhash,
+)
 
 const isSaving = computed(() =>
   updateMutation.isPending.value
@@ -216,12 +221,13 @@ function applySourcePreset(value: string): void {
           <div class="metadata-body">
             <section class="metadata-cover-section">
               <div class="metadata-cover">
-                <img
+                <LazyCoverImage
                   v-if="displayCoverUrl"
                   :src="displayCoverUrl"
                   :alt="t('metadata.coverPreview')"
-                  class="metadata-cover-img"
-                >
+                  :thumbhash="displayCoverThumbhash"
+                  loading="eager"
+                />
                 <span
                   v-else
                   class="i-tabler-music metadata-cover-placeholder"
@@ -510,12 +516,6 @@ function applySourcePreset(value: string): void {
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.metadata-cover-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
 }
 
 .metadata-cover-placeholder {

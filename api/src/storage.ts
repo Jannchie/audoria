@@ -7,6 +7,7 @@ import path from 'node:path'
 import { Readable } from 'node:stream'
 import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import sharp from 'sharp'
+import { rgbaToThumbHash } from 'thumbhash'
 import { config } from './config.js'
 import { generateCoverMaskPng, getCoverMaskContentType } from './coverMask.js'
 import { db, tracks } from './db.js'
@@ -32,6 +33,7 @@ type StoredCoverAsset = ObjectRef & {
 type StoredCover = {
   cover: StoredCoverAsset
   thumb: StoredCoverAsset
+  thumbhash: string
 }
 
 type CoverVariant = 'cover' | 'thumb'
@@ -336,6 +338,23 @@ async function createCoverVariant(body: Uint8Array, variant: CoverVariant): Prom
     .toBuffer()
 }
 
+export async function createCoverThumbhash(body: Uint8Array): Promise<string> {
+  const { data, info } = await sharp(body)
+    .rotate()
+    .resize({
+      width: 100,
+      height: 100,
+      fit: 'inside',
+      withoutEnlargement: true,
+    })
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true })
+
+  const hash = rgbaToThumbHash(info.width, info.height, data)
+  return Buffer.from(hash).toString('base64')
+}
+
 export async function storeTrack({
   filename,
   contentType,
@@ -384,6 +403,7 @@ export async function storeTrack({
     coverThumbStorageBackend: null,
     coverThumbStorageKey: null,
     coverThumbContentType: null,
+    coverThumbhash: null,
     title: null,
     artists: null,
     album: null,
@@ -410,9 +430,10 @@ export async function storeTrackCover({
 }): Promise<StoredCover> {
   const storageBackend = getActiveStorageBackend()
   const driver = getStorageDriver(storageBackend)
-  const [coverBody, thumbBody] = await Promise.all([
+  const [coverBody, thumbBody, thumbhash] = await Promise.all([
     createCoverVariant(body, 'cover'),
     createCoverVariant(body, 'thumb'),
+    createCoverThumbhash(body),
   ])
   const maskBodyPromise = generateCoverMaskPng(coverBody, COVER_CONTENT_TYPE)
 
@@ -451,6 +472,7 @@ export async function storeTrackCover({
       key: thumbKey,
       contentType: COVER_CONTENT_TYPE,
     },
+    thumbhash,
   }
 }
 

@@ -273,6 +273,7 @@ function openPlaylist(id: string): void {
         >
           <PlaylistCover
             :urls="playlist.previewCoverUrls"
+            :thumbhashes="playlist.previewCoverThumbhashes"
             size="md"
           />
           <div class="playlist-card-body">

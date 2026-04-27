@@ -3,6 +3,7 @@ import type { TrackSortKey } from '../composables/useTrackSort'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
+import LazyCoverImage from '../components/LazyCoverImage.vue'
 import PlaylistCover from '../components/PlaylistCover.vue'
 import SoundWave from '../components/SoundWave.vue'
 import { useContextMenu } from '../composables/useContextMenu'
@@ -408,6 +409,7 @@ function handleDragEnd(): void {
       <header class="playlist-hero">
         <PlaylistCover
           :urls="playlist.previewCoverUrls"
+          :thumbhashes="playlist.previewCoverThumbhashes"
           size="lg"
         />
         <div class="playlist-hero-body">
@@ -596,15 +598,14 @@ function handleDragEnd(): void {
           </span>
 
           <div class="tr-cover">
-            <img
+            <LazyCoverImage
               v-if="track.coverUrl"
               :src="trackCoverUrl(track)"
               :alt="track.title || track.filename"
+              :thumbhash="track.coverThumbhash"
               width="44"
               height="44"
-              loading="lazy"
-              decoding="async"
-            >
+            />
             <span
               v-else
               class="i-tabler-music tr-cover-placeholder"
@@ -1004,13 +1005,6 @@ function handleDragEnd(): void {
     width: 40px;
     height: 40px;
   }
-}
-
-.tr-cover img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
 }
 
 .tr-cover-placeholder {

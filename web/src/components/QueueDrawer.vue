@@ -6,6 +6,7 @@ import { resolveApiUrl, useMusicQuery } from '../composables/useMusic'
 import { usePlayerState } from '../composables/usePlayerState'
 import { useQueuePanel } from '../composables/useQueuePanel'
 import { formatTrackDuration } from '../utils/audio'
+import LazyCoverImage from './LazyCoverImage.vue'
 import SoundWave from './SoundWave.vue'
 
 const { t } = useI18n()
@@ -199,13 +200,12 @@ watch(isOpen, (open) => {
                 class="queue-row queue-row--active"
               >
                 <div class="queue-cover">
-                  <img
+                  <LazyCoverImage
                     v-if="coverUrl(currentTrack)"
                     :src="coverUrl(currentTrack)"
                     :alt="currentTrack.title ?? currentTrack.filename"
-                    loading="lazy"
-                    decoding="async"
-                  >
+                    :thumbhash="currentTrack.coverThumbhash"
+                  />
                   <span
                     v-else
                     class="i-tabler-music queue-cover-placeholder"
@@ -272,13 +272,12 @@ watch(isOpen, (open) => {
                     @click="playUpNextAt(item.index)"
                   >
                     <div class="queue-cover">
-                      <img
+                      <LazyCoverImage
                         v-if="coverUrl(item.track)"
                         :src="coverUrl(item.track)"
                         :alt="item.track?.title ?? item.track?.filename ?? ''"
-                        loading="lazy"
-                        decoding="async"
-                      >
+                        :thumbhash="item.track?.coverThumbhash"
+                      />
                       <span
                         v-else
                         class="i-tabler-music queue-cover-placeholder"
@@ -329,13 +328,12 @@ watch(isOpen, (open) => {
                     @click="playContextTrack(track.id)"
                   >
                     <div class="queue-cover">
-                      <img
+                      <LazyCoverImage
                         v-if="coverUrl(track)"
                         :src="coverUrl(track)"
                         :alt="track.title ?? track.filename"
-                        loading="lazy"
-                        decoding="async"
-                      >
+                        :thumbhash="track.coverThumbhash"
+                      />
                       <span
                         v-else
                         class="i-tabler-music queue-cover-placeholder"
@@ -542,12 +540,6 @@ watch(isOpen, (open) => {
   border-radius: 0.5rem;
   background: var(--bg-elevated, var(--bg-surface));
   overflow: hidden;
-}
-
-.queue-cover img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
 }
 
 .queue-cover-placeholder {
