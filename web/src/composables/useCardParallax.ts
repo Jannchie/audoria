@@ -16,6 +16,10 @@ export interface UseCardParallaxReturn {
   source: ComputedRef<'deviceOrientation' | 'mouse'>
 }
 
+function clampMouseValue(value: number): number {
+  return Math.min(0.5, Math.max(-0.5, value))
+}
+
 export function useCardParallax(
   target: MaybeElementRef,
   options: UseCardParallaxOptions = {},
@@ -55,10 +59,6 @@ export function useCardParallax(
     }
     return 'mouse'
   })
-
-  function clampMouseValue(value: number): number {
-    return Math.min(0.5, Math.max(-0.5, value))
-  }
 
   const roll = computed(() => {
     if (source.value === 'deviceOrientation') {

@@ -159,8 +159,7 @@ export function useUpdateMusic() {
     },
     onSuccess: (updated) => {
       queryClient.setQueryData<Music[]>(musicQueryKey, current =>
-        current?.map(track => track.id === updated.id ? updated : track) ?? current,
-      )
+        current?.map(track => track.id === updated.id ? updated : track) ?? current)
       queryClient.invalidateQueries({ queryKey: musicQueryKey }).catch(() => {})
     },
   })

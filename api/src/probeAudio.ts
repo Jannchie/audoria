@@ -14,12 +14,8 @@ export function formatDurationText(seconds: number): string {
     .join(':')
 }
 
-export async function probeDurationSeconds(buffer: Buffer): Promise<number | null> {
-  let dir: string | null = null
+export async function probeDurationSecondsFromFile(filePath: string): Promise<number | null> {
   try {
-    dir = await mkdtemp(path.join(tmpdir(), 'audoria-probe-'))
-    const filePath = path.join(dir, 'track.bin')
-    await writeFile(filePath, buffer)
     const output = await new Promise<string>((resolve, reject) => {
       const proc = spawn('ffprobe', [
         '-v',
@@ -55,6 +51,20 @@ export async function probeDurationSeconds(buffer: Buffer): Promise<number | nul
   }
   catch {
     // ffprobe missing or failed; caller must treat this as "duration unknown".
+  }
+  return null
+}
+
+export async function probeDurationSeconds(buffer: Buffer): Promise<number | null> {
+  let dir: string | null = null
+  try {
+    dir = await mkdtemp(path.join(tmpdir(), 'audoria-probe-'))
+    const filePath = path.join(dir, 'track.bin')
+    await writeFile(filePath, buffer)
+    return await probeDurationSecondsFromFile(filePath)
+  }
+  catch {
+    return null
   }
   finally {
     if (dir) {

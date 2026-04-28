@@ -14,7 +14,6 @@ const { close, isOpen } = useQueuePanel()
 const { data: tracks } = useMusicQuery()
 const {
   clearQueue,
-  consumeUpNextHead,
   currentTrackId,
   isPlaying,
   moveInQueue,
@@ -108,8 +107,6 @@ function playUpNextAt(index: number): void {
   }
   selectTrack(trackId, { consumeUpNext: true })
   setPlaying(true)
-  // Ensure head gets consumed even if race prevents the select-time consumption.
-  consumeUpNextHead(trackId)
 }
 
 function handleDragStart(index: number, event: DragEvent): void {

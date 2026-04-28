@@ -351,469 +351,469 @@ const activeLanguageHint = computed(() => {
           v-if="activeSection === 'runtime'"
           class="settings-group"
         >
-      <h2 class="group-title">
-        {{ t('settings.groups.runtime') }}
-      </h2>
-      <div class="group-card">
-        <div
-          v-if="appConfigLoading"
-          class="field-row field-row--stacked"
-        >
-          <div class="field-text">
-            <div class="field-label">
-              {{ t('settings.runtime.loading.title') }}
-            </div>
-            <div class="field-hint">
-              {{ t('settings.runtime.loading.description') }}
-            </div>
-          </div>
-        </div>
-
-        <div
-          v-else-if="appConfigFailed || !appConfig"
-          class="field-row field-row--stacked"
-        >
-          <div class="field-text">
-            <div class="field-label">
-              {{ t('settings.runtime.loadFailed.title') }}
-            </div>
-            <div class="field-hint">
-              {{ t('settings.runtime.loadFailed.description') }}
-            </div>
-          </div>
-        </div>
-
-        <form
-          v-else
-          class="runtime-form"
-          @submit.prevent="saveRuntimeConfig"
-        >
-          <div class="field-row field-row--stacked">
-            <div class="field-text">
-              <div class="field-label">
-                {{ t('settings.runtime.sources.title') }}
-              </div>
-              <div class="field-hint">
-                {{ t('settings.runtime.sources.description') }}
-              </div>
-            </div>
-            <div class="source-list">
-              <button
-                v-for="source in allMusicSources"
-                :key="source"
-                type="button"
-                class="source-pill"
-                :class="{ 'source-pill--active': isMusicSourceSelected(source) }"
-                :disabled="runtimeSaving"
-                :aria-pressed="isMusicSourceSelected(source)"
-                @click="toggleMusicSource(source)"
-              >
-                <span
-                  class="source-pill__icon"
-                  :class="getSourceDisplay(source).icon"
-                  aria-hidden="true"
-                />
-                {{ getSourceDisplay(source).label }}
-              </button>
-            </div>
-          </div>
-
-          <div class="field-row field-row--stacked">
-            <div class="field-text">
-              <div class="field-label">
-                {{ t('settings.runtime.urlSources.title') }}
-              </div>
-              <div class="field-hint">
-                {{ t('settings.runtime.urlSources.description') }}
-              </div>
-            </div>
-            <div class="source-list">
-              <button
-                v-for="source in allUrlSources"
-                :key="source"
-                type="button"
-                class="source-pill"
-                :class="{ 'source-pill--active': isUrlSourceSelected(source) }"
-                :disabled="runtimeSaving"
-                :aria-pressed="isUrlSourceSelected(source)"
-                @click="toggleUrlSource(source)"
-              >
-                <span
-                  class="source-pill__icon"
-                  :class="getSourceDisplay(source).icon"
-                  aria-hidden="true"
-                />
-                {{ getSourceDisplay(source).label }}
-              </button>
-            </div>
-          </div>
-
-          <div class="field-row field-row--stacked">
-            <div class="field-text">
-              <div class="field-label">
-                {{ t('settings.runtime.metadata.title') }}
-              </div>
-              <div class="field-hint">
-                {{ t('settings.runtime.metadata.description') }}
-              </div>
-            </div>
-            <label class="config-field">
-              <span>DB_PATH</span>
-              <input
-                v-model="runtimeForm.dbPath"
-                class="config-input"
-                type="text"
-                autocomplete="off"
-              >
-            </label>
-          </div>
-
-          <div class="field-row field-row--stacked">
-            <div class="field-text">
-              <div class="field-label">
-                {{ t('settings.runtime.storage.title') }}
-              </div>
-              <div class="field-hint">
-                {{ t('settings.runtime.storage.description') }}
-              </div>
-            </div>
-            <div class="field-control field-control--chips field-control--start">
-              <button
-                type="button"
-                class="chip"
-                :class="{ 'chip--active': runtimeForm.storageBackend === 'fs' }"
-                :aria-pressed="runtimeForm.storageBackend === 'fs'"
-                @click="runtimeForm.storageBackend = 'fs'"
-              >
-                {{ t('settings.runtime.storage.backends.fs') }}
-              </button>
-              <button
-                type="button"
-                class="chip"
-                :class="{ 'chip--active': runtimeForm.storageBackend === 's3' }"
-                :aria-pressed="runtimeForm.storageBackend === 's3'"
-                @click="runtimeForm.storageBackend = 's3'"
-              >
-                {{ t('settings.runtime.storage.backends.s3') }}
-              </button>
-            </div>
-
-            <label
-              v-if="runtimeForm.storageBackend === 'fs'"
-              class="config-field"
+          <h2 class="group-title">
+            {{ t('settings.groups.runtime') }}
+          </h2>
+          <div class="group-card">
+            <div
+              v-if="appConfigLoading"
+              class="field-row field-row--stacked"
             >
-              <span>STORAGE_FS_ROOT</span>
-              <input
-                v-model="runtimeForm.fsRootDir"
-                class="config-input"
-                type="text"
-                autocomplete="off"
-              >
-            </label>
+              <div class="field-text">
+                <div class="field-label">
+                  {{ t('settings.runtime.loading.title') }}
+                </div>
+                <div class="field-hint">
+                  {{ t('settings.runtime.loading.description') }}
+                </div>
+              </div>
+            </div>
 
             <div
+              v-else-if="appConfigFailed || !appConfig"
+              class="field-row field-row--stacked"
+            >
+              <div class="field-text">
+                <div class="field-label">
+                  {{ t('settings.runtime.loadFailed.title') }}
+                </div>
+                <div class="field-hint">
+                  {{ t('settings.runtime.loadFailed.description') }}
+                </div>
+              </div>
+            </div>
+
+            <form
               v-else
-              class="config-fields"
+              class="runtime-form"
+              @submit.prevent="saveRuntimeConfig"
             >
-              <label class="config-field">
-                <span>S3_BUCKET</span>
-                <input
-                  v-model="runtimeForm.s3Bucket"
-                  class="config-input"
-                  type="text"
-                  autocomplete="off"
+              <div class="field-row field-row--stacked">
+                <div class="field-text">
+                  <div class="field-label">
+                    {{ t('settings.runtime.sources.title') }}
+                  </div>
+                  <div class="field-hint">
+                    {{ t('settings.runtime.sources.description') }}
+                  </div>
+                </div>
+                <div class="source-list">
+                  <button
+                    v-for="source in allMusicSources"
+                    :key="source"
+                    type="button"
+                    class="source-pill"
+                    :class="{ 'source-pill--active': isMusicSourceSelected(source) }"
+                    :disabled="runtimeSaving"
+                    :aria-pressed="isMusicSourceSelected(source)"
+                    @click="toggleMusicSource(source)"
+                  >
+                    <span
+                      class="source-pill__icon"
+                      :class="getSourceDisplay(source).icon"
+                      aria-hidden="true"
+                    />
+                    {{ getSourceDisplay(source).label }}
+                  </button>
+                </div>
+              </div>
+
+              <div class="field-row field-row--stacked">
+                <div class="field-text">
+                  <div class="field-label">
+                    {{ t('settings.runtime.urlSources.title') }}
+                  </div>
+                  <div class="field-hint">
+                    {{ t('settings.runtime.urlSources.description') }}
+                  </div>
+                </div>
+                <div class="source-list">
+                  <button
+                    v-for="source in allUrlSources"
+                    :key="source"
+                    type="button"
+                    class="source-pill"
+                    :class="{ 'source-pill--active': isUrlSourceSelected(source) }"
+                    :disabled="runtimeSaving"
+                    :aria-pressed="isUrlSourceSelected(source)"
+                    @click="toggleUrlSource(source)"
+                  >
+                    <span
+                      class="source-pill__icon"
+                      :class="getSourceDisplay(source).icon"
+                      aria-hidden="true"
+                    />
+                    {{ getSourceDisplay(source).label }}
+                  </button>
+                </div>
+              </div>
+
+              <div class="field-row field-row--stacked">
+                <div class="field-text">
+                  <div class="field-label">
+                    {{ t('settings.runtime.metadata.title') }}
+                  </div>
+                  <div class="field-hint">
+                    {{ t('settings.runtime.metadata.description') }}
+                  </div>
+                </div>
+                <label class="config-field">
+                  <span>DB_PATH</span>
+                  <input
+                    v-model="runtimeForm.dbPath"
+                    class="config-input"
+                    type="text"
+                    autocomplete="off"
+                  >
+                </label>
+              </div>
+
+              <div class="field-row field-row--stacked">
+                <div class="field-text">
+                  <div class="field-label">
+                    {{ t('settings.runtime.storage.title') }}
+                  </div>
+                  <div class="field-hint">
+                    {{ t('settings.runtime.storage.description') }}
+                  </div>
+                </div>
+                <div class="field-control field-control--chips field-control--start">
+                  <button
+                    type="button"
+                    class="chip"
+                    :class="{ 'chip--active': runtimeForm.storageBackend === 'fs' }"
+                    :aria-pressed="runtimeForm.storageBackend === 'fs'"
+                    @click="runtimeForm.storageBackend = 'fs'"
+                  >
+                    {{ t('settings.runtime.storage.backends.fs') }}
+                  </button>
+                  <button
+                    type="button"
+                    class="chip"
+                    :class="{ 'chip--active': runtimeForm.storageBackend === 's3' }"
+                    :aria-pressed="runtimeForm.storageBackend === 's3'"
+                    @click="runtimeForm.storageBackend = 's3'"
+                  >
+                    {{ t('settings.runtime.storage.backends.s3') }}
+                  </button>
+                </div>
+
+                <label
+                  v-if="runtimeForm.storageBackend === 'fs'"
+                  class="config-field"
                 >
-              </label>
-              <label class="config-field">
-                <span>S3_ENDPOINT</span>
-                <input
-                  v-model="runtimeForm.s3Endpoint"
-                  class="config-input"
-                  type="url"
-                  autocomplete="off"
+                  <span>STORAGE_FS_ROOT</span>
+                  <input
+                    v-model="runtimeForm.fsRootDir"
+                    class="config-input"
+                    type="text"
+                    autocomplete="off"
+                  >
+                </label>
+
+                <div
+                  v-else
+                  class="config-fields"
                 >
-              </label>
-              <label class="config-field">
-                <span>S3_REGION</span>
-                <input
-                  v-model="runtimeForm.s3Region"
-                  class="config-input"
-                  type="text"
-                  autocomplete="off"
+                  <label class="config-field">
+                    <span>S3_BUCKET</span>
+                    <input
+                      v-model="runtimeForm.s3Bucket"
+                      class="config-input"
+                      type="text"
+                      autocomplete="off"
+                    >
+                  </label>
+                  <label class="config-field">
+                    <span>S3_ENDPOINT</span>
+                    <input
+                      v-model="runtimeForm.s3Endpoint"
+                      class="config-input"
+                      type="url"
+                      autocomplete="off"
+                    >
+                  </label>
+                  <label class="config-field">
+                    <span>S3_REGION</span>
+                    <input
+                      v-model="runtimeForm.s3Region"
+                      class="config-input"
+                      type="text"
+                      autocomplete="off"
+                    >
+                  </label>
+                  <label class="config-field config-field--inline">
+                    <span>S3_FORCE_PATH_STYLE</span>
+                    <button
+                      type="button"
+                      class="toggle"
+                      :class="{ 'toggle--on': runtimeForm.s3ForcePathStyle }"
+                      :aria-checked="runtimeForm.s3ForcePathStyle"
+                      role="switch"
+                      @click="runtimeForm.s3ForcePathStyle = !runtimeForm.s3ForcePathStyle"
+                    >
+                      <span class="toggle__thumb" />
+                    </button>
+                  </label>
+                  <label class="config-field">
+                    <span>S3_ACCESS_KEY_ID</span>
+                    <input
+                      v-model="runtimeForm.s3AccessKeyId"
+                      class="config-input"
+                      type="password"
+                      autocomplete="new-password"
+                      :placeholder="t('settings.runtime.credentials.keepExisting')"
+                    >
+                  </label>
+                  <label class="config-field">
+                    <span>S3_SECRET_ACCESS_KEY</span>
+                    <input
+                      v-model="runtimeForm.s3SecretAccessKey"
+                      class="config-input"
+                      type="password"
+                      autocomplete="new-password"
+                      :placeholder="t('settings.runtime.credentials.keepExisting')"
+                    >
+                  </label>
+                  <p
+                    v-if="credentialStatus"
+                    class="runtime-note"
+                  >
+                    {{ credentialStatus }}
+                  </p>
+                </div>
+              </div>
+
+              <div class="field-row field-row--stacked">
+                <div class="field-text">
+                  <div class="field-label">
+                    {{ t('settings.runtime.imports.title') }}
+                  </div>
+                  <div class="field-hint">
+                    {{ t('settings.runtime.imports.description') }}
+                  </div>
+                </div>
+                <div class="config-fields config-fields--compact">
+                  <label class="config-field">
+                    <span>MUSICDL_SEARCH_TIMEOUT_MS</span>
+                    <input
+                      v-model.number="runtimeForm.searchTimeoutMs"
+                      class="config-input"
+                      type="number"
+                      min="1"
+                    >
+                  </label>
+                  <label class="config-field">
+                    <span>MUSICDL_DOWNLOAD_TIMEOUT_MS</span>
+                    <input
+                      v-model.number="runtimeForm.downloadTimeoutMs"
+                      class="config-input"
+                      type="number"
+                      min="1"
+                    >
+                  </label>
+                  <label class="config-field">
+                    <span>IMPORT_CANDIDATE_TTL_MS</span>
+                    <input
+                      v-model.number="runtimeForm.candidateTtlMs"
+                      class="config-input"
+                      type="number"
+                      min="1"
+                    >
+                  </label>
+                  <label class="config-field">
+                    <span>IMPORT_WORKER_POLL_MS</span>
+                    <input
+                      v-model.number="runtimeForm.workerPollMs"
+                      class="config-input"
+                      type="number"
+                      min="1"
+                    >
+                  </label>
+                </div>
+              </div>
+
+              <div class="field-row field-row--stacked">
+                <div class="field-text">
+                  <div class="field-label">
+                    {{ t('settings.runtime.ai.title') }}
+                  </div>
+                  <div class="field-hint">
+                    {{ t('settings.runtime.ai.description') }}
+                  </div>
+                </div>
+                <div class="config-fields">
+                  <label class="config-field">
+                    <span>OPENAI_API_KEY</span>
+                    <input
+                      v-model="runtimeForm.openaiApiKey"
+                      class="config-input"
+                      type="password"
+                      autocomplete="new-password"
+                      :disabled="runtimeForm.removeOpenaiApiKey || openaiApiKeyFromEnvironment"
+                      :placeholder="t('settings.runtime.apiKeys.keepExisting')"
+                    >
+                  </label>
+                  <button
+                    v-if="openaiApiKeyConfigured && !openaiApiKeyFromEnvironment"
+                    type="button"
+                    class="settings-button config-action-button"
+                    @click="toggleOpenaiApiKeyRemoval"
+                  >
+                    {{ runtimeForm.removeOpenaiApiKey ? t('settings.runtime.apiKeys.keep') : t('settings.runtime.apiKeys.remove') }}
+                  </button>
+                  <p
+                    v-if="openaiCredentialStatus"
+                    class="runtime-note"
+                  >
+                    {{ openaiCredentialStatus }}
+                  </p>
+                </div>
+              </div>
+
+              <div class="runtime-actions">
+                <p
+                  v-if="runtimeSaveError"
+                  class="runtime-status runtime-status--error"
                 >
-              </label>
-              <label class="config-field config-field--inline">
-                <span>S3_FORCE_PATH_STYLE</span>
+                  {{ runtimeSaveError }}
+                </p>
+                <p
+                  v-else-if="runtimeSaveSucceeded"
+                  class="runtime-status"
+                >
+                  {{ runtimeRestartRequired ? t('settings.runtime.save.savedRestart') : t('settings.runtime.save.saved') }}
+                </p>
                 <button
-                  type="button"
-                  class="toggle"
-                  :class="{ 'toggle--on': runtimeForm.s3ForcePathStyle }"
-                  :aria-checked="runtimeForm.s3ForcePathStyle"
-                  role="switch"
-                  @click="runtimeForm.s3ForcePathStyle = !runtimeForm.s3ForcePathStyle"
+                  type="submit"
+                  class="settings-button settings-button--primary"
+                  :disabled="runtimeSaveDisabled"
                 >
-                  <span class="toggle__thumb" />
+                  {{ runtimeSaving ? t('settings.runtime.save.saving') : t('settings.runtime.save.action') }}
                 </button>
-              </label>
-              <label class="config-field">
-                <span>S3_ACCESS_KEY_ID</span>
-                <input
-                  v-model="runtimeForm.s3AccessKeyId"
-                  class="config-input"
-                  type="password"
-                  autocomplete="new-password"
-                  :placeholder="t('settings.runtime.credentials.keepExisting')"
-                >
-              </label>
-              <label class="config-field">
-                <span>S3_SECRET_ACCESS_KEY</span>
-                <input
-                  v-model="runtimeForm.s3SecretAccessKey"
-                  class="config-input"
-                  type="password"
-                  autocomplete="new-password"
-                  :placeholder="t('settings.runtime.credentials.keepExisting')"
-                >
-              </label>
-              <p
-                v-if="credentialStatus"
-                class="runtime-note"
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <template v-else>
+          <section class="settings-group">
+            <h2 class="group-title">
+              {{ t('settings.groups.appearance') }}
+            </h2>
+            <div class="group-card">
+              <div class="field-row">
+                <div class="field-text">
+                  <div class="field-label">
+                    {{ t('settings.language.title') }}
+                  </div>
+                  <div class="field-hint">
+                    {{ t('settings.language.description') }}
+                  </div>
+                </div>
+                <div class="field-control field-control--chips">
+                  <button
+                    v-for="option in languageOptions"
+                    :key="option.value"
+                    type="button"
+                    class="chip"
+                    :class="{ 'chip--active': localePreference === option.value }"
+                    :aria-pressed="localePreference === option.value"
+                    @click="setLocalePreference(option.value)"
+                  >
+                    {{ option.label }}
+                  </button>
+                </div>
+              </div>
+              <div class="field-footnote">
+                {{ activeLanguageHint }}
+              </div>
+            </div>
+          </section>
+
+          <section class="settings-group">
+            <h2 class="group-title">
+              {{ t('settings.groups.playback') }}
+            </h2>
+            <div class="group-card">
+              <div class="field-row">
+                <div class="field-text">
+                  <div class="field-label">
+                    {{ t('settings.coverEffectEnabled.title') }}
+                  </div>
+                  <div class="field-hint">
+                    {{ t('settings.coverEffectEnabled.description') }}
+                  </div>
+                </div>
+                <div class="field-control">
+                  <button
+                    type="button"
+                    class="toggle"
+                    :class="{ 'toggle--on': coverEffectEnabled }"
+                    :aria-checked="coverEffectEnabled"
+                    :aria-label="t('settings.coverEffectEnabled.title')"
+                    role="switch"
+                    @click="setCoverEffectEnabled(!coverEffectEnabled)"
+                  >
+                    <span class="toggle__thumb" />
+                  </button>
+                </div>
+              </div>
+
+              <div
+                class="field-row"
+                :class="{ 'field-row--disabled': !coverEffectEnabled }"
               >
-                {{ credentialStatus }}
-              </p>
-            </div>
-          </div>
+                <div class="field-text">
+                  <div class="field-label">
+                    {{ t('settings.coverEffect.title') }}
+                  </div>
+                  <div class="field-hint">
+                    {{ t('settings.coverEffect.description') }}
+                  </div>
+                </div>
+                <div class="field-control field-control--chips">
+                  <button
+                    v-for="option in coverEffectOptions"
+                    :key="option.value"
+                    type="button"
+                    class="chip"
+                    :class="{ 'chip--active': coverEffect === option.value }"
+                    :disabled="!coverEffectEnabled"
+                    :aria-pressed="coverEffect === option.value"
+                    @click="setCoverEffect(option.value)"
+                  >
+                    {{ option.label }}
+                  </button>
+                </div>
+              </div>
 
-          <div class="field-row field-row--stacked">
-            <div class="field-text">
-              <div class="field-label">
-                {{ t('settings.runtime.imports.title') }}
-              </div>
-              <div class="field-hint">
-                {{ t('settings.runtime.imports.description') }}
-              </div>
-            </div>
-            <div class="config-fields config-fields--compact">
-              <label class="config-field">
-                <span>MUSICDL_SEARCH_TIMEOUT_MS</span>
-                <input
-                  v-model.number="runtimeForm.searchTimeoutMs"
-                  class="config-input"
-                  type="number"
-                  min="1"
-                >
-              </label>
-              <label class="config-field">
-                <span>MUSICDL_DOWNLOAD_TIMEOUT_MS</span>
-                <input
-                  v-model.number="runtimeForm.downloadTimeoutMs"
-                  class="config-input"
-                  type="number"
-                  min="1"
-                >
-              </label>
-              <label class="config-field">
-                <span>IMPORT_CANDIDATE_TTL_MS</span>
-                <input
-                  v-model.number="runtimeForm.candidateTtlMs"
-                  class="config-input"
-                  type="number"
-                  min="1"
-                >
-              </label>
-              <label class="config-field">
-                <span>IMPORT_WORKER_POLL_MS</span>
-                <input
-                  v-model.number="runtimeForm.workerPollMs"
-                  class="config-input"
-                  type="number"
-                  min="1"
-                >
-              </label>
-            </div>
-          </div>
-
-          <div class="field-row field-row--stacked">
-            <div class="field-text">
-              <div class="field-label">
-                {{ t('settings.runtime.ai.title') }}
-              </div>
-              <div class="field-hint">
-                {{ t('settings.runtime.ai.description') }}
+              <div class="field-row">
+                <div class="field-text">
+                  <div class="field-label">
+                    {{ t('settings.progressEffectEnabled.title') }}
+                  </div>
+                  <div class="field-hint">
+                    {{ t('settings.progressEffectEnabled.description') }}
+                  </div>
+                </div>
+                <div class="field-control">
+                  <button
+                    type="button"
+                    class="toggle"
+                    :class="{ 'toggle--on': progressEffectEnabled }"
+                    :aria-checked="progressEffectEnabled"
+                    :aria-label="t('settings.progressEffectEnabled.title')"
+                    role="switch"
+                    @click="setProgressEffectEnabled(!progressEffectEnabled)"
+                  >
+                    <span class="toggle__thumb" />
+                  </button>
+                </div>
               </div>
             </div>
-            <div class="config-fields">
-              <label class="config-field">
-                <span>OPENAI_API_KEY</span>
-                <input
-                  v-model="runtimeForm.openaiApiKey"
-                  class="config-input"
-                  type="password"
-                  autocomplete="new-password"
-                  :disabled="runtimeForm.removeOpenaiApiKey || openaiApiKeyFromEnvironment"
-                  :placeholder="t('settings.runtime.apiKeys.keepExisting')"
-                >
-              </label>
-              <button
-                v-if="openaiApiKeyConfigured && !openaiApiKeyFromEnvironment"
-                type="button"
-                class="settings-button config-action-button"
-                @click="toggleOpenaiApiKeyRemoval"
-              >
-                {{ runtimeForm.removeOpenaiApiKey ? t('settings.runtime.apiKeys.keep') : t('settings.runtime.apiKeys.remove') }}
-              </button>
-              <p
-                v-if="openaiCredentialStatus"
-                class="runtime-note"
-              >
-                {{ openaiCredentialStatus }}
-              </p>
-            </div>
-          </div>
-
-          <div class="runtime-actions">
-            <p
-              v-if="runtimeSaveError"
-              class="runtime-status runtime-status--error"
-            >
-              {{ runtimeSaveError }}
-            </p>
-            <p
-              v-else-if="runtimeSaveSucceeded"
-              class="runtime-status"
-            >
-              {{ runtimeRestartRequired ? t('settings.runtime.save.savedRestart') : t('settings.runtime.save.saved') }}
-            </p>
-            <button
-              type="submit"
-              class="settings-button settings-button--primary"
-              :disabled="runtimeSaveDisabled"
-            >
-              {{ runtimeSaving ? t('settings.runtime.save.saving') : t('settings.runtime.save.action') }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </section>
-
-    <template v-else>
-      <section class="settings-group">
-      <h2 class="group-title">
-        {{ t('settings.groups.appearance') }}
-      </h2>
-      <div class="group-card">
-        <div class="field-row">
-          <div class="field-text">
-            <div class="field-label">
-              {{ t('settings.language.title') }}
-            </div>
-            <div class="field-hint">
-              {{ t('settings.language.description') }}
-            </div>
-          </div>
-          <div class="field-control field-control--chips">
-            <button
-              v-for="option in languageOptions"
-              :key="option.value"
-              type="button"
-              class="chip"
-              :class="{ 'chip--active': localePreference === option.value }"
-              :aria-pressed="localePreference === option.value"
-              @click="setLocalePreference(option.value)"
-            >
-              {{ option.label }}
-            </button>
-          </div>
-        </div>
-        <div class="field-footnote">
-          {{ activeLanguageHint }}
-        </div>
-      </div>
-    </section>
-
-      <section class="settings-group">
-      <h2 class="group-title">
-        {{ t('settings.groups.playback') }}
-      </h2>
-      <div class="group-card">
-        <div class="field-row">
-          <div class="field-text">
-            <div class="field-label">
-              {{ t('settings.coverEffectEnabled.title') }}
-            </div>
-            <div class="field-hint">
-              {{ t('settings.coverEffectEnabled.description') }}
-            </div>
-          </div>
-          <div class="field-control">
-            <button
-              type="button"
-              class="toggle"
-              :class="{ 'toggle--on': coverEffectEnabled }"
-              :aria-checked="coverEffectEnabled"
-              :aria-label="t('settings.coverEffectEnabled.title')"
-              role="switch"
-              @click="setCoverEffectEnabled(!coverEffectEnabled)"
-            >
-              <span class="toggle__thumb" />
-            </button>
-          </div>
-        </div>
-
-        <div
-          class="field-row"
-          :class="{ 'field-row--disabled': !coverEffectEnabled }"
-        >
-          <div class="field-text">
-            <div class="field-label">
-              {{ t('settings.coverEffect.title') }}
-            </div>
-            <div class="field-hint">
-              {{ t('settings.coverEffect.description') }}
-            </div>
-          </div>
-          <div class="field-control field-control--chips">
-            <button
-              v-for="option in coverEffectOptions"
-              :key="option.value"
-              type="button"
-              class="chip"
-              :class="{ 'chip--active': coverEffect === option.value }"
-              :disabled="!coverEffectEnabled"
-              :aria-pressed="coverEffect === option.value"
-              @click="setCoverEffect(option.value)"
-            >
-              {{ option.label }}
-            </button>
-          </div>
-        </div>
-
-        <div class="field-row">
-          <div class="field-text">
-            <div class="field-label">
-              {{ t('settings.progressEffectEnabled.title') }}
-            </div>
-            <div class="field-hint">
-              {{ t('settings.progressEffectEnabled.description') }}
-            </div>
-          </div>
-          <div class="field-control">
-            <button
-              type="button"
-              class="toggle"
-              :class="{ 'toggle--on': progressEffectEnabled }"
-              :aria-checked="progressEffectEnabled"
-              :aria-label="t('settings.progressEffectEnabled.title')"
-              role="switch"
-              @click="setProgressEffectEnabled(!progressEffectEnabled)"
-            >
-              <span class="toggle__thumb" />
-            </button>
-          </div>
-        </div>
-      </div>
-    </section>
-    </template>
+          </section>
+        </template>
       </main>
     </div>
   </section>

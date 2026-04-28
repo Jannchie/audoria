@@ -27,7 +27,6 @@ const volumePreview = ref<number | null>(null)
 const pendingResumeTime = ref<number | null>(null)
 const { data: tracks, isPending: isTracksPending } = useMusicQuery()
 const {
-  consumeUpNextHead,
   currentTrackId,
   isPlaying,
   playMode,
@@ -247,9 +246,6 @@ function handleNext(): void {
   if (nextId) {
     const isUpNext = upNextQueue.value[0] === nextId
     selectTrack(nextId, { contextTracks: tracks.value ?? [], consumeUpNext: isUpNext })
-    if (isUpNext) {
-      consumeUpNextHead(nextId)
-    }
     setPlaying(true)
   }
 }
@@ -435,9 +431,6 @@ function handleEnded(): void {
   }
   const isUpNext = upNextQueue.value[0] === nextId
   selectTrack(nextId, { contextTracks: tracks.value ?? [], consumeUpNext: isUpNext })
-  if (isUpNext) {
-    consumeUpNextHead(nextId)
-  }
   setPlaying(true)
 }
 

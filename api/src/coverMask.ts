@@ -9,12 +9,16 @@ let modelPromise: Promise<{
   processor: Awaited<ReturnType<typeof AutoProcessor.from_pretrained>>
 }> | null = null
 
+async function loadMaskModel() {
+  return {
+    model: await AutoModel.from_pretrained(MODEL_ID, { dtype: 'fp32' }),
+    processor: await AutoProcessor.from_pretrained(MODEL_ID),
+  }
+}
+
 async function getMaskModel() {
   if (!modelPromise) {
-    modelPromise = (async () => ({
-      model: await AutoModel.from_pretrained(MODEL_ID, { dtype: 'fp32' }),
-      processor: await AutoProcessor.from_pretrained(MODEL_ID),
-    }))()
+    modelPromise = loadMaskModel()
   }
   return await modelPromise
 }

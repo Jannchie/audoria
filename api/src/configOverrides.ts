@@ -24,7 +24,7 @@ async function readJsonStringMap(filePath: string): Promise<Record<string, strin
   const values: Record<string, string> = {}
   for (const [key, value] of Object.entries(parsed)) {
     if (typeof value !== 'string') {
-      throw new Error(`Invalid config value for ${key} in ${filePath}`)
+      throw new TypeError(`Invalid config value for ${key} in ${filePath}`)
     }
     values[key] = value
   }

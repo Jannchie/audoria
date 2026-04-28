@@ -6,7 +6,8 @@
     "api:dev": "pnpm -C api dev",
     "api:worker": "pnpm -C api worker",
     "gen:sdk": "pnpm -C web gen:sdk",
-    "lint": "eslint . --fix",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "web:dev": "pnpm -C web dev",
     "dev": "concurrently \"pnpm api:dev\" \"pnpm api:worker\" \"pnpm web:dev\""
   },

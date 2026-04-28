@@ -41,4 +41,12 @@ export default defineConfig({
     port: 8788,
     strictPort: true,
   },
+  build: {
+    chunkSizeWarningLimit: 800,
+    rolldownOptions: {
+      checks: {
+        pluginTimings: false,
+      },
+    },
+  },
 })

@@ -2,7 +2,8 @@ import type { StorageBackend } from './config.js'
 import type { Track } from './db.js'
 import { randomUUID } from 'node:crypto'
 import { createReadStream } from 'node:fs'
-import { mkdir, open, rename, rm, stat, unlink } from 'node:fs/promises'
+import { mkdir, mkdtemp, open, rename, rm, stat, unlink } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { Readable } from 'node:stream'
 import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
@@ -11,7 +12,7 @@ import { rgbaToThumbHash } from 'thumbhash'
 import { config } from './config.js'
 import { generateCoverMaskPng, getCoverMaskContentType } from './coverMask.js'
 import { db, tracks } from './db.js'
-import { formatDurationText, probeDurationSeconds } from './probeAudio.js'
+import { formatDurationText, probeDurationSecondsFromFile } from './probeAudio.js'
 
 interface ByteRange { start: number, end: number }
 
@@ -26,12 +27,15 @@ interface ObjectRef {
   key: string
 }
 
+type StorageBody = Buffer | Readable
+
 type StoredCoverAsset = ObjectRef & {
   contentType: string | null
 }
 
-type StoredCover = {
+interface StoredCover {
   cover: StoredCoverAsset
+  mask: StoredCoverAsset
   thumb: StoredCoverAsset
   thumbhash: string
 }
@@ -58,8 +62,9 @@ const COVER_VARIANT_OPTIONS: Record<CoverVariant, { width: number, height: numbe
 interface StorageDriver {
   putObject: (input: {
     key: string
-    body: Buffer
+    body: StorageBody
     contentType: string | null
+    contentLength?: number | null
   }) => Promise<void>
   getObject: (input: {
     key: string
@@ -93,19 +98,20 @@ function getS3Client(): S3Client {
 }
 
 const s3Driver: StorageDriver = {
-  async putObject({ key, body, contentType }) {
+  async putObject({ key, body, contentType, contentLength }) {
     const s3 = config.storage.s3
     if (!s3) {
       throw new Error('S3 storage is not configured')
     }
     const client = getS3Client()
+    const resolvedContentLength = contentLength ?? (Buffer.isBuffer(body) ? body.byteLength : undefined)
     await client.send(
       new PutObjectCommand({
         Bucket: s3.bucket,
         Key: key,
         Body: body,
         ContentType: contentType || undefined,
-        ContentLength: body.byteLength,
+        ContentLength: resolvedContentLength ?? undefined,
       }),
     )
   },
@@ -174,15 +180,11 @@ const fsDriver: StorageDriver = {
     await mkdir(directory, { recursive: true })
 
     const tempPath = `${targetPath}.${randomUUID()}.tmp`
-    const handle = await open(tempPath, 'w')
     try {
-      await handle.writeFile(body)
-      await handle.sync()
-      await handle.close()
+      await writeStorageBodyToFile(tempPath, body)
       await rename(tempPath, targetPath)
     }
     catch (error) {
-      await handle.close().catch(() => {})
       await unlink(tempPath).catch(() => {})
       throw error
     }
@@ -210,6 +212,39 @@ function getStorageDriver(backend: StorageBackend): StorageDriver {
     return fsDriver
   }
   return s3Driver
+}
+
+function toBufferChunk(rawChunk: unknown): Buffer {
+  return Buffer.isBuffer(rawChunk) ? rawChunk : Buffer.from(rawChunk as Uint8Array)
+}
+
+async function writeStorageBodyToFile(
+  filePath: string,
+  body: StorageBody,
+  onProgress?: (transferredBytes: number) => void,
+): Promise<number> {
+  const handle = await open(filePath, 'w')
+  let countedBytes = 0
+  try {
+    if (Buffer.isBuffer(body)) {
+      await handle.writeFile(body)
+      countedBytes = body.byteLength
+      onProgress?.(countedBytes)
+    }
+    else {
+      for await (const rawChunk of body) {
+        const chunk = toBufferChunk(rawChunk)
+        await handle.writeFile(chunk)
+        countedBytes += chunk.byteLength
+        onProgress?.(countedBytes)
+      }
+    }
+    await handle.sync()
+    return countedBytes
+  }
+  finally {
+    await handle.close().catch(() => {})
+  }
 }
 
 function toNodeReadable(body: unknown): Readable {
@@ -259,20 +294,41 @@ function toNodeReadable(body: unknown): Readable {
 async function readReadableToBuffer(body: Readable): Promise<Buffer> {
   const chunks: Buffer[] = []
   for await (const rawChunk of body) {
-    const chunk = Buffer.isBuffer(rawChunk) ? rawChunk : Buffer.from(rawChunk as Uint8Array)
-    chunks.push(chunk)
+    chunks.push(toBufferChunk(rawChunk))
   }
   return Buffer.concat(chunks)
 }
 
 async function probeAudioDuration(
-  buffer: Buffer,
+  filePath: string,
 ): Promise<{ durationSeconds: number | null, durationText: string | null }> {
-  const seconds = await probeDurationSeconds(buffer)
+  const seconds = await probeDurationSecondsFromFile(filePath)
   if (seconds === null) {
     return { durationSeconds: null, durationText: null }
   }
   return { durationSeconds: seconds, durationText: formatDurationText(seconds) }
+}
+
+async function writeTrackBodyToTempFile(
+  body: Readable,
+  onProgress?: (transferredBytes: number) => void,
+): Promise<{ filePath: string, size: number, cleanup: () => Promise<void> }> {
+  const directory = await mkdtemp(path.join(tmpdir(), 'audoria-upload-'))
+  const filePath = path.join(directory, 'track.bin')
+  try {
+    const size = await writeStorageBodyToFile(filePath, body, onProgress)
+    return {
+      filePath,
+      size,
+      cleanup: async () => {
+        await rm(directory, { recursive: true, force: true }).catch(() => {})
+      },
+    }
+  }
+  catch (error) {
+    await rm(directory, { recursive: true, force: true }).catch(() => {})
+    throw error
+  }
 }
 
 function getTrackObjectRef(record: Track): ObjectRef {
@@ -371,54 +427,50 @@ export async function storeTrack({
   const storageKey = `music/${id}-${filename || 'audio'}`
   const createdAt = Date.now()
 
-  const chunks: Buffer[] = []
-  let countedBytes = 0
-  for await (const rawChunk of body) {
-    const chunk = Buffer.isBuffer(rawChunk) ? rawChunk : Buffer.from(rawChunk as Uint8Array)
-    chunks.push(chunk)
-    countedBytes += chunk.byteLength
-    onProgress?.(countedBytes)
+  const tempFile = await writeTrackBodyToTempFile(body, onProgress)
+  try {
+    const { durationSeconds, durationText } = await probeAudioDuration(tempFile.filePath)
+
+    const storageBackend = getActiveStorageBackend()
+    await getStorageDriver(storageBackend).putObject({
+      key: storageKey,
+      body: createReadStream(tempFile.filePath),
+      contentType,
+      contentLength: tempFile.size,
+    })
+    onProgress?.(tempFile.size)
+
+    const record: Track = {
+      id,
+      filename: filename || 'audio',
+      storageBackend,
+      storageKey,
+      coverStorageBackend: null,
+      coverStorageKey: null,
+      coverContentType: null,
+      coverThumbStorageBackend: null,
+      coverThumbStorageKey: null,
+      coverThumbContentType: null,
+      coverThumbhash: null,
+      title: null,
+      artists: null,
+      album: null,
+      source: null,
+      sourceIdentifier: null,
+      durationText,
+      durationSeconds,
+      size: tempFile.size,
+      contentType,
+      lyrics: null,
+      createdAt,
+    }
+
+    db.insert(tracks).values(record).run()
+    return record
   }
-  const buffer = Buffer.concat(chunks)
-  const resolvedSize = buffer.byteLength
-
-  const { durationSeconds, durationText } = await probeAudioDuration(buffer)
-
-  const storageBackend = getActiveStorageBackend()
-  await getStorageDriver(storageBackend).putObject({
-    key: storageKey,
-    body: buffer,
-    contentType,
-  })
-  onProgress?.(resolvedSize)
-
-  const record: Track = {
-    id,
-    filename: filename || 'audio',
-    storageBackend,
-    storageKey,
-    coverStorageBackend: null,
-    coverStorageKey: null,
-    coverContentType: null,
-    coverThumbStorageBackend: null,
-    coverThumbStorageKey: null,
-    coverThumbContentType: null,
-    coverThumbhash: null,
-    title: null,
-    artists: null,
-    album: null,
-    source: null,
-    sourceIdentifier: null,
-    durationText,
-    durationSeconds,
-    size: resolvedSize,
-    contentType,
-    lyrics: null,
-    createdAt,
+  finally {
+    await tempFile.cleanup()
   }
-
-  db.insert(tracks).values(record).run()
-  return record
 }
 
 export async function storeTrackCover({
@@ -430,7 +482,11 @@ export async function storeTrackCover({
 }): Promise<StoredCover> {
   const storageBackend = getActiveStorageBackend()
   const driver = getStorageDriver(storageBackend)
-  const [coverBody, thumbBody, thumbhash] = await Promise.all([
+  const [
+    coverBody,
+    thumbBody,
+    thumbhash,
+  ] = await Promise.all([
     createCoverVariant(body, 'cover'),
     createCoverVariant(body, 'thumb'),
     createCoverThumbhash(body),
@@ -466,6 +522,11 @@ export async function storeTrackCover({
       backend: storageBackend,
       key: coverKey,
       contentType: COVER_CONTENT_TYPE,
+    },
+    mask: {
+      backend: storageBackend,
+      key: maskKey,
+      contentType: maskContentType,
     },
     thumb: {
       backend: storageBackend,
@@ -530,6 +591,13 @@ export async function deleteStoredTrack(record: Track): Promise<void> {
 
 export async function deleteTrackCover(record: Track): Promise<void> {
   const coverRefs = listCoverObjectRefs(record)
+  await Promise.all(coverRefs.map(ref => getStorageDriver(ref.backend).deleteObject(ref.key)))
+}
+
+export async function deleteTrackCoverExcept(record: Track, keepRefs: ObjectRef[]): Promise<void> {
+  const keepKeys = new Set(keepRefs.map(ref => `${ref.backend}:${ref.key}`))
+  const coverRefs = listCoverObjectRefs(record)
+    .filter(ref => !keepKeys.has(`${ref.backend}:${ref.key}`))
   await Promise.all(coverRefs.map(ref => getStorageDriver(ref.backend).deleteObject(ref.key)))
 }
 

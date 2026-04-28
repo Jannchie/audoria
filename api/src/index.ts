@@ -41,6 +41,7 @@ import { musicDlSources, musicDlUrlSources } from './musicSources.js'
 import {
   deleteStoredTrack,
   deleteTrackCover,
+  deleteTrackCoverExcept,
   getStoredTrack,
   getStoredTrackCover,
   isStorageObjectMissingError,
@@ -1392,12 +1393,30 @@ function parseRangeHeader(rangeHeader: string | null, size: number): ParsedRange
   if (!rangeHeader || !rangeHeader.startsWith('bytes=')) {
     return null
   }
+  if (size <= 0) {
+    return null
+  }
 
-  const value = rangeHeader.replace('bytes=', '')
-  const [startString, endString] = value.split('-')
+  const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader.trim())
+  if (!match) {
+    return null
+  }
+
+  const [
+    ,
+    startString,
+    endString,
+  ] = match
 
   const start = startString ? Number(startString) : Number.NaN
   const end = endString ? Number(endString) : Number.NaN
+
+  if (
+    (startString && !Number.isSafeInteger(start))
+    || (endString && !Number.isSafeInteger(end))
+  ) {
+    return null
+  }
 
   if (Number.isNaN(start) && Number.isNaN(end)) {
     return null
@@ -1729,6 +1748,11 @@ app.openapi(updateCoverRoute, async (c) => {
     thumbContentType: storedCover.thumb.contentType,
     thumbhash: storedCover.thumbhash,
   })
+  await deleteTrackCoverExcept(record, [
+    storedCover.cover,
+    storedCover.mask,
+    storedCover.thumb,
+  ])
   const updated = getTrackById(id)
   if (!updated) {
     return c.json({ message: 'Music not found' }, 404)

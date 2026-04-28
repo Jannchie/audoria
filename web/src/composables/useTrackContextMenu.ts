@@ -81,10 +81,12 @@ export function useTrackContextMenu() {
     }
     const divider: ContextMenuItem = { id: 'playlist:divider', label: '', divider: true }
     const entries: ContextMenuItem[] = list.map((playlist) => {
-      const containsCount = tracks.reduce(
-        (count, track) => ((track.playlistIds ?? []).includes(playlist.id) ? count + 1 : count),
-        0,
-      )
+      let containsCount = 0
+      for (const track of tracks) {
+        if ((track.playlistIds ?? []).includes(playlist.id)) {
+          containsCount += 1
+        }
+      }
       const state: 'all' | 'some' | 'none' = containsCount === 0
         ? 'none'
         : (containsCount === tracks.length ? 'all' : 'some')

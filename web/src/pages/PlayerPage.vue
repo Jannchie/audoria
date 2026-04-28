@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import type { FilamentConfig } from '../components/ShaderProgressBar.vue'
-import { ShaderGradient, ShaderGradientCanvas } from '@shader-gradient/vue'
-import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import HoloCoverArt from '../components/HoloCoverArt.vue'
 import MetadataEditDialog from '../components/MetadataEditDialog.vue'
 import ProgressPreviewTooltip from '../components/ProgressPreviewTooltip.vue'
-import ShaderProgressBar from '../components/ShaderProgressBar.vue'
 import ShaderProgressControls from '../components/ShaderProgressControls.vue'
 import { useCoverPalette } from '../composables/useCoverPalette'
 import { findLyricLineAtTime, shiftLrcTimestamps, useLyrics } from '../composables/useLyrics'
@@ -15,6 +13,10 @@ import { usePlayerState } from '../composables/usePlayerState'
 import { useSettings } from '../composables/useSettings'
 import { formatTrackSpecs } from '../utils/audio'
 import { getSourceDisplay } from '../utils/source'
+
+const ShaderGradient = defineAsyncComponent(() => import('@shader-gradient/vue').then(module => module.ShaderGradient))
+const ShaderGradientCanvas = defineAsyncComponent(() => import('@shader-gradient/vue').then(module => module.ShaderGradientCanvas))
+const ShaderProgressBar = defineAsyncComponent(() => import('../components/ShaderProgressBar.vue'))
 
 const { data: tracks } = useMusicQuery()
 const { t } = useI18n()
@@ -61,8 +63,9 @@ const {
   seekTo,
   setVolume,
   toggleMute,
-  getAdjacentTrackId,
+  getNextTrackId,
   getPreviousTrackId,
+  upNextQueue,
 } = usePlayerState()
 
 const lyricsContainer = ref<HTMLDivElement | null>(null)
@@ -487,9 +490,10 @@ function handleVolumeCommit(event?: Event): void {
 }
 
 function handleNext(): void {
-  const nextId = getAdjacentTrackId(tracks.value ?? [], 'next')
+  const nextId = getNextTrackId(tracks.value ?? [])
   if (nextId) {
-    selectTrack(nextId, { contextTracks: tracks.value ?? [] })
+    const isUpNext = upNextQueue.value[0] === nextId
+    selectTrack(nextId, { contextTracks: tracks.value ?? [], consumeUpNext: isUpNext })
     setPlaying(true)
   }
 }

@@ -61,6 +61,8 @@ function readPersistedSettings(): AppSettings {
   }
 }
 
+export const settings = reactive<AppSettings>(readPersistedSettings())
+
 function persistSettings(): void {
   if (!canUseStorage()) {
     return
@@ -73,8 +75,6 @@ function persistSettings(): void {
     // Ignore storage write failures.
   }
 }
-
-export const settings = reactive<AppSettings>(readPersistedSettings())
 
 export function setLocalePreference(localePreference: LocalePreference): void {
   settings.localePreference = localePreference

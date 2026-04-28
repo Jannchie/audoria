@@ -380,12 +380,12 @@ function reindexPlaylistTracksWithinTransaction(playlistId: string): void {
     .orderBy(asc(playlistTracks.position), asc(playlistTracks.createdAt))
     .all()
 
-  items.forEach((item, index) => {
+  for (const [index, item] of items.entries()) {
     db.update(playlistTracks)
       .set({ position: index })
       .where(and(eq(playlistTracks.playlistId, playlistId), eq(playlistTracks.trackId, item.trackId)))
       .run()
-  })
+  }
 }
 
 export function listPlaylists(): PlaylistSummary[] {
@@ -495,9 +495,7 @@ export function getPlaylistTrackIds(playlistId: string): string[] {
 }
 
 export function addTrackToPlaylist(playlistId: string, trackId: string): void {
-  const existing = db.select().from(playlistTracks)
-    .where(and(eq(playlistTracks.playlistId, playlistId), eq(playlistTracks.trackId, trackId)))
-    .get()
+  const existing = db.select().from(playlistTracks).where(and(eq(playlistTracks.playlistId, playlistId), eq(playlistTracks.trackId, trackId))).get()
 
   if (existing) {
     throw new Error('Track already exists in playlist')
@@ -545,12 +543,12 @@ export function removeTrackFromPlaylist(playlistId: string, trackId: string): bo
 
 export function reorderPlaylistTracks(playlistId: string, orderedTrackIds: string[]): void {
   db.transaction(() => {
-    orderedTrackIds.forEach((trackId, index) => {
+    for (const [index, trackId] of orderedTrackIds.entries()) {
       db.update(playlistTracks)
         .set({ position: index })
         .where(and(eq(playlistTracks.playlistId, playlistId), eq(playlistTracks.trackId, trackId)))
         .run()
-    })
+    }
 
     db.update(playlists)
       .set({ updatedAt: Date.now() })
@@ -622,13 +620,13 @@ export function removeTrackFromAllPlaylists(trackId: string): void {
   db.transaction(() => {
     db.delete(playlistTracks).where(eq(playlistTracks.trackId, trackId)).run()
     const uniquePlaylistIds = [...new Set(playlistIds)]
-    uniquePlaylistIds.forEach((playlistId) => {
+    for (const playlistId of uniquePlaylistIds) {
       reindexPlaylistTracksWithinTransaction(playlistId)
       db.update(playlists)
         .set({ updatedAt: Date.now() })
         .where(eq(playlists.id, playlistId))
         .run()
-    })
+    }
   })
 }
 

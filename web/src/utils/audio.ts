@@ -33,6 +33,10 @@ function isLosslessTrack(track: Pick<Music, 'filename' | 'contentType'>): boolea
   return losslessExtensions.has(getFileExtension(track.filename))
 }
 
+function paddedTimePart(value: number): string {
+  return value.toString().padStart(2, '0')
+}
+
 export function formatTrackDuration(seconds: number | null | undefined): string {
   if (seconds === null || seconds === undefined || !Number.isFinite(seconds) || seconds <= 0) {
     return '--:--'
@@ -41,11 +45,10 @@ export function formatTrackDuration(seconds: number | null | undefined): string 
   const hours = Math.floor(total / 3600)
   const minutes = Math.floor((total % 3600) / 60)
   const secs = total % 60
-  const padded = (value: number): string => value.toString().padStart(2, '0')
   if (hours > 0) {
-    return `${hours}:${padded(minutes)}:${padded(secs)}`
+    return `${hours}:${paddedTimePart(minutes)}:${paddedTimePart(secs)}`
   }
-  return `${minutes}:${padded(secs)}`
+  return `${minutes}:${paddedTimePart(secs)}`
 }
 
 export function formatBytes(bytes: number): string {

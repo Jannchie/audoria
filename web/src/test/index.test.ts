@@ -110,7 +110,28 @@ describe('useplayerstate', () => {
     expect(persisted.isPlaying).toBe(true)
   })
 
-  it('shifts LRC timestamps in the lyrics text', async () => {
+  it('consumes only one queued duplicate when selecting up next', async () => {
+    const { usePlayerState } = await loadPlayerState()
+    const player = usePlayerState()
+
+    player.enqueueLast(['track-a', 'track-a', 'track-b'])
+    player.selectTrack('track-a', { consumeUpNext: true })
+
+    expect(player.upNextQueue.value).toEqual(['track-a', 'track-b'])
+  })
+
+  it('returns queued tracks before adjacent context tracks', async () => {
+    const { usePlayerState } = await loadPlayerState()
+    const player = usePlayerState()
+    const tracks = [{ id: 'track-a' }, { id: 'track-b' }, { id: 'track-c' }]
+
+    player.selectTrack('track-a', { contextTracks: tracks, history: 'skip' })
+    player.enqueueLast(['track-c'])
+
+    expect(player.getNextTrackId(tracks)).toBe('track-c')
+  })
+
+  it('shifts lrc timestamps in the lyrics text', async () => {
     const { shiftLrcTimestamps } = await import('../composables/useLyrics')
 
     expect(shiftLrcTimestamps('[00:10.00]First\n[00:00.05]Intro', -100))
@@ -119,7 +140,7 @@ describe('useplayerstate', () => {
       .toBe('[00:10.250][00:12.750]Echo')
   })
 
-  it('resolves the current lyric line from LRC timestamps', async () => {
+  it('resolves the current lyric line from lrc timestamps', async () => {
     const { usePlayerState } = await loadPlayerState()
     const { useLyrics } = await import('../composables/useLyrics')
     const player = usePlayerState()
