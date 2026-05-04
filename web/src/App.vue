@@ -175,7 +175,7 @@ watchEffect(() => {
 }
 
 .topbar--floating .logo-text {
-  color: rgba(255, 255, 255, 0.82);
+  color: var(--text-secondary);
   text-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
 }
 
@@ -213,11 +213,11 @@ watchEffect(() => {
 }
 
 .topbar--floating .desktop-nav-item {
-  color: rgba(255, 255, 255, 0.58);
+  color: var(--text-tertiary);
 }
 
 .topbar--floating .desktop-nav-item:hover {
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-primary);
   background: rgba(255, 255, 255, 0.08);
 }
 

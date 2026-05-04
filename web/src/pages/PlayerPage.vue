@@ -1038,14 +1038,14 @@ onUnmounted(() => {
 .track-title {
   font-size: 1rem;
   font-weight: 700;
-  color: white;
+  color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .track-artist {
   font-size: 0.8125rem;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-secondary);
   margin-top: 0.125rem;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1053,7 +1053,7 @@ onUnmounted(() => {
 }
 .track-specs {
   font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.36);
+  color: var(--text-tertiary);
   margin-top: 0.25rem;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1065,7 +1065,7 @@ onUnmounted(() => {
 }
 
 .track-source {
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-secondary);
 }
 
 .lyrics-toolbar {
@@ -1088,7 +1088,7 @@ onUnmounted(() => {
   min-height: 2rem;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--text-secondary);
   border-radius: 0.5rem;
 }
 
@@ -1125,7 +1125,7 @@ onUnmounted(() => {
   gap: 0.35rem;
   padding: 0 0.55rem;
   font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.46);
+  color: var(--text-secondary);
 }
 
 .lyrics-offset-field input {
@@ -1144,7 +1144,7 @@ onUnmounted(() => {
 }
 
 .lyrics-offset-unit {
-  color: rgba(255, 255, 255, 0.32);
+  color: var(--text-tertiary);
 }
 
 .lyrics-saving {
@@ -1152,7 +1152,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   width: 2rem;
-  color: rgba(255, 255, 255, 0.52);
+  color: var(--text-secondary);
 }
 
 .lyrics-error {
@@ -1262,25 +1262,25 @@ onUnmounted(() => {
   line-height: 1.7;
 }
 .lyric-line--active {
-  color: white;
+  color: var(--text-primary);
   font-size: 1.125rem;
   font-weight: 600;
 }
 .lyric-line--past {
-  color: rgba(255, 255, 255, 0.22);
+  color: var(--text-tertiary);
   font-size: 0.9375rem;
 }
 .lyric-line--future {
-  color: rgba(255, 255, 255, 0.38);
+  color: var(--text-tertiary);
   font-size: 0.9375rem;
 }
 .lyric-line:hover {
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-secondary);
 }
 
 .lyrics-plain {
   font-size: 0.9375rem;
-  color: rgba(255, 255, 255, 0.42);
+  color: var(--text-tertiary);
   line-height: 2;
   white-space: pre-wrap;
   word-break: break-word;
@@ -1360,7 +1360,7 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--text-tertiary);
   margin-top: 0.125rem;
   font-variant-numeric: tabular-nums;
 }
@@ -1405,17 +1405,17 @@ onUnmounted(() => {
   background: none;
   border: none;
   cursor: pointer;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-tertiary);
   transition: color 0.15s ease;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0.25rem;
 }
-.ctrl-btn:hover { color: rgba(255, 255, 255, 0.75); }
+.ctrl-btn:hover { color: var(--text-secondary); }
 .ctrl-btn--sm { font-size: 1.125rem; }
-.ctrl-btn--md { font-size: 1.5rem; color: rgba(255, 255, 255, 0.7); }
-.ctrl-btn--md:hover { color: white; }
+.ctrl-btn--md { font-size: 1.5rem; color: var(--text-secondary); }
+.ctrl-btn--md:hover {  color: var(--text-primary); }
 .ctrl-btn--active { color: var(--accent) !important; }
 
 .ctrl-btn-play {
