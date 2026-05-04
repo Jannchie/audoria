@@ -26,6 +26,7 @@ RUN apt-get update \
 RUN corepack enable
 
 COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/api/node_modules ./api/node_modules
 COPY --from=builder /app/api/dist ./api/dist
 COPY --from=builder /app/web/dist ./web/dist
 COPY --from=builder /app/api/package.json ./api/package.json
