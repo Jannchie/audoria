@@ -91,6 +91,12 @@ export default defineConfig({
   server: {
     port: 8788,
     strictPort: true,
+    proxy: {
+      '/api/v1': {
+        target: 'http://localhost:8787',
+        changeOrigin: true,
+      },
+    },
   },
   build: {
     chunkSizeWarningLimit: 800,

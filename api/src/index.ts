@@ -1,17 +1,20 @@
 import type { ApiReferenceConfiguration } from '@scalar/hono-api-reference'
+import type { Context } from 'hono'
 import type { ReadableStream } from 'node:stream/web'
 import type { ConfigOverrides } from './configOverrides.js'
 import type { MusicImportJob, MusicImportJobStatus, Playlist, PlaylistSummary, Track } from './db.js'
 import { createHmac, timingSafeEqual } from 'node:crypto'
+import { existsSync, readFileSync } from 'node:fs'
+import path from 'node:path'
 import { env } from 'node:process'
 import { Readable } from 'node:stream'
+import { fileURLToPath } from 'node:url'
 import { serve } from '@hono/node-server'
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import { Scalar } from '@scalar/hono-api-reference'
 import { desc, eq } from 'drizzle-orm'
-import type { Context } from 'hono'
-import { cors } from 'hono/cors'
 import { getCookie, setCookie } from 'hono/cookie'
+import { cors } from 'hono/cors'
 import { aiProviderApiKeyEnvNames, config, loadConfig, mergeConfigSources, pickSecretConfigSource, readPersistedConfigSource } from './config.js'
 import { applyConfigOverrides, writePersistedConfigOverrides } from './configOverrides.js'
 import {
@@ -474,12 +477,12 @@ function applyLiveConfig(nextConfig: typeof config): void {
   config.importWorkerPollMs = nextConfig.importWorkerPollMs
 }
 
-const app = new OpenAPIHono()
+const api = new OpenAPIHono()
 
-app.use(
+api.use(
   '*',
   cors({
-    origin: (origin) => origin,
+    origin: origin => origin,
     allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
@@ -520,7 +523,8 @@ function verifySessionToken(token: string, secretKey: string): boolean {
       return false
     }
     return true
-  } catch {
+  }
+  catch {
     return false
   }
 }
@@ -537,7 +541,7 @@ function setSessionCookie(c: Context, token: string): void {
 
 // ── Auth middleware ──
 
-app.use('*', async (c, next) => {
+api.use('*', async (c, next) => {
   if (c.req.path === '/auth/login') {
     return next()
   }
@@ -565,7 +569,7 @@ const loginSchema = z.object({
   token: z.string().min(1),
 })
 
-app.post('/auth/login', async (c) => {
+api.post('/auth/login', async (c) => {
   const secretKey = config.secretKey
   if (!secretKey) {
     return c.json({ message: 'Authentication is not configured on this server' }, 503)
@@ -590,7 +594,7 @@ app.post('/auth/login', async (c) => {
   }, 200)
 })
 
-app.get('/auth/check', (c) => {
+api.get('/auth/check', (c) => {
   return c.json({ authenticated: true }, 200)
 })
 
@@ -633,7 +637,7 @@ const uploadMusicRoute = createRoute({
   },
 })
 
-app.openapi(uploadMusicRoute, async (c) => {
+api.openapi(uploadMusicRoute, async (c) => {
   const formData = await c.req.formData()
   const filePart = formData.get('file')
 
@@ -700,7 +704,7 @@ const searchImportRoute = createRoute({
   },
 })
 
-app.openapi(searchImportRoute, async (c) => {
+api.openapi(searchImportRoute, async (c) => {
   try {
     pruneExpiredMusicImportCandidates()
     const { keyword, source, limitPerSource } = c.req.valid('json')
@@ -793,7 +797,7 @@ const parseUrlImportRoute = createRoute({
   },
 })
 
-app.openapi(parseUrlImportRoute, async (c) => {
+api.openapi(parseUrlImportRoute, async (c) => {
   try {
     pruneExpiredMusicImportCandidates()
     const { url } = c.req.valid('json')
@@ -894,7 +898,7 @@ const createImportJobRoute = createRoute({
   },
 })
 
-app.openapi(createImportJobRoute, async (c) => {
+api.openapi(createImportJobRoute, async (c) => {
   try {
     pruneExpiredMusicImportCandidates()
     const { resultId } = c.req.valid('json')
@@ -957,7 +961,7 @@ const getImportJobRoute = createRoute({
   },
 })
 
-app.openapi(getImportJobRoute, (c) => {
+api.openapi(getImportJobRoute, (c) => {
   const { id } = c.req.valid('param')
   const job = getMusicImportJobById(id)
 
@@ -984,7 +988,7 @@ const listMusicRoute = createRoute({
   },
 })
 
-app.openapi(listMusicRoute, (c) => {
+api.openapi(listMusicRoute, (c) => {
   const items = db.select().from(tracks).orderBy(desc(tracks.createdAt)).all()
   const playlistMap = listAllTrackPlaylistPairs()
   return c.json(items.map(item => toMusicResponse(item, playlistMap.get(item.id) ?? [])))
@@ -1015,7 +1019,7 @@ const listPlaylistsRoute = createRoute({
   },
 })
 
-app.openapi(listPlaylistsRoute, (c) => {
+api.openapi(listPlaylistsRoute, (c) => {
   return c.json(listPlaylists().map(item => toPlaylistSummaryResponse(item)), 200)
 })
 
@@ -1044,7 +1048,7 @@ const createPlaylistRoute = createRoute({
   },
 })
 
-app.openapi(createPlaylistRoute, (c) => {
+api.openapi(createPlaylistRoute, (c) => {
   const body = c.req.valid('json')
   const playlist = createPlaylist({
     name: body.name,
@@ -1080,7 +1084,7 @@ const getPlaylistRoute = createRoute({
   },
 })
 
-app.openapi(getPlaylistRoute, (c) => {
+api.openapi(getPlaylistRoute, (c) => {
   const { id } = c.req.valid('param')
   const playlist = getPlaylistById(id)
 
@@ -1125,7 +1129,7 @@ const updatePlaylistRoute = createRoute({
   },
 })
 
-app.openapi(updatePlaylistRoute, (c) => {
+api.openapi(updatePlaylistRoute, (c) => {
   const { id } = c.req.valid('param')
   const body = c.req.valid('json')
   const playlist = getPlaylistById(id)
@@ -1169,7 +1173,7 @@ const deletePlaylistRoute = createRoute({
   },
 })
 
-app.openapi(deletePlaylistRoute, (c) => {
+api.openapi(deletePlaylistRoute, (c) => {
   const { id } = c.req.valid('param')
   const playlist = getPlaylistById(id)
 
@@ -1223,7 +1227,7 @@ const addPlaylistTrackRoute = createRoute({
   },
 })
 
-app.openapi(addPlaylistTrackRoute, (c) => {
+api.openapi(addPlaylistTrackRoute, (c) => {
   const { id } = c.req.valid('param')
   const { trackId } = c.req.valid('json')
   const playlist = getPlaylistById(id)
@@ -1297,7 +1301,7 @@ const reorderPlaylistTracksRoute = createRoute({
   },
 })
 
-app.openapi(reorderPlaylistTracksRoute, (c) => {
+api.openapi(reorderPlaylistTracksRoute, (c) => {
   const { id } = c.req.valid('param')
   const { trackIds } = c.req.valid('json')
   const playlist = getPlaylistById(id)
@@ -1359,7 +1363,7 @@ const removePlaylistTrackRoute = createRoute({
   },
 })
 
-app.openapi(removePlaylistTrackRoute, (c) => {
+api.openapi(removePlaylistTrackRoute, (c) => {
   const { id, trackId } = c.req.valid('param')
   const playlist = getPlaylistById(id)
 
@@ -1572,7 +1576,7 @@ function toSourceIdentifier(identifier: unknown): string | null {
   return value || null
 }
 
-app.openapi(coverRoute, async (c) => {
+api.openapi(coverRoute, async (c) => {
   const { id } = c.req.valid('param')
   const record = db.select().from(tracks).where(eq(tracks.id, id)).get()
 
@@ -1592,7 +1596,7 @@ app.openapi(coverRoute, async (c) => {
   })
 })
 
-app.openapi(coverThumbRoute, async (c) => {
+api.openapi(coverThumbRoute, async (c) => {
   const { id } = c.req.valid('param')
   const record = db.select().from(tracks).where(eq(tracks.id, id)).get()
 
@@ -1612,7 +1616,7 @@ app.openapi(coverThumbRoute, async (c) => {
   })
 })
 
-app.openapi(coverMaskRoute, async (c) => {
+api.openapi(coverMaskRoute, async (c) => {
   const { id } = c.req.valid('param')
   const record = db.select().from(tracks).where(eq(tracks.id, id)).get()
 
@@ -1642,7 +1646,7 @@ app.openapi(coverMaskRoute, async (c) => {
   }
 })
 
-app.openapi(downloadRoute, async (c) => {
+api.openapi(downloadRoute, async (c) => {
   const { id } = c.req.valid('param')
   const record = db.select().from(tracks).where(eq(tracks.id, id)).get()
 
@@ -1712,7 +1716,7 @@ const deleteRoute = createRoute({
   },
 })
 
-app.openapi(deleteRoute, async (c) => {
+api.openapi(deleteRoute, async (c) => {
   const { id } = c.req.valid('param')
   const record = db.select().from(tracks).where(eq(tracks.id, id)).get()
 
@@ -1763,7 +1767,7 @@ const updateMusicRoute = createRoute({
   },
 })
 
-app.openapi(updateMusicRoute, (c) => {
+api.openapi(updateMusicRoute, (c) => {
   const { id } = c.req.valid('param')
   const record = getTrackById(id)
   if (!record) {
@@ -1835,7 +1839,7 @@ const updateCoverRoute = createRoute({
   },
 })
 
-app.openapi(updateCoverRoute, async (c) => {
+api.openapi(updateCoverRoute, async (c) => {
   const { id } = c.req.valid('param')
   const record = getTrackById(id)
   if (!record) {
@@ -1901,7 +1905,7 @@ const deleteCoverRoute = createRoute({
   },
 })
 
-app.openapi(deleteCoverRoute, async (c) => {
+api.openapi(deleteCoverRoute, async (c) => {
   const { id } = c.req.valid('param')
   const record = getTrackById(id)
   if (!record) {
@@ -1942,7 +1946,7 @@ const getAppConfigRoute = createRoute({
   },
 })
 
-app.openapi(getAppConfigRoute, (c) => {
+api.openapi(getAppConfigRoute, (c) => {
   return c.json(toAppConfigResponse(), 200)
 })
 
@@ -1979,7 +1983,7 @@ const updateAppConfigRoute = createRoute({
   },
 })
 
-app.openapi(updateAppConfigRoute, async (c) => {
+api.openapi(updateAppConfigRoute, async (c) => {
   const update = c.req.valid('json')
   const overrides = toConfigOverrides(update)
   const candidatePersistedSource = readPersistedConfigSource()
@@ -2004,9 +2008,57 @@ app.openapi(updateAppConfigRoute, async (c) => {
   }, 200)
 })
 
-app.get('/', c => c.json({ status: 'ok' }))
+// ── Mount API under /api/v1, then serve frontend SPA ──
+const app = new OpenAPIHono()
+app.route('/api/v1', api)
 
-app.doc('/openapi.json', {
+// ── In production, serve frontend SPA from the same origin ──
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+const frontendDistPath = path.join(__dirname, '../../web/dist')
+
+if (existsSync(frontendDistPath)) {
+  const mimeTypes: Record<string, string> = {
+    '.html': 'text/html',
+    '.js': 'application/javascript',
+    '.css': 'text/css',
+    '.svg': 'image/svg+xml',
+    '.png': 'image/png',
+    '.webp': 'image/webp',
+    '.json': 'application/json',
+    '.woff2': 'font/woff2',
+    '.ico': 'image/x-icon',
+  }
+
+  app.get('*', async (c) => {
+    const reqPath = new URL(c.req.url).pathname
+    const filePath = reqPath === '/' ? '/index.html' : reqPath
+    const fullPath = path.join(frontendDistPath, filePath)
+
+    if (fullPath.startsWith(frontendDistPath) && existsSync(fullPath)) {
+      const ext = path.extname(fullPath)
+      const content = readFileSync(fullPath)
+      return c.body(content, 200, {
+        'Content-Type': mimeTypes[ext] ?? 'application/octet-stream',
+        'Cache-Control': ext === '.html' ? 'no-cache' : 'public, max-age=31536000, immutable',
+      })
+    }
+
+    // SPA fallback: serve index.html for client-side routes
+    const indexPath = path.join(frontendDistPath, 'index.html')
+    if (existsSync(indexPath)) {
+      const content = readFileSync(indexPath)
+      return c.body(content, 200, { 'Content-Type': 'text/html' })
+    }
+
+    return c.json({ message: 'Not Found' }, 404)
+  })
+}
+else {
+  app.get('/', c => c.json({ status: 'ok' }))
+}
+
+api.doc('/openapi.json', {
   openapi: '3.1.0',
   info: {
     title: 'Audoria API',
@@ -2028,7 +2080,7 @@ const docsMiddleware = Scalar({
   pageTitle: 'Audoria API Reference',
 } as ScalarDocsConfig)
 
-app.get('/docs', docsMiddleware)
+api.get('/docs', docsMiddleware)
 
 serve(
   {

@@ -20,7 +20,14 @@ export function resolveApiUrl(path: string): string {
   if (!baseUrl) {
     return path
   }
-  return new URL(path, `${baseUrl}/`).toString()
+  try {
+    return new URL(path, `${baseUrl}/`).toString()
+  }
+  catch {
+    // baseUrl is relative (e.g. '/api/v1'); concatenate directly
+    const separator = baseUrl.endsWith('/') || path.startsWith('/') ? '' : '/'
+    return `${baseUrl}${separator}${path}`
+  }
 }
 
 export function useMusicQuery() {

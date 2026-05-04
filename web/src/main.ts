@@ -28,7 +28,7 @@ const queryClient = new QueryClient({
   },
 })
 
-const apiBase = import.meta.env.VITE_API_BASE ?? 'http://localhost:8787'
+const apiBase = import.meta.env.VITE_API_BASE ?? '/api/v1'
 client.setConfig({
   baseUrl: apiBase,
   fetch: (input, init) => globalThis.fetch(input, { ...init, credentials: 'include' }),
