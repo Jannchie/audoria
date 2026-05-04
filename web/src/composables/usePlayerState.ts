@@ -1,5 +1,3 @@
-import { ref } from 'vue'
-
 export type PlayMode = 'sequence' | 'repeat-all' | 'repeat-one' | 'shuffle'
 export type PlaybackContextType = 'library' | 'playlist'
 
@@ -58,10 +56,6 @@ function normalizeQueueIds(trackIds: string[]): string[] {
   return trackIds.filter(id => typeof id === 'string' && id.length > 0).slice(0, upNextLimit)
 }
 
-function canUseStorage(): boolean {
-  return typeof globalThis !== 'undefined' && 'localStorage' in globalThis
-}
-
 function defaultPersistedState(): PersistedPlayerState {
   return {
     context: null,
@@ -76,17 +70,15 @@ function defaultPersistedState(): PersistedPlayerState {
   }
 }
 
-function readPersistedState(): PersistedPlayerState {
-  if (!canUseStorage()) {
-    return defaultPersistedState()
+function getStorage(): Storage | undefined {
+  if (typeof globalThis !== 'undefined' && 'localStorage' in globalThis) {
+    return globalThis.localStorage as Storage
   }
+  return undefined
+}
 
+function readPersistedState(raw: string): PersistedPlayerState {
   try {
-    const raw = globalThis.localStorage.getItem(playerStateStorageKey)
-    if (!raw) {
-      return defaultPersistedState()
-    }
-
     const parsed = JSON.parse(raw) as Partial<PersistedPlayerState>
     const parsedContext = parsed.context
     let context: PlaybackContext | null = null
@@ -136,40 +128,39 @@ function readPersistedState(): PersistedPlayerState {
   }
 }
 
-const persistedState = readPersistedState()
+const storage = useStorage<PersistedPlayerState>(
+  playerStateStorageKey,
+  defaultPersistedState(),
+  getStorage(),
+  {
+    mergeDefaults: true,
+    flush: 'sync',
+    serializer: { read: readPersistedState, write: v => JSON.stringify(v) },
+  },
+)
 
-const currentTrackId = ref<string | null>(persistedState.currentTrackId)
-const isPlaying = ref(persistedState.isPlaying)
-const playMode = ref<PlayMode>(persistedState.playMode)
-const currentTime = ref(persistedState.currentTime)
+const currentTrackId = ref<string | null>(storage.value.currentTrackId)
+const isPlaying = ref(storage.value.isPlaying)
+const playMode = ref<PlayMode>(storage.value.playMode)
+const currentTime = ref(storage.value.currentTime)
 const duration = ref(0)
-const volume = ref(persistedState.volume)
-const muted = ref(persistedState.muted)
-const playHistory = ref<string[]>(persistedState.history)
-const playbackContext = ref<PlaybackContext | null>(persistedState.context)
-const upNextQueue = ref<string[]>(persistedState.upNextQueue)
+const volume = ref(storage.value.volume)
+const muted = ref(storage.value.muted)
+const playHistory = ref<string[]>(storage.value.history)
+const playbackContext = ref<PlaybackContext | null>(storage.value.context)
+const upNextQueue = ref<string[]>(storage.value.upNextQueue)
 
 function persistState(): void {
-  if (!canUseStorage()) {
-    return
-  }
-
-  try {
-    const payload: PersistedPlayerState = {
-      context: playbackContext.value,
-      currentTime: currentTime.value,
-      currentTrackId: currentTrackId.value,
-      history: playHistory.value,
-      isPlaying: isPlaying.value,
-      muted: muted.value,
-      playMode: playMode.value,
-      upNextQueue: upNextQueue.value,
-      volume: volume.value,
-    }
-    globalThis.localStorage.setItem(playerStateStorageKey, JSON.stringify(payload))
-  }
-  catch {
-    // Ignore storage write failures.
+  storage.value = {
+    context: playbackContext.value,
+    currentTime: currentTime.value,
+    currentTrackId: currentTrackId.value,
+    history: playHistory.value,
+    isPlaying: isPlaying.value,
+    muted: muted.value,
+    playMode: playMode.value,
+    upNextQueue: upNextQueue.value,
+    volume: volume.value,
   }
 }
 

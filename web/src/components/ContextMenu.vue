@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ContextMenuItem } from '../composables/useContextMenu'
-import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, ref, shallowRef, watch } from 'vue'
 import { useContextMenu } from '../composables/useContextMenu'
 
 const { close, trigger, visible } = useContextMenu()
@@ -170,20 +170,6 @@ watch(visible, async (isVisible) => {
     return
   }
   await positionMenu()
-  globalThis.addEventListener('pointerdown', handleOutsidePointer, true)
-  globalThis.addEventListener('keydown', handleKey)
-  globalThis.addEventListener('scroll', close, true)
-  globalThis.addEventListener('resize', close)
-})
-
-watch(visible, (isVisible) => {
-  if (isVisible) {
-    return
-  }
-  globalThis.removeEventListener('pointerdown', handleOutsidePointer, true)
-  globalThis.removeEventListener('keydown', handleKey)
-  globalThis.removeEventListener('scroll', close, true)
-  globalThis.removeEventListener('resize', close)
 })
 
 watch(hoveredRootSubmenu, async (submenu) => {
@@ -193,12 +179,10 @@ watch(hoveredRootSubmenu, async (submenu) => {
   await positionSubmenu(hoverPath.value[0])
 })
 
-onBeforeUnmount(() => {
-  globalThis.removeEventListener('pointerdown', handleOutsidePointer, true)
-  globalThis.removeEventListener('keydown', handleKey)
-  globalThis.removeEventListener('scroll', close, true)
-  globalThis.removeEventListener('resize', close)
-})
+useEventListener('pointerdown', handleOutsidePointer, { capture: true })
+useEventListener('keydown', handleKey)
+useEventListener('scroll', close, { capture: true })
+useEventListener('resize', close)
 </script>
 
 <template>

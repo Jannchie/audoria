@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, watchEffect } from 'vue'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
 import AudoriaLogo from './components/AudoriaLogo.vue'
@@ -34,12 +34,10 @@ const mobileNavItems = computed(() => [
 
 const currentPath = computed(() => route.path)
 const isPlayerPage = computed(() => route.path === '/player')
+const isLocked = useScrollLock(document.body)
 
 watchEffect(() => {
-  if (typeof document === 'undefined') {
-    return
-  }
-  document.body.classList.toggle('no-scroll', isPlayerPage.value)
+  isLocked.value = isPlayerPage.value
 })
 </script>
 
@@ -286,7 +284,6 @@ watchEffect(() => {
   padding: 0.25rem 0.5rem env(safe-area-inset-bottom, 0px);
   background: var(--bg-primary);
 }
-
 
 @media (min-width: 768px) {
   .mobile-tabs {

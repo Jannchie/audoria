@@ -12,6 +12,22 @@ import { usePlayerState } from './usePlayerState'
  * ↓            – volume –0.05
  * M            – toggle mute
  */
+function isEditableTarget(el: EventTarget | null): boolean {
+  if (!el || !(el instanceof HTMLElement)) {
+    return false
+  }
+  const tag = el.tagName.toLowerCase()
+  return tag === 'input'
+    || tag === 'textarea'
+    || tag === 'select'
+    || el.isContentEditable
+    || el.getAttribute('role') === 'textbox'
+}
+
+function getAudioElement(): HTMLAudioElement | null {
+  return document.querySelector('audio')
+}
+
 export function useKeyboardShortcuts(): void {
   const { data: tracks } = useMusicQuery()
   const {
@@ -25,22 +41,6 @@ export function useKeyboardShortcuts(): void {
     getPreviousTrackId,
     upNextQueue,
   } = usePlayerState()
-
-  function isEditableTarget(el: EventTarget | null): boolean {
-    if (!el || !(el instanceof HTMLElement)) {
-      return false
-    }
-    const tag = el.tagName.toLowerCase()
-    return tag === 'input'
-      || tag === 'textarea'
-      || tag === 'select'
-      || el.isContentEditable
-      || el.getAttribute('role') === 'textbox'
-  }
-
-  function getAudioElement(): HTMLAudioElement | null {
-    return document.querySelector('audio')
-  }
 
   function togglePlayPause(): void {
     const audio = getAudioElement()
