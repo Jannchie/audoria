@@ -5,8 +5,8 @@ FROM node:22-slim AS builder
 
 WORKDIR /app
 
-# Install pnpm
-RUN npm install -g pnpm@10.15.1
+# Enable pnpm via corepack (reads version from packageManager in package.json)
+RUN corepack enable && corepack prepare pnpm --activate
 
 # Install build toolchain for native modules (better-sqlite3, sharp, etc.)
 RUN apt-get update && apt-get install -y \

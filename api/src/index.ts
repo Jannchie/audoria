@@ -539,13 +539,11 @@ function setSessionCookie(c: Context, token: string): void {
   })
 }
 
-// ── Auth middleware ──
+// ── Auth middleware (protects API routes only) ──
 
-api.use('*', async (c, next) => {
-  if (c.req.path === '/auth/login') {
-    return next()
-  }
+const apiAuthPaths = ['/music/*', '/playlists/*', '/app/*', '/openapi.json', '/docs', '/auth/check']
 
+async function authMiddleware(c: any, next: any) {
   const secretKey = config.secretKey
   if (!secretKey) {
     return next()
@@ -561,7 +559,11 @@ api.use('*', async (c, next) => {
   setSessionCookie(c, newToken)
 
   return next()
-})
+}
+
+for (const p of apiAuthPaths) {
+  api.use(p, authMiddleware)
+}
 
 // ── Auth routes ──
 
