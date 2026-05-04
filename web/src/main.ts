@@ -29,6 +29,9 @@ const queryClient = new QueryClient({
 })
 
 const apiBase = import.meta.env.VITE_API_BASE ?? 'http://localhost:8787'
-client.setConfig({ baseUrl: apiBase })
+client.setConfig({
+  baseUrl: apiBase,
+  fetch: (input, init) => globalThis.fetch(input, { ...init, credentials: 'include' }),
+})
 
 createApp(App).use(i18n).use(router).use(VueQueryPlugin, { queryClient }).mount('#app')

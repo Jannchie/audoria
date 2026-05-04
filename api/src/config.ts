@@ -77,6 +77,7 @@ export interface AppConfig {
   musicdl: MusicDlRuntimeConfig
   importCandidateTtlMs: number
   importWorkerPollMs: number
+  secretKey: string | null
 }
 
 function requireEnv(source: ConfigSource, key: string): string {
@@ -241,6 +242,7 @@ export function loadConfig(source: ConfigSource = readEffectiveConfigSource()): 
     musicdl: loadMusicDlConfig(source),
     importCandidateTtlMs: Number(source.IMPORT_CANDIDATE_TTL_MS ?? 30 * 60 * 1000),
     importWorkerPollMs: Number(source.IMPORT_WORKER_POLL_MS ?? 3000),
+    secretKey: source.SECRET_KEY?.trim() || null,
   }
 }
 

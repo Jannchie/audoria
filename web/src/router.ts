@@ -24,6 +24,11 @@ const router = createRouter({
       redirect: '/library',
     },
     {
+      path: '/login',
+      name: 'login',
+      component: () => import('./pages/LoginPage.vue'),
+    },
+    {
       path: '/library',
       name: 'library',
       component: () => import('./pages/LibraryPage.vue'),

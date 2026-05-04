@@ -2,13 +2,16 @@ import type { ApiReferenceConfiguration } from '@scalar/hono-api-reference'
 import type { ReadableStream } from 'node:stream/web'
 import type { ConfigOverrides } from './configOverrides.js'
 import type { MusicImportJob, MusicImportJobStatus, Playlist, PlaylistSummary, Track } from './db.js'
+import { createHmac, timingSafeEqual } from 'node:crypto'
 import { env } from 'node:process'
 import { Readable } from 'node:stream'
 import { serve } from '@hono/node-server'
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import { Scalar } from '@scalar/hono-api-reference'
 import { desc, eq } from 'drizzle-orm'
+import type { Context } from 'hono'
 import { cors } from 'hono/cors'
+import { getCookie, setCookie } from 'hono/cookie'
 import { aiProviderApiKeyEnvNames, config, loadConfig, mergeConfigSources, pickSecretConfigSource, readPersistedConfigSource } from './config.js'
 import { applyConfigOverrides, writePersistedConfigOverrides } from './configOverrides.js'
 import {
@@ -476,11 +479,120 @@ const app = new OpenAPIHono()
 app.use(
   '*',
   cors({
-    origin: '*',
+    origin: (origin) => origin,
     allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
   }),
 )
+
+// ── Session token helpers ──
+
+const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
+
+function createSessionToken(secretKey: string): string {
+  const iat = Date.now()
+  const exp = iat + SESSION_DURATION_MS
+  const payload = JSON.stringify({ sub: 'user', iat, exp })
+  const encoded = Buffer.from(payload).toString('base64url')
+  const sig = createHmac('sha256', secretKey).update(encoded).digest('base64url')
+  return `${encoded}.${sig}`
+}
+
+function verifySessionToken(token: string, secretKey: string): boolean {
+  const parts = token.split('.')
+  if (parts.length !== 2) {
+    return false
+  }
+  const [encoded, sig] = parts
+  const expectedSig = createHmac('sha256', secretKey).update(encoded).digest('base64url')
+  const sigBuf = Buffer.from(sig)
+  const expectedBuf = Buffer.from(expectedSig)
+  if (sigBuf.length !== expectedBuf.length) {
+    return false
+  }
+  try {
+    if (!timingSafeEqual(sigBuf, expectedBuf)) {
+      return false
+    }
+    const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString()) as { exp: number }
+    if (payload.exp < Date.now()) {
+      return false
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+
+function setSessionCookie(c: Context, token: string): void {
+  setCookie(c, 'token', token, {
+    httpOnly: true,
+    sameSite: 'Lax',
+    secure: env.NODE_ENV === 'production',
+    path: '/',
+    maxAge: SESSION_DURATION_MS / 1000,
+  })
+}
+
+// ── Auth middleware ──
+
+app.use('*', async (c, next) => {
+  if (c.req.path === '/auth/login') {
+    return next()
+  }
+
+  const secretKey = config.secretKey
+  if (!secretKey) {
+    return next()
+  }
+
+  const token = getCookie(c, 'token')
+  if (!token || !verifySessionToken(token, secretKey)) {
+    return c.json({ message: 'Unauthorized' }, 401)
+  }
+
+  // Sliding session: refresh cookie on each request
+  const newToken = createSessionToken(secretKey)
+  setSessionCookie(c, newToken)
+
+  return next()
+})
+
+// ── Auth routes ──
+
+const loginSchema = z.object({
+  token: z.string().min(1),
+})
+
+app.post('/auth/login', async (c) => {
+  const secretKey = config.secretKey
+  if (!secretKey) {
+    return c.json({ message: 'Authentication is not configured on this server' }, 503)
+  }
+
+  const body = await c.req.json().catch(() => ({})) as { token?: unknown }
+  const parsed = loginSchema.safeParse(body)
+  if (!parsed.success) {
+    return c.json({ message: 'Token is required' }, 400)
+  }
+
+  if (parsed.data.token !== secretKey) {
+    return c.json({ message: 'Invalid token' }, 401)
+  }
+
+  const sessionToken = createSessionToken(secretKey)
+  setSessionCookie(c, sessionToken)
+
+  return c.json({
+    message: 'Authenticated',
+    expiresAt: new Date(Date.now() + SESSION_DURATION_MS).toISOString(),
+  }, 200)
+})
+
+app.get('/auth/check', (c) => {
+  return c.json({ authenticated: true }, 200)
+})
 
 const uploadMusicRoute = createRoute({
   method: 'post',

@@ -424,7 +424,6 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
-  padding-top: 0.75rem;
 }
 
 .parse-bar-wrapper {

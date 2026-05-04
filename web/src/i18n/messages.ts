@@ -1,5 +1,10 @@
 export const messages = {
   'en-US': {
+    auth: {
+      loginPrompt: 'Enter your access token to continue',
+      tokenPlaceholder: 'Access token',
+      tokenLabel: 'Access token',
+    },
     nav: {
       library: 'Library',
       playlists: 'Playlists',
@@ -21,6 +26,7 @@ export const messages = {
         downloading: 'Downloading...',
         upload: 'Upload',
         uploading: 'Uploading...',
+        login: 'Login',
         save: 'Save',
         saving: 'Saving...',
         cancel: 'Cancel',
@@ -358,6 +364,11 @@ export const messages = {
     },
   },
   'zh-CN': {
+    auth: {
+      loginPrompt: '请输入访问令牌以继续',
+      tokenPlaceholder: '访问令牌',
+      tokenLabel: '访问令牌',
+    },
     nav: {
       library: '音乐库',
       playlists: '歌单',
@@ -379,6 +390,7 @@ export const messages = {
         downloading: '下载中...',
         upload: '上传',
         uploading: '上传中...',
+        login: '登录',
         save: '保存',
         saving: '保存中...',
         cancel: '取消',

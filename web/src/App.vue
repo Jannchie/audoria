@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
 import AudoriaLogo from './components/AudoriaLogo.vue'
@@ -8,11 +8,19 @@ import InputPromptDialog from './components/InputPromptDialog.vue'
 import PlayerBar from './components/PlayerBar.vue'
 import QueueDrawer from './components/QueueDrawer.vue'
 import { useKeyboardShortcuts } from './composables/useKeyboardShortcuts'
+import LoginPage from './pages/LoginPage.vue'
 
 const { t } = useI18n()
 const route = useRoute()
+const { status, check } = useAuth()
+
+onMounted(() => {
+  check()
+})
 
 useKeyboardShortcuts()
+
+const authReady = computed(() => status.value !== 'loading')
 
 const navItems = computed(() => [
   { name: t('nav.library'), path: '/library', icon: 'i-tabler-vinyl' },
@@ -42,7 +50,25 @@ watchEffect(() => {
 </script>
 
 <template>
-  <div class="app-shell">
+  <!-- Auth loading -->
+  <div
+    v-if="!authReady"
+    class="auth-loading"
+  >
+    <span
+      class="i-tabler-loader-2 animate-spin auth-loading-icon"
+      aria-hidden="true"
+    />
+  </div>
+
+  <!-- Login page -->
+  <LoginPage v-else-if="status === 'unauthenticated'" />
+
+  <!-- App shell -->
+  <div
+    v-else
+    class="app-shell"
+  >
     <!-- Desktop top bar (hidden on mobile) -->
     <header
       class="topbar"
@@ -129,6 +155,19 @@ watchEffect(() => {
 </template>
 
 <style scoped>
+.auth-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: var(--bg-base);
+}
+
+.auth-loading-icon {
+  font-size: 2rem;
+  color: var(--text-tertiary);
+}
+
 .app-shell {
   min-height: 100vh;
   display: flex;
