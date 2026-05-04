@@ -27,7 +27,7 @@ RUN pnpm install --frozen-lockfile
 COPY api/ ./api/
 COPY web/ ./web/
 
-# Build frontend (VITE_API_BASE="" = same-origin requests to the backend)
+# Build frontend
 ARG VITE_API_BASE="/api/v1"
 ENV VITE_API_BASE=$VITE_API_BASE
 RUN pnpm -C web build
