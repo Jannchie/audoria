@@ -521,10 +521,10 @@ onUnmounted(() => {
     v-show="!isPlayerPage"
     class="playerbar"
   >
-    <!-- Progress bar -->
+    <!-- Progress bar (top edge) -->
     <div
       ref="progressTrack"
-      class="py-2 w-full cursor-pointer relative"
+      class="playerbar-progress"
       role="slider"
       tabindex="0"
       :aria-label="t('common.actions.seek')"
@@ -538,12 +538,11 @@ onUnmounted(() => {
       @pointermove="handleProgressHoverMove"
       @keydown="handleProgressKeydown"
     >
-      <div class="bg-[var(--bg-surface)] h-0.5 w-full relative">
-        <div
-          class="bg-[var(--accent)] h-full transition-none inset-y-0 left-0 absolute"
-          :style="{ width: `${progress}%` }"
-        />
-      </div>
+      <div class="playerbar-progress-track" />
+      <div
+        class="playerbar-progress-fill"
+        :style="{ width: `${progress}%` }"
+      />
       <ProgressPreviewTooltip
         :lyric="previewTooltipLyric"
         :ratio="previewRatio"
@@ -557,48 +556,75 @@ onUnmounted(() => {
       <!-- Track info -->
       <button
         type="button"
-        class="playerbar-track text-left flex flex-1 gap-3 min-w-0 transition-colors items-center"
+        class="playerbar-track"
         :aria-label="currentTrack ? t('player.openPlayerTrack', { title: currentTrack.title ?? currentTrack.filename }) : t('player.openPlayer')"
         @click="goToPlayer"
       >
-        <div class="rounded-lg bg-[var(--bg-elevated)] flex shrink-0 h-11 w-11 items-center justify-center overflow-hidden">
+        <div class="playerbar-cover">
           <LazyCoverImage
             v-if="currentTrackCoverUrl"
             :alt="currentTrack?.filename ?? t('player.trackCover')"
             :src="currentTrackCoverUrl"
             :thumbhash="currentTrack?.coverThumbhash"
-            width="48"
-            height="48"
+            width="44"
+            height="44"
             loading="eager"
           />
           <span
             v-else
-            class="i-tabler-music text-[var(--text-tertiary)]"
+            class="i-tabler-music playerbar-cover-placeholder"
           />
         </div>
-        <div class="min-w-0">
-          <p class="text-[13px] leading-tight font-medium text-heading truncate">
+        <div class="playerbar-meta">
+          <p class="playerbar-title">
             {{ currentTrack?.title || currentTrack?.filename || t('player.noTrackSelected') }}
           </p>
-          <p class="text-[11px] text-[var(--text-tertiary)] mt-0.5 flex gap-1 truncate items-center">
+          <p class="playerbar-sub">
             <span
               v-if="currentTrack?.source"
-              class="shrink-0"
+              class="playerbar-source"
               :class="getSourceDisplay(currentTrack.source).icon"
               :title="getSourceDisplay(currentTrack.source).label"
               aria-hidden="true"
             />
             <span
               v-if="currentTrack?.artists"
-              class="truncate"
-            >{{ currentTrack.artists }} ·</span>
-            <span class="shrink-0 tabular-nums">{{ formattedTime(displayedCurrentTime) }} / {{ formattedTime(duration) }}</span>
+              class="playerbar-artist"
+            >{{ currentTrack.artists }}</span>
+            <span class="playerbar-time">{{ formattedTime(displayedCurrentTime) }} / {{ formattedTime(duration) }}</span>
           </p>
         </div>
       </button>
 
-      <!-- Controls -->
-      <div class="playerbar-controls flex gap-0.5 items-center">
+      <!-- Mobile compact controls (play + next) -->
+      <div class="playerbar-controls playerbar-controls--mobile">
+        <button
+          type="button"
+          class="playerbar-play-btn"
+          :disabled="!audioSrc"
+          :aria-label="isPlaying ? t('common.actions.pause') : t('common.actions.play')"
+          @click.stop="togglePlayPause"
+        >
+          <span
+            :class="isPlaying ? 'i-tabler-player-pause-filled' : 'i-tabler-player-play-filled'"
+            aria-hidden="true"
+          />
+        </button>
+        <button
+          type="button"
+          class="playerbar-skip-btn"
+          :aria-label="t('common.actions.nextTrack')"
+          @click.stop="handleNext"
+        >
+          <span
+            class="i-tabler-player-skip-forward-filled"
+            aria-hidden="true"
+          />
+        </button>
+      </div>
+
+      <!-- Desktop controls -->
+      <div class="playerbar-controls playerbar-controls--desktop">
         <IconButton
           :aria-label="t('common.actions.previousTrack')"
           icon="i-tabler-player-skip-back-filled"
@@ -630,7 +656,7 @@ onUnmounted(() => {
       </div>
 
       <!-- Volume (desktop only) -->
-      <div class="playerbar-volume gap-1 hidden items-center lg:flex">
+      <div class="playerbar-volume">
         <IconButton
           :active="isQueueOpen"
           :aria-label="t('player.toggleQueue')"
@@ -680,42 +706,274 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   z-index: 40;
+  /* mobile: stacked flush above the tab bar; the offset matches
+     `.mobile-tabs` height exactly so the two surfaces meet without
+     overlap and read as one solid control center. */
+  bottom: calc(3.75rem + env(safe-area-inset-bottom, 0px));
   background: var(--bg-primary);
-  border-top: 1px solid var(--border);
-  /* mobile: sit above the tab bar, respecting safe area */
-  bottom: calc(3.25rem + env(safe-area-inset-bottom, 0px));
 }
 
 @media (min-width: 768px) {
   .playerbar {
     bottom: 0;
+    border-top: 1px solid var(--border);
   }
 }
 
+/* ── Progress bar ── */
+.playerbar-progress {
+  position: relative;
+  width: 100%;
+  height: 0.1875rem;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.playerbar-progress-track {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.playerbar-progress-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--accent);
+}
+
+@media (min-width: 768px) {
+  .playerbar-progress {
+    height: 0.25rem;
+    transition: height 0.15s ease;
+  }
+  .playerbar-progress-track {
+    background: var(--bg-elevated);
+  }
+  @media (hover: hover) {
+    .playerbar-progress:hover {
+      height: 0.375rem;
+    }
+  }
+}
+
+/* ── Content layout ── */
 .playerbar-content {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.625rem;
   margin: 0 auto;
-  padding: 0.5rem 1rem 1rem;
-}
-
-.playerbar-track {
-  min-width: 0;
+  padding: 0.75rem 0.75rem 0.75rem 0.625rem;
 }
 
 @media (min-width: 768px) {
   .playerbar-content {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-    padding: 0.5rem 1.25rem 1.25rem;
+    gap: 0.75rem;
+    padding: 1rem 1.5rem;
   }
+}
 
-  .playerbar-controls {
+/* ── Track info ── */
+.playerbar-track {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-width: 0;
+  flex: 1;
+  padding: 0.25rem;
+  margin: -0.25rem;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  -webkit-tap-highlight-color: transparent;
+  border-radius: 0.625rem;
+  transition: background 0.15s ease;
+}
+
+.playerbar-track:active {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+@media (min-width: 768px) {
+  .playerbar-track {
+    flex: none;
+    padding: 0;
+    margin: 0;
+  }
+  .playerbar-track:active {
+    background: none;
+  }
+}
+
+.playerbar-cover {
+  display: flex;
+  flex-shrink: 0;
+  width: 2.5rem;
+  height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 0.5rem;
+  background: var(--bg-elevated);
+}
+
+@media (min-width: 768px) {
+  .playerbar-cover {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+}
+
+.playerbar-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.playerbar-cover-placeholder {
+  font-size: 1.125rem;
+  color: var(--text-tertiary);
+}
+
+.playerbar-meta {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.0625rem;
+}
+
+.playerbar-title {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-family: var(--font-display, inherit);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.25;
+}
+
+.playerbar-sub {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.3125rem;
+  font-size: 0.6875rem;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  line-height: 1.25;
+}
+
+.playerbar-source {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+}
+
+.playerbar-artist {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.playerbar-time {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .playerbar-time {
+    display: inline;
+  }
+}
+
+/* ── Mobile compact controls ── */
+.playerbar-controls--mobile {
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+  flex-shrink: 0;
+}
+
+@media (min-width: 768px) {
+  .playerbar-controls--mobile {
+    display: none;
+  }
+}
+
+.playerbar-play-btn,
+.playerbar-skip-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.15s ease, transform 0.1s ease, background 0.15s ease;
+}
+
+.playerbar-play-btn {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 999px;
+  font-size: 1.125rem;
+}
+
+.playerbar-play-btn:active:not(:disabled) {
+  transform: scale(0.92);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.playerbar-play-btn:disabled {
+  color: var(--text-tertiary);
+  cursor: not-allowed;
+}
+
+.playerbar-skip-btn {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 999px;
+  font-size: 1rem;
+  color: var(--text-secondary);
+}
+
+.playerbar-skip-btn:active {
+  transform: scale(0.92);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* ── Desktop controls ── */
+.playerbar-controls--desktop {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .playerbar-controls--desktop {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    flex-shrink: 0;
     justify-self: center;
   }
+}
 
+/* ── Volume (desktop only) ── */
+.playerbar-volume {
+  display: none;
+}
+
+@media (min-width: 768px) {
   .playerbar-volume {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
     justify-self: end;
   }
 }

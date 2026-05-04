@@ -26,7 +26,6 @@ const mobileNavItems = computed(() => [
   { name: t('nav.library'), path: '/library', icon: 'i-tabler-vinyl' },
   { name: t('nav.playlists'), path: '/playlists', icon: 'i-tabler-playlist' },
   { name: t('nav.explore'), path: '/import', icon: 'i-tabler-compass' },
-  { name: t('nav.player'), path: '/player', icon: 'i-tabler-wave-sine' },
   { name: t('nav.settings'), path: '/settings', icon: 'i-tabler-settings' },
 ])
 
@@ -247,7 +246,7 @@ watchEffect(() => {
   width: 100%;
   margin: 0 auto;
   /* mobile: bottom padding for PlayerBar + tabs + safe area */
-  padding: 0 1rem calc(10.5rem + env(safe-area-inset-bottom, 0px));
+  padding: 0 1rem calc(9rem + env(safe-area-inset-bottom, 0px));
 }
 
 @media (min-width: 768px) {
@@ -269,18 +268,22 @@ watchEffect(() => {
 }
 
 /* ---- Mobile bottom tab bar ---- */
+/* Visually fused with PlayerBar above: shares the same surface, stacked
+   into one solid control center with no divider. The fixed height keeps
+   PlayerBar's `bottom` offset in sync with the actual tab bar height so
+   the two stack flush instead of overlapping. */
 .mobile-tabs {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
   z-index: 50;
-  padding: 0.5rem 0.5rem calc(0.375rem + env(safe-area-inset-bottom, 0px));
-  background: rgba(14, 14, 16, 0.82);
-  backdrop-filter: blur(24px) saturate(1.8);
-  -webkit-backdrop-filter: blur(24px) saturate(1.8);
-  border-top: 1px solid var(--border);
+  box-sizing: border-box;
+  height: calc(3.75rem + env(safe-area-inset-bottom, 0px));
+  padding: 0.25rem 0.5rem env(safe-area-inset-bottom, 0px);
+  background: var(--bg-primary);
 }
+
 
 @media (min-width: 768px) {
   .mobile-tabs {
@@ -291,6 +294,7 @@ watchEffect(() => {
 .mobile-tabs-inner {
   display: flex;
   align-items: stretch;
+  height: 100%;
 }
 
 .mobile-tab {
@@ -318,7 +322,7 @@ watchEffect(() => {
 
 .mobile-tab-indicator {
   position: absolute;
-  top: -0.5rem;
+  top: 0;
   left: 50%;
   transform: translateX(-50%) scaleX(0);
   width: 1.25rem;

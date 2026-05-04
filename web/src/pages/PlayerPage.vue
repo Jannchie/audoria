@@ -2,6 +2,7 @@
 import type { FilamentConfig } from '../components/ShaderProgressBar.vue'
 import { computed, defineAsyncComponent, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import HoloCoverArt from '../components/HoloCoverArt.vue'
 import MetadataEditDialog from '../components/MetadataEditDialog.vue'
 import ProgressPreviewTooltip from '../components/ProgressPreviewTooltip.vue'
@@ -21,6 +22,8 @@ const ShaderProgressBar = defineAsyncComponent(() => import('../components/Shade
 const { data: tracks } = useMusicQuery()
 const { t } = useI18n()
 const { coverEffect, coverEffectEnabled, progressEffectEnabled } = useSettings()
+const router = useRouter()
+const isMobile = useMediaQuery('(max-width: 767px)')
 const isDev = import.meta.env.DEV
 const filamentConfig = ref<FilamentConfig>({
   gain: 2.1,
@@ -579,6 +582,18 @@ onUnmounted(() => {
       <div class="bg-cover-overlay" />
     </div>
 
+    <button
+      type="button"
+      class="player-back"
+      :aria-label="t('common.actions.close')"
+      @click="router.back()"
+    >
+      <span
+        class="i-tabler-chevron-left"
+        aria-hidden="true"
+      />
+    </button>
+
     <div class="player-layout">
       <div class="player-main">
         <!-- Left: cover only, centered -->
@@ -917,7 +932,7 @@ onUnmounted(() => {
       @close="closeEdit"
     />
     <ShaderProgressControls
-      v-if="isDev"
+      v-if="isDev && !isMobile"
       v-model="filamentConfig"
     />
   </section>
@@ -933,6 +948,38 @@ onUnmounted(() => {
 @media (min-width: 768px) {
   .player-page {
     height: calc(100vh - 3.5rem);
+  }
+}
+
+/* ---- Back button ---- */
+.player-back {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+  font-size: 1.375rem;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: background 0.15s ease;
+}
+
+.player-back:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+@media (min-width: 768px) {
+  .player-back {
+    display: none;
   }
 }
 
