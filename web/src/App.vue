@@ -286,7 +286,8 @@ watchEffect(() => {
   width: 100%;
   margin: 0 auto;
   /* mobile: bottom padding for PlayerBar + tabs + safe area */
-  padding: 0 1rem calc(9rem + env(safe-area-inset-bottom, 0px));
+  --safe-bottom: max(constant(safe-area-inset-bottom, 0px), env(safe-area-inset-bottom, 0px), 0.5rem);
+  padding: 0 1rem calc(9rem + var(--safe-bottom));
 }
 
 @media (min-width: 768px) {
@@ -311,16 +312,23 @@ watchEffect(() => {
 /* Visually fused with PlayerBar above: shares the same surface, stacked
    into one solid control center with no divider. The fixed height keeps
    PlayerBar's `bottom` offset in sync with the actual tab bar height so
-   the two stack flush instead of overlapping. */
+   the two stack flush instead of overlapping.
+
+   Safe area strategy:
+   - `viewport-fit=cover` in index.html enables `env(safe-area-inset-bottom)`
+   - `constant()` provides fallback for iOS 11.0-11.1
+   - `max()` guarantees a minimum gap even on non-notch devices */
 .mobile-tabs {
+  --safe-bottom: max(constant(safe-area-inset-bottom, 0px), env(safe-area-inset-bottom, 0px), 0.5rem);
+
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
   z-index: 50;
   box-sizing: border-box;
-  height: calc(3.75rem + env(safe-area-inset-bottom, 0px));
-  padding: 0.25rem 0.5rem env(safe-area-inset-bottom, 0px);
+  height: calc(3.75rem + var(--safe-bottom));
+  padding: 0.25rem 0.5rem var(--safe-bottom);
   background: var(--bg-primary);
 }
 

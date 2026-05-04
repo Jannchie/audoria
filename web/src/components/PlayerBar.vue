@@ -708,8 +708,12 @@ onUnmounted(() => {
   z-index: 40;
   /* mobile: stacked flush above the tab bar; the offset matches
      `.mobile-tabs` height exactly so the two surfaces meet without
-     overlap and read as one solid control center. */
-  bottom: calc(3.75rem + env(safe-area-inset-bottom, 0px));
+     overlap and read as one solid control center.
+
+     Safe area strategy mirrors App.vue's .mobile-tabs so both
+     layers stay in sync. */
+  --safe-bottom: max(constant(safe-area-inset-bottom, 0px), env(safe-area-inset-bottom, 0px), 0.5rem);
+  bottom: calc(3.75rem + var(--safe-bottom));
   background: var(--bg-primary);
 }
 
