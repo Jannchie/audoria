@@ -21,6 +21,15 @@ const navItems = computed(() => [
   { name: t('nav.settings'), path: '/settings', icon: 'i-tabler-settings' },
 ])
 
+// Mobile tabs: 5 primary destinations, merging add-music flows under Explore
+const mobileNavItems = computed(() => [
+  { name: t('nav.library'), path: '/library', icon: 'i-tabler-vinyl' },
+  { name: t('nav.playlists'), path: '/playlists', icon: 'i-tabler-playlist' },
+  { name: t('nav.explore'), path: '/import', icon: 'i-tabler-compass' },
+  { name: t('nav.player'), path: '/player', icon: 'i-tabler-wave-sine' },
+  { name: t('nav.settings'), path: '/settings', icon: 'i-tabler-settings' },
+])
+
 const currentPath = computed(() => route.path)
 const isPlayerPage = computed(() => route.path === '/player')
 
@@ -96,7 +105,7 @@ watchEffect(() => {
     >
       <div class="mobile-tabs-inner">
         <RouterLink
-          v-for="item in navItems"
+          v-for="item in mobileNavItems"
           :key="item.path"
           class="mobile-tab"
           :class="{ 'mobile-tab--active': currentPath.startsWith(item.path) }"
@@ -237,8 +246,8 @@ watchEffect(() => {
   max-width: 80rem;
   width: 100%;
   margin: 0 auto;
-  /* mobile: bottom padding for PlayerBar + tabs */
-  padding: 0 1rem 10.5rem;
+  /* mobile: bottom padding for PlayerBar + tabs + safe area */
+  padding: 0 1rem calc(10.5rem + env(safe-area-inset-bottom, 0px));
 }
 
 @media (min-width: 768px) {
@@ -266,11 +275,11 @@ watchEffect(() => {
   left: 0;
   right: 0;
   z-index: 50;
-  padding: 0.5rem 0.75rem calc(0.5rem + env(safe-area-inset-bottom, 0));
-  background: rgba(20, 20, 22, 0.72);
-  backdrop-filter: blur(20px) saturate(1.6);
-  -webkit-backdrop-filter: blur(20px) saturate(1.6);
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  padding: 0.5rem 0.5rem calc(0.375rem + env(safe-area-inset-bottom, 0px));
+  background: rgba(14, 14, 16, 0.82);
+  backdrop-filter: blur(24px) saturate(1.8);
+  -webkit-backdrop-filter: blur(24px) saturate(1.8);
+  border-top: 1px solid var(--border);
 }
 
 @media (min-width: 768px) {
@@ -333,11 +342,12 @@ watchEffect(() => {
 }
 
 .mobile-tab-label {
-  font-size: 0.6rem;
+  font-size: 0.65rem;
   font-weight: 500;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
   opacity: 0.7;
   transition: opacity 0.2s ease;
+  white-space: nowrap;
 }
 
 .mobile-tab--active .mobile-tab-label {

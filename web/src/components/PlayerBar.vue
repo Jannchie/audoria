@@ -682,8 +682,8 @@ onUnmounted(() => {
   z-index: 40;
   background: var(--bg-primary);
   border-top: 1px solid var(--border);
-  /* mobile: sit above the tab bar (~3.25rem) */
-  bottom: 3.25rem;
+  /* mobile: sit above the tab bar, respecting safe area */
+  bottom: calc(3.25rem + env(safe-area-inset-bottom, 0px));
 }
 
 @media (min-width: 768px) {
