@@ -288,7 +288,7 @@ function openPlaylist(id: string): void {
             </p>
             <div class="playlist-card-meta">
               <span>{{ t('playlist.trackCount', { n: playlist.trackCount }) }}</span>
-              <span>·</span>
+              <span class="playlist-card-meta-dot">·</span>
               <span>{{ formatDuration(playlist.totalDurationSeconds) }}</span>
             </div>
           </div>
@@ -312,49 +312,54 @@ function openPlaylist(id: string): void {
 <style scoped>
 .playlists-page {
   display: grid;
-  gap: 1.25rem;
-  padding: 1.25rem 0;
+  gap: 1.5rem;
+  padding: 1.5rem 0;
 }
 
+/* ── Hero ── */
 .playlists-hero {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   gap: 1rem;
 }
 
 .playlists-title {
   margin: 0;
-  font-size: 1.625rem;
-  font-weight: 700;
+  font-size: 2rem;
+  font-weight: 800;
   color: var(--text-primary);
   font-family: var(--font-display, inherit);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
 }
 
 .playlists-subtitle {
   display: inline-block;
-  margin: 0.375rem 0 0;
-  padding: 0.125rem 0.5rem;
+  margin: 0.5rem 0 0;
+  padding: 0.125rem 0.625rem;
   font-size: 0.75rem;
+  font-weight: 500;
   color: var(--text-tertiary);
   background: var(--bg-surface);
   border-radius: 999px;
 }
 
+/* ── New playlist button ── */
 .playlists-new-btn {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.625rem 1.125rem;
+  padding: 0.625rem 1.25rem;
   border: none;
   border-radius: 999px;
   background: var(--accent);
   color: white;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s ease, transform 0.1s ease;
+  white-space: nowrap;
 }
 
 .playlists-new-btn:hover:not(:disabled) {
@@ -370,10 +375,11 @@ function openPlaylist(id: string): void {
   cursor: not-allowed;
 }
 
+/* ── Create form ── */
 .playlist-create {
   display: grid;
-  gap: 0.75rem;
-  padding: 1.125rem;
+  gap: 0.875rem;
+  padding: 1.25rem;
   border: 1px solid var(--border);
   border-radius: 1rem;
   background: var(--bg-surface);
@@ -381,7 +387,7 @@ function openPlaylist(id: string): void {
 
 .playlist-create-fields {
   display: grid;
-  gap: 0.5rem;
+  gap: 0.625rem;
 }
 
 .playlist-input,
@@ -394,12 +400,14 @@ function openPlaylist(id: string): void {
   padding: 0.625rem 0.875rem;
   font-size: 0.875rem;
   resize: vertical;
+  font-family: inherit;
 }
 
 .playlist-input:focus,
 .playlist-textarea:focus {
-  outline: 2px solid color-mix(in srgb, var(--accent) 50%, transparent);
-  outline-offset: 0;
+  outline: 2px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  outline-offset: -1px;
+  border-color: var(--accent);
 }
 
 .playlist-create-actions {
@@ -438,12 +446,13 @@ function openPlaylist(id: string): void {
   background: transparent;
   color: var(--text-secondary);
   font-size: 0.8125rem;
+  font-weight: 500;
   cursor: pointer;
   transition: border-color 0.15s ease, color 0.15s ease;
 }
 
 .playlist-cancel:hover {
-  border-color: rgba(255, 255, 255, 0.15);
+  border-color: var(--text-tertiary);
   color: var(--text-primary);
 }
 
@@ -453,10 +462,11 @@ function openPlaylist(id: string): void {
   color: var(--danger);
 }
 
+/* ── Toolbar ── */
 .playlists-toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 0.625rem;
   align-items: center;
 }
 
@@ -480,13 +490,13 @@ function openPlaylist(id: string): void {
   width: 100%;
   height: 2.625rem;
   padding: 0 1rem 0 2.5rem;
-  border: none;
+  border: 1px solid transparent;
   border-radius: 999px;
   background: var(--bg-surface);
   color: var(--text-primary);
   font-size: 0.875rem;
   outline: none;
-  transition: background 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .playlists-search-input::placeholder {
@@ -495,23 +505,25 @@ function openPlaylist(id: string): void {
 
 .playlists-search-input:focus {
   background: var(--bg-elevated);
+  border-color: var(--border);
 }
 
 .playlists-sort {
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
-  padding: 0 0.75rem;
+  padding: 0 0.875rem;
   height: 2.625rem;
   border-radius: 999px;
+  border: 1px solid transparent;
   background: var(--bg-surface);
   color: var(--text-secondary);
   font-size: 0.75rem;
-  transition: background 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .playlists-sort:hover {
-  background: var(--bg-elevated);
+  border-color: var(--border);
 }
 
 .playlists-sort-select {
@@ -519,12 +531,15 @@ function openPlaylist(id: string): void {
   border: none;
   color: var(--text-primary);
   font-size: 0.8125rem;
+  font-weight: 500;
   cursor: pointer;
+  outline: none;
 }
 
+/* ── Grid ── */
 .playlist-grid {
   display: grid;
-  gap: 0.625rem;
+  gap: 0.75rem;
 }
 
 @media (min-width: 768px) {
@@ -533,31 +548,28 @@ function openPlaylist(id: string): void {
   }
 }
 
+/* ── Card ── */
 .playlist-card {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 0.875rem;
-  padding: 0.75rem;
-  border: none;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
   border-radius: 0.875rem;
-  background: transparent;
-  text-align: left;
-  transition: background 0.2s ease;
-}
-
-.playlist-card:hover {
   background: var(--bg-surface);
+  cursor: pointer;
 }
 
 .playlist-card--skeleton {
   min-height: 5.75rem;
+  cursor: default;
 }
 
 .playlist-card-main {
   display: flex;
   align-items: center;
-  gap: 0.875rem;
+  gap: 1rem;
   min-width: 0;
   flex: 1;
   padding: 0;
@@ -565,12 +577,13 @@ function openPlaylist(id: string): void {
   background: none;
   text-align: left;
   cursor: pointer;
+  color: inherit;
 }
 
 .playlist-card-body {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 0.25rem;
   min-width: 0;
   flex: 1;
 }
@@ -584,13 +597,14 @@ function openPlaylist(id: string): void {
   overflow: hidden;
   text-overflow: ellipsis;
   font-family: var(--font-display, inherit);
+  letter-spacing: -0.01em;
 }
 
 .playlist-card-description {
   margin: 0;
   font-size: 0.8125rem;
   color: var(--text-secondary);
-  line-height: 1.4;
+  line-height: 1.5;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   line-clamp: 2;
@@ -599,44 +613,53 @@ function openPlaylist(id: string): void {
 }
 
 .playlist-card-meta {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.375rem;
+  gap: 0.25rem;
+  margin-top: 0.125rem;
   font-size: 0.75rem;
+  font-weight: 500;
   color: var(--text-tertiary);
 }
 
+.playlist-card-meta-dot {
+  color: var(--text-tertiary);
+  opacity: 0.4;
+}
+
+/* ── Delete button ── */
 .playlist-card-delete {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 2rem;
-  height: 2rem;
+  width: 2.25rem;
+  height: 2.25rem;
   border: none;
   border-radius: 999px;
   background: none;
   color: var(--text-tertiary);
-  opacity: 0;
-  transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+  font-size: 1rem;
+  transition: background 0.15s ease, color 0.15s ease;
   cursor: pointer;
 }
 
-.playlist-card:hover .playlist-card-delete {
-  opacity: 1;
-}
-
 .playlist-card-delete:hover {
-  background: var(--bg-elevated);
-  color: var(--accent);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
 }
 
+/* ── Empty state ── */
 .playlist-empty {
-  padding: 3rem 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 4rem 1rem;
   border: none;
   border-radius: 0.875rem;
   background: var(--bg-surface);
-  text-align: center;
   font-size: 0.875rem;
   color: var(--text-secondary);
 }
