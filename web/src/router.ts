@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import LoginPage from './pages/LoginPage.vue'
 
 const scrollPositions = new Map<string, { left: number, top: number }>()
 
@@ -26,7 +27,7 @@ const router = createRouter({
     {
       path: '/login',
       name: 'login',
-      component: () => import('./pages/LoginPage.vue'),
+      component: LoginPage,
     },
     {
       path: '/library',
