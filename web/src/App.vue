@@ -7,9 +7,12 @@ import ContextMenu from './components/ContextMenu.vue'
 import InputPromptDialog from './components/InputPromptDialog.vue'
 import PlayerBar from './components/PlayerBar.vue'
 import QueueDrawer from './components/QueueDrawer.vue'
+import { useKeyboardShortcuts } from './composables/useKeyboardShortcuts'
 
 const { t } = useI18n()
 const route = useRoute()
+
+useKeyboardShortcuts()
 
 const navItems = computed(() => [
   { name: t('nav.library'), path: '/library', icon: 'i-tabler-vinyl' },
