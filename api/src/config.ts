@@ -1,14 +1,28 @@
 import type { MusicDlSource, MusicDlUrlSource } from './musicSources.js'
-import { mkdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { env } from 'node:process'
-import { fileURLToPath } from 'node:url'
-import { config as loadEnv } from 'dotenv'
 import { musicDlSources, musicDlUrlSources } from './musicSources.js'
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
-const projectRootDir = path.resolve(__dirname, '../..')
+let projectRootDir = '.'
+let mkdirSync: ((path: string, options?: any) => void) | undefined
+let readFileSync: ((path: string, encoding?: any) => string) | undefined
+let loadEnv: ((options?: any) => any) | undefined
+try {
+  const { mkdirSync: fsMkdirSync, readFileSync: fsReadFileSync } = await import('node:fs')
+  mkdirSync = fsMkdirSync
+  readFileSync = fsReadFileSync
+  if (typeof import.meta.url === 'string' && import.meta.url) {
+    const { fileURLToPath } = await import('node:url')
+    const __filename = fileURLToPath(import.meta.url)
+    const __dirname = path.dirname(__filename)
+    projectRootDir = path.resolve(__dirname, '../..')
+  }
+  const { config: dotenvConfig } = await import('dotenv')
+  loadEnv = dotenvConfig
+}
+catch {
+  // Node filesystem or dotenv bootstrap failed
+}
 export const projectRootEnvPath = path.resolve(projectRootDir, '.env')
 export const appDataDir = path.resolve(projectRootDir, 'api/data')
 export const appConfigJsonPath = path.resolve(appDataDir, 'app-config.json')
@@ -26,6 +40,7 @@ export type AiProvider = keyof typeof aiProviderApiKeyEnvNames
 export const secretConfigKeys = new Set([
   'S3_ACCESS_KEY_ID',
   'S3_SECRET_ACCESS_KEY',
+  'D1_API_TOKEN',
   aiProviderApiKeyEnvNames.openai,
 ])
 
@@ -40,6 +55,13 @@ export interface S3Config {
 
 export interface FsStorageConfig {
   rootDir: string
+}
+
+export interface D1HttpConfig {
+  accountId: string
+  databaseId: string
+  apiToken: string
+  apiBaseUrl: string
 }
 
 export interface MusicDlRuntimeConfig {
@@ -69,6 +91,7 @@ export interface AppConfig {
   port: number
   dbPath: string
   dbType: 'sqlite' | 'd1'
+  d1?: D1HttpConfig
   storage: {
     backend: StorageBackend
     s3?: S3Config
@@ -91,6 +114,15 @@ function requireEnv(source: ConfigSource, key: string): string {
 
 function resolveProjectPath(value: string): string {
   return path.isAbsolute(value) ? value : path.resolve(projectRootDir, value)
+}
+
+function tryMkdirSync(targetPath: string): void {
+  try {
+    mkdirSync?.(targetPath, { recursive: true })
+  }
+  catch {
+    // Ignore optional directory bootstrap failures
+  }
 }
 
 function readCsvEnv<T extends string>(
@@ -129,7 +161,7 @@ function loadStorageConfig(source: ConfigSource): AppConfig['storage'] {
 
   if (backendValue === 'fs') {
     const rootDir = resolveProjectPath(source.STORAGE_FS_ROOT ?? './api/data/storage')
-    mkdirSync(rootDir, { recursive: true })
+    tryMkdirSync(rootDir)
     return {
       backend: 'fs',
       fs: { rootDir },
@@ -146,6 +178,19 @@ function loadStorageConfig(source: ConfigSource): AppConfig['storage'] {
       secretAccessKey: requireEnv(source, 'S3_SECRET_ACCESS_KEY'),
       forcePathStyle: source.S3_FORCE_PATH_STYLE !== 'false',
     },
+  }
+}
+
+function loadD1Config(source: ConfigSource): D1HttpConfig | undefined {
+  if (source.DB_TYPE !== 'd1') {
+    return undefined
+  }
+
+  return {
+    accountId: requireEnv(source, 'D1_ACCOUNT_ID'),
+    databaseId: requireEnv(source, 'D1_DATABASE_ID'),
+    apiToken: requireEnv(source, 'D1_API_TOKEN'),
+    apiBaseUrl: source.D1_API_BASE_URL?.trim() || 'https://api.cloudflare.com/client/v4',
   }
 }
 
@@ -173,12 +218,14 @@ function loadAiConfig(source: ConfigSource): AiConfig {
 function readJsonStringMap(filePath: string): ConfigSource {
   let raw = ''
   try {
-    raw = readFileSync(filePath, 'utf8')
+    raw = readFileSync?.(filePath, 'utf8') ?? ''
   }
-  catch (error) {
-    if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT') {
-      throw error
-    }
+  catch {
+    // readFileSync may be unavailable or file may not exist
+    return {}
+  }
+
+  if (!raw.trim()) {
     return {}
   }
 
@@ -228,17 +275,26 @@ export function mergeConfigSources(...sources: ConfigSource[]): ConfigSource {
 }
 
 export function readEffectiveConfigSource(source: ConfigSource = env): ConfigSource {
-  return mergeConfigSources(source, readPersistedConfigSource(), pickSecretConfigSource(source))
+  return mergeConfigSources(
+    source,
+    readPersistedConfigSource(),
+    pickSecretConfigSource(source),
+  )
 }
 
 export function loadConfig(source: ConfigSource = readEffectiveConfigSource()): AppConfig {
+  const dbType = source.DB_TYPE === 'd1' ? 'd1' : 'sqlite'
   const dbPath = resolveProjectPath(source.DB_PATH ?? './api/data/audoria.sqlite')
-  mkdirSync(path.dirname(dbPath), { recursive: true })
+  const d1 = loadD1Config(source)
+  if (dbType === 'sqlite') {
+    tryMkdirSync(path.dirname(dbPath))
+  }
 
   return {
     port: Number(source.PORT ?? '8787'),
     dbPath,
-    dbType: source.DB_TYPE === 'd1' ? 'd1' : 'sqlite',
+    dbType,
+    d1,
     storage: loadStorageConfig(source),
     ai: loadAiConfig(source),
     musicdl: loadMusicDlConfig(source),
@@ -248,6 +304,11 @@ export function loadConfig(source: ConfigSource = readEffectiveConfigSource()): 
   }
 }
 
-loadEnv({ path: projectRootEnvPath })
+try {
+  loadEnv?.({ path: projectRootEnvPath })
+}
+catch {
+  // dotenv bootstrap failed
+}
 
 export const config = loadConfig()

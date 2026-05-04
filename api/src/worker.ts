@@ -11,7 +11,7 @@ import {
   updateMusicImportJobProgress,
   updateTrackImportedMetadata,
 } from './db/index.js'
-import { initSqlite } from './db/sqlite.js'
+import { initRuntimeDb } from './db/runtime.js'
 import { MusicDlBridgeError, MusicDlUnavailableError, openMusicDlStream } from './musicdl.js'
 import { storeTrack, storeTrackCover } from './storage.js'
 
@@ -207,7 +207,7 @@ async function main(): Promise<void> {
 
 async function run(): Promise<void> {
   try {
-    initSqlite(config.dbPath)
+    initRuntimeDb()
     await main()
   }
   catch (error) {

@@ -30,36 +30,54 @@ export { db as __db }
 // Re-export schema tables for direct use
 export { tracks } from './schema.js'
 
+async function queryAll<T>(query: { all: () => T | Promise<T> }): Promise<T> {
+  return await query.all()
+}
+
+async function queryGet<T>(query: { get: () => T | Promise<T> }): Promise<T> {
+  return await query.get()
+}
+
+async function queryRun<T>(query: { run: () => T | Promise<T> }): Promise<T> {
+  return await query.run()
+}
+
+async function runTransaction<T>(callback: () => T | Promise<T>): Promise<T> {
+  if (driver === 'sqlite') {
+    return await db.transaction(callback)
+  }
+  return await callback()
+}
+
 function normalizePlaylistName(name: string): string {
   return name.trim()
 }
 
-function reindexPlaylistTracksWithinTransaction(playlistId: string): void {
-  const items = db
+async function reindexPlaylistTracksWithinTransaction(playlistId: string): Promise<void> {
+  const items = await queryAll<Array<{ trackId: string }>>(db
     .select({
       trackId: schema.playlistTracks.trackId,
     })
     .from(schema.playlistTracks)
     .where(eq(schema.playlistTracks.playlistId, playlistId))
-    .orderBy(asc(schema.playlistTracks.position), asc(schema.playlistTracks.createdAt))
-    .all() as Array<{ trackId: string }>
+    .orderBy(asc(schema.playlistTracks.position), asc(schema.playlistTracks.createdAt)))
 
   for (const [index, item] of items.entries()) {
-    db.update(schema.playlistTracks)
+    await queryRun(db.update(schema.playlistTracks)
       .set({ position: index })
       .where(and(eq(schema.playlistTracks.playlistId, playlistId), eq(schema.playlistTracks.trackId, item.trackId)))
-      .run()
+    )
   }
 }
 
 // ── Track queries ──
 
 export async function listTracks(): Promise<schema.Track[]> {
-  return db.select().from(schema.tracks).orderBy(desc(schema.tracks.createdAt)).all() as Promise<schema.Track[]>
+  return await queryAll<schema.Track[]>(db.select().from(schema.tracks).orderBy(desc(schema.tracks.createdAt)))
 }
 
 export async function getTrackById(id: string): Promise<schema.Track | undefined> {
-  return db.select().from(schema.tracks).where(eq(schema.tracks.id, id)).get() as Promise<schema.Track | undefined>
+  return await queryGet<schema.Track | undefined>(db.select().from(schema.tracks).where(eq(schema.tracks.id, id)))
 }
 
 export async function updateTrackEditableMetadata(id: string, metadata: {
@@ -69,7 +87,7 @@ export async function updateTrackEditableMetadata(id: string, metadata: {
   source: string | null
   lyrics: string | null
 }): Promise<void> {
-  db.update(schema.tracks)
+  await queryRun(db.update(schema.tracks)
     .set({
       title: metadata.title,
       artists: metadata.artists,
@@ -78,7 +96,7 @@ export async function updateTrackEditableMetadata(id: string, metadata: {
       lyrics: metadata.lyrics,
     })
     .where(eq(schema.tracks.id, id))
-    .run()
+  )
 }
 
 export async function updateTrackCover(id: string, cover: {
@@ -90,7 +108,7 @@ export async function updateTrackCover(id: string, cover: {
   thumbContentType: string | null
   thumbhash: string | null
 }): Promise<void> {
-  db.update(schema.tracks)
+  await queryRun(db.update(schema.tracks)
     .set({
       coverStorageBackend: cover.backend,
       coverStorageKey: cover.key,
@@ -101,7 +119,7 @@ export async function updateTrackCover(id: string, cover: {
       coverThumbhash: cover.thumbhash,
     })
     .where(eq(schema.tracks.id, id))
-    .run()
+  )
 }
 
 export async function updateTrackImportedMetadata(id: string, metadata: {
@@ -121,7 +139,7 @@ export async function updateTrackImportedMetadata(id: string, metadata: {
   durationText: string | null
   durationSeconds: number | null
 }): Promise<void> {
-  db.update(schema.tracks)
+  await queryRun(db.update(schema.tracks)
     .set({
       coverStorageBackend: metadata.coverStorageBackend,
       coverStorageKey: metadata.coverStorageKey,
@@ -140,20 +158,22 @@ export async function updateTrackImportedMetadata(id: string, metadata: {
       durationSeconds: metadata.durationSeconds,
     })
     .where(eq(schema.tracks.id, id))
-    .run()
+  )
 }
 
 export async function deleteTrackRecord(id: string): Promise<void> {
-  db.delete(schema.tracks).where(eq(schema.tracks.id, id)).run()
+  await queryRun(db.delete(schema.tracks).where(eq(schema.tracks.id, id)))
 }
 
 // ── Playlist queries ──
 
 export async function listPlaylists(): Promise<schema.PlaylistSummary[]> {
-  const items = db.select().from(schema.playlists).orderBy(desc(schema.playlists.updatedAt), desc(schema.playlists.createdAt)).all() as schema.Playlist[]
+  const items = await queryAll<schema.Playlist[]>(
+    db.select().from(schema.playlists).orderBy(desc(schema.playlists.updatedAt), desc(schema.playlists.createdAt)),
+  )
 
-  return items.map((playlist: schema.Playlist) => {
-    const aggregates = db
+  return await Promise.all(items.map(async (playlist: schema.Playlist) => {
+    const aggregates = await queryGet<{ trackCount: number, totalDurationSeconds: number } | undefined>(db
       .select({
         trackCount: sql<number>`count(${schema.playlistTracks.trackId})`,
         totalDurationSeconds: sql<number>`coalesce(sum(${schema.tracks.durationSeconds}), 0)`,
@@ -161,9 +181,9 @@ export async function listPlaylists(): Promise<schema.PlaylistSummary[]> {
       .from(schema.playlistTracks)
       .leftJoin(schema.tracks, eq(schema.playlistTracks.trackId, schema.tracks.id))
       .where(eq(schema.playlistTracks.playlistId, playlist.id))
-      .get() as { trackCount: number, totalDurationSeconds: number } | undefined
+    )
 
-    const previewCovers = db
+    const previewCovers = await queryAll<Array<{ trackId: string, coverThumbhash: string | null }>>(db
       .select({
         trackId: schema.playlistTracks.trackId,
         coverThumbhash: schema.tracks.coverThumbhash,
@@ -176,7 +196,7 @@ export async function listPlaylists(): Promise<schema.PlaylistSummary[]> {
       ))
       .orderBy(asc(schema.playlistTracks.position), asc(schema.playlistTracks.createdAt))
       .limit(4)
-      .all() as Array<{ trackId: string, coverThumbhash: string | null }>
+    )
 
     return {
       ...playlist,
@@ -185,7 +205,7 @@ export async function listPlaylists(): Promise<schema.PlaylistSummary[]> {
       previewTrackIds: previewCovers.map(row => row.trackId),
       previewCoverThumbhashes: previewCovers.map(row => row.coverThumbhash),
     }
-  })
+  }))
 }
 
 export async function createPlaylist(input: {
@@ -200,122 +220,122 @@ export async function createPlaylist(input: {
     createdAt: now,
     updatedAt: now,
   }
-  db.insert(schema.playlists).values(record).run()
+  await queryRun(db.insert(schema.playlists).values(record))
   return record
 }
 
 export async function getPlaylistById(id: string): Promise<schema.Playlist | undefined> {
-  return db.select().from(schema.playlists).where(eq(schema.playlists.id, id)).get() as Promise<schema.Playlist | undefined>
+  return await queryGet<schema.Playlist | undefined>(db.select().from(schema.playlists).where(eq(schema.playlists.id, id)))
 }
 
 export async function updatePlaylist(id: string, input: {
   name: string
   description: string | null
 }): Promise<void> {
-  db.update(schema.playlists)
+  await queryRun(db.update(schema.playlists)
     .set({
       name: normalizePlaylistName(input.name),
       description: input.description,
       updatedAt: Date.now(),
     })
     .where(eq(schema.playlists.id, id))
-    .run()
+  )
 }
 
 export async function deletePlaylist(id: string): Promise<void> {
-  db.transaction(() => {
-    db.delete(schema.playlistTracks).where(eq(schema.playlistTracks.playlistId, id)).run()
-    db.delete(schema.playlists).where(eq(schema.playlists.id, id)).run()
+  await runTransaction(async () => {
+    await queryRun(db.delete(schema.playlistTracks).where(eq(schema.playlistTracks.playlistId, id)))
+    await queryRun(db.delete(schema.playlists).where(eq(schema.playlists.id, id)))
   })
 }
 
 export async function getPlaylistTracks(playlistId: string): Promise<schema.Track[]> {
-  const rows = db
+  const rows = await queryAll<Array<{ track: schema.Track }>>(db
     .select({
       track: schema.tracks,
     })
     .from(schema.playlistTracks)
     .innerJoin(schema.tracks, eq(schema.playlistTracks.trackId, schema.tracks.id))
     .where(eq(schema.playlistTracks.playlistId, playlistId))
-    .orderBy(asc(schema.playlistTracks.position), asc(schema.playlistTracks.createdAt))
-    .all() as Array<{ track: schema.Track }>
+    .orderBy(asc(schema.playlistTracks.position), asc(schema.playlistTracks.createdAt)))
 
   return rows.map(row => row.track)
 }
 
 export async function getPlaylistTrackIds(playlistId: string): Promise<string[]> {
-  const rows = db
+  const rows = await queryAll<Array<{ trackId: string }>>(db
     .select({
       trackId: schema.playlistTracks.trackId,
     })
     .from(schema.playlistTracks)
     .where(eq(schema.playlistTracks.playlistId, playlistId))
-    .orderBy(asc(schema.playlistTracks.position), asc(schema.playlistTracks.createdAt))
-    .all() as Array<{ trackId: string }>
+    .orderBy(asc(schema.playlistTracks.position), asc(schema.playlistTracks.createdAt)))
 
   return rows.map(row => row.trackId)
 }
 
 export async function addTrackToPlaylist(playlistId: string, trackId: string): Promise<void> {
-  const existing = db.select().from(schema.playlistTracks).where(and(eq(schema.playlistTracks.playlistId, playlistId), eq(schema.playlistTracks.trackId, trackId))).get()
+  const existing = await queryGet(
+    db.select().from(schema.playlistTracks).where(and(eq(schema.playlistTracks.playlistId, playlistId), eq(schema.playlistTracks.trackId, trackId))),
+  )
 
   if (existing) {
     throw new Error('Track already exists in playlist')
   }
 
-  const maxPositionRow = db
+  const maxPositionRow = await queryGet<{ position: number } | undefined>(db
     .select({
       position: sql<number>`max(${schema.playlistTracks.position})`,
     })
     .from(schema.playlistTracks)
     .where(eq(schema.playlistTracks.playlistId, playlistId))
-    .get() as { position: number } | undefined
+  )
 
-  db.insert(schema.playlistTracks).values({
+  await queryRun(db.insert(schema.playlistTracks).values({
     playlistId,
     trackId,
     position: Number(maxPositionRow?.position ?? -1) + 1,
     createdAt: Date.now(),
-  }).run()
+  }))
 
-  db.update(schema.playlists)
+  await queryRun(db.update(schema.playlists)
     .set({ updatedAt: Date.now() })
     .where(eq(schema.playlists.id, playlistId))
-    .run()
+  )
 }
 
 export async function removeTrackFromPlaylist(playlistId: string, trackId: string): Promise<boolean> {
-  return db.transaction(() => {
-    const deleted = db.delete(schema.playlistTracks)
+  return await runTransaction(async () => {
+    const deleted = await queryRun<{ changes: number }>(db.delete(schema.playlistTracks)
       .where(and(eq(schema.playlistTracks.playlistId, playlistId), eq(schema.playlistTracks.trackId, trackId)))
-      .run()
+    )
 
     if (deleted.changes === 0) {
       return false
     }
 
-    reindexPlaylistTracksWithinTransaction(playlistId)
-    db.update(schema.playlists)
+    await reindexPlaylistTracksWithinTransaction(playlistId)
+    await queryRun(db.update(schema.playlists)
       .set({ updatedAt: Date.now() })
       .where(eq(schema.playlists.id, playlistId))
-      .run()
+    )
     return true
-  }) as Promise<boolean>
+  })
 }
 
 export async function reorderPlaylistTracks(playlistId: string, orderedTrackIds: string[]): Promise<void> {
-  db.transaction(() => {
+  await runTransaction(async () => {
     for (const [index, trackId] of orderedTrackIds.entries()) {
-      db.update(schema.playlistTracks)
+      await queryRun(db.update(schema.playlistTracks)
         .set({ position: index })
         .where(and(eq(schema.playlistTracks.playlistId, playlistId), eq(schema.playlistTracks.trackId, trackId)))
-        .run()
+      )
     }
 
-    db.update(schema.playlists)
+    await queryRun(db.update(schema.playlists)
       .set({ updatedAt: Date.now() })
       .where(eq(schema.playlists.id, playlistId))
-      .run()
+    )
   })
 }
 
@@ -324,14 +344,13 @@ export async function getPlaylistIdsForTracks(trackIds: string[]): Promise<Map<s
   if (trackIds.length === 0) {
     return map
   }
-  const rows = db
+  const rows = await queryAll<Array<{ trackId: string, playlistId: string }>>(db
     .select({
       trackId: schema.playlistTracks.trackId,
       playlistId: schema.playlistTracks.playlistId,
     })
     .from(schema.playlistTracks)
-    .where(inArray(schema.playlistTracks.trackId, trackIds))
-    .all() as Array<{ trackId: string, playlistId: string }>
+    .where(inArray(schema.playlistTracks.trackId, trackIds)))
 
   for (const row of rows) {
     const list = map.get(row.trackId)
@@ -346,13 +365,13 @@ export async function getPlaylistIdsForTracks(trackIds: string[]): Promise<Map<s
 }
 
 export async function listAllTrackPlaylistPairs(): Promise<Map<string, string[]>> {
-  const rows = db
+  const rows = await queryAll<Array<{ trackId: string, playlistId: string }>>(db
     .select({
       trackId: schema.playlistTracks.trackId,
       playlistId: schema.playlistTracks.playlistId,
     })
     .from(schema.playlistTracks)
-    .all() as Array<{ trackId: string, playlistId: string }>
+  )
 
   const map = new Map<string, string[]>()
   for (const row of rows) {
@@ -368,27 +387,26 @@ export async function listAllTrackPlaylistPairs(): Promise<Map<string, string[]>
 }
 
 export async function removeTrackFromAllPlaylists(trackId: string): Promise<void> {
-  const playlistIds = db
+  const playlistIds = await queryAll<Array<{ playlistId: string }>>(db
     .select({
       playlistId: schema.playlistTracks.playlistId,
     })
     .from(schema.playlistTracks)
-    .where(eq(schema.playlistTracks.trackId, trackId))
-    .all() as Array<{ playlistId: string }>
+    .where(eq(schema.playlistTracks.trackId, trackId)))
 
   if (playlistIds.length === 0) {
     return
   }
 
-  db.transaction(() => {
-    db.delete(schema.playlistTracks).where(eq(schema.playlistTracks.trackId, trackId)).run()
+  await runTransaction(async () => {
+    await queryRun(db.delete(schema.playlistTracks).where(eq(schema.playlistTracks.trackId, trackId)))
     const uniquePlaylistIds = [...new Set(playlistIds.map(p => p.playlistId))]
     for (const playlistId of uniquePlaylistIds) {
-      reindexPlaylistTracksWithinTransaction(playlistId)
-      db.update(schema.playlists)
+      await reindexPlaylistTracksWithinTransaction(playlistId)
+      await queryRun(db.update(schema.playlists)
         .set({ updatedAt: Date.now() })
         .where(eq(schema.playlists.id, playlistId))
-        .run()
+      )
     }
   })
 }
@@ -403,18 +421,20 @@ export async function insertMusicImportCandidates(candidates: Array<Omit<schema.
     ...candidate,
   }))
   if (records.length > 0) {
-    db.insert(schema.musicImportCandidates).values(records).run()
+    await queryRun(db.insert(schema.musicImportCandidates).values(records))
   }
   return records
 }
 
 export async function pruneExpiredMusicImportCandidates(now = Date.now()): Promise<void> {
   const cutoff = now - config.importCandidateTtlMs
-  db.delete(schema.musicImportCandidates).where(lt(schema.musicImportCandidates.createdAt, cutoff)).run()
+  await queryRun(db.delete(schema.musicImportCandidates).where(lt(schema.musicImportCandidates.createdAt, cutoff)))
 }
 
 export async function getMusicImportCandidateById(id: string): Promise<schema.MusicImportCandidate | undefined> {
-  return db.select().from(schema.musicImportCandidates).where(eq(schema.musicImportCandidates.id, id)).get() as Promise<schema.MusicImportCandidate | undefined>
+  return await queryGet<schema.MusicImportCandidate | undefined>(
+    db.select().from(schema.musicImportCandidates).where(eq(schema.musicImportCandidates.id, id)),
+  )
 }
 
 // ── Music import job queries ──
@@ -443,17 +463,19 @@ export async function createMusicImportJobFromCandidate(candidate: schema.MusicI
     startedAt: null,
     finishedAt: null,
   }
-  db.insert(schema.musicImportJobs).values(record).run()
+  await queryRun(db.insert(schema.musicImportJobs).values(record))
   return record
 }
 
 export async function getMusicImportJobById(id: string): Promise<schema.MusicImportJob | undefined> {
-  return db.select().from(schema.musicImportJobs).where(eq(schema.musicImportJobs.id, id)).get() as Promise<schema.MusicImportJob | undefined>
+  return await queryGet<schema.MusicImportJob | undefined>(
+    db.select().from(schema.musicImportJobs).where(eq(schema.musicImportJobs.id, id)),
+  )
 }
 
 export async function requeueRunningMusicImportJobs(): Promise<void> {
   const now = Date.now()
-  db.update(schema.musicImportJobs)
+  await queryRun(db.update(schema.musicImportJobs)
     .set({
       status: 'queued',
       updatedAt: now,
@@ -464,23 +486,23 @@ export async function requeueRunningMusicImportJobs(): Promise<void> {
       progressPercent: null,
     })
     .where(eq(schema.musicImportJobs.status, 'running'))
-    .run()
+  )
 }
 
 export async function claimNextQueuedMusicImportJob(): Promise<schema.MusicImportJob | null> {
-  const queuedJob = db
+  const queuedJob = await queryGet<schema.MusicImportJob | undefined>(db
     .select()
     .from(schema.musicImportJobs)
     .where(eq(schema.musicImportJobs.status, 'queued'))
     .orderBy(schema.musicImportJobs.createdAt)
-    .get() as schema.MusicImportJob | undefined
+  )
 
   if (!queuedJob) {
     return null
   }
 
   const now = Date.now()
-  const updateResult = db.update(schema.musicImportJobs)
+  const updateResult = await queryRun<{ changes: number }>(db.update(schema.musicImportJobs)
     .set({
       status: 'running',
       updatedAt: now,
@@ -491,7 +513,7 @@ export async function claimNextQueuedMusicImportJob(): Promise<schema.MusicImpor
       progressPercent: null,
     })
     .where(and(eq(schema.musicImportJobs.id, queuedJob.id), eq(schema.musicImportJobs.status, 'queued')))
-    .run() as { changes: number }
+  )
 
   if (updateResult.changes === 0) {
     return null
@@ -510,7 +532,7 @@ export async function updateMusicImportJobProgress(id: string, progress: {
     ? Math.min(100, Math.floor((normalizedProgressBytes / normalizedTotalBytes) * 100))
     : null
 
-  db.update(schema.musicImportJobs)
+  await queryRun(db.update(schema.musicImportJobs)
     .set({
       progressBytes: normalizedProgressBytes,
       totalBytes: normalizedTotalBytes,
@@ -518,12 +540,12 @@ export async function updateMusicImportJobProgress(id: string, progress: {
       updatedAt: Date.now(),
     })
     .where(eq(schema.musicImportJobs.id, id))
-    .run()
+  )
 }
 
 export async function markMusicImportJobSucceeded(id: string, trackId: string, size: number): Promise<void> {
   const now = Date.now()
-  db.update(schema.musicImportJobs)
+  await queryRun(db.update(schema.musicImportJobs)
     .set({
       status: 'succeeded',
       trackId,
@@ -535,12 +557,12 @@ export async function markMusicImportJobSucceeded(id: string, trackId: string, s
       errorMessage: null,
     })
     .where(eq(schema.musicImportJobs.id, id))
-    .run()
+  )
 }
 
 export async function markMusicImportJobFailed(id: string, errorMessage: string): Promise<void> {
   const now = Date.now()
-  db.update(schema.musicImportJobs)
+  await queryRun(db.update(schema.musicImportJobs)
     .set({
       status: 'failed',
       errorMessage,
@@ -548,5 +570,5 @@ export async function markMusicImportJobFailed(id: string, errorMessage: string)
       finishedAt: now,
     })
     .where(eq(schema.musicImportJobs.id, id))
-    .run()
+  )
 }

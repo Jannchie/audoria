@@ -253,10 +253,17 @@ const AppConfigSchema = z.object({
   api: z.object({
     port: z.number().int().openapi({ example: 8787 }),
   }),
-  metadata: z.object({
-    backend: z.literal('sqlite').openapi({ example: 'sqlite' }),
-    dbPath: z.string().openapi({ example: './api/data/audoria.sqlite' }),
-  }),
+  metadata: z.discriminatedUnion('backend', [
+    z.object({
+      backend: z.literal('sqlite').openapi({ example: 'sqlite' }),
+      dbPath: z.string().openapi({ example: './api/data/audoria.sqlite' }),
+    }),
+    z.object({
+      backend: z.literal('d1').openapi({ example: 'd1' }),
+      accountId: z.string().openapi({ example: '0123456789abcdef0123456789abcdef' }),
+      databaseId: z.string().openapi({ example: '01234567-89ab-cdef-0123-456789abcdef' }),
+    }),
+  ]),
   storage: z.discriminatedUnion('backend', [
     z.object({
       backend: z.literal('fs'),
@@ -368,10 +375,16 @@ function toAppConfigResponse(appConfig = loadConfig()) {
     api: {
       port: appConfig.port,
     },
-    metadata: {
-      backend: 'sqlite' as const,
-      dbPath: appConfig.dbPath,
-    },
+    metadata: appConfig.dbType === 'd1'
+      ? {
+          backend: 'd1' as const,
+          accountId: appConfig.d1?.accountId ?? '',
+          databaseId: appConfig.d1?.databaseId ?? '',
+        }
+      : {
+          backend: 'sqlite' as const,
+          dbPath: appConfig.dbPath,
+        },
     storage,
     ai: {
       providers: {
@@ -405,7 +418,7 @@ function assignOptionalSecret(overrides: ConfigOverrides, key: string, value: st
 function toConfigOverrides(update: AppConfigUpdate): ConfigOverrides {
   const overrides: ConfigOverrides = {}
 
-  if (update.metadata?.dbPath) {
+  if (update.metadata && 'dbPath' in update.metadata && update.metadata.dbPath) {
     overrides.DB_PATH = update.metadata.dbPath
   }
 

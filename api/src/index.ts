@@ -5,11 +5,10 @@ import { fileURLToPath } from 'node:url'
 import { serve } from '@hono/node-server'
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { Scalar } from '@scalar/hono-api-reference'
-import { initSqlite } from './db/sqlite.js'
+import { initRuntimeDb } from './db/runtime.js'
 import { api, config } from './routes.js'
 
-// Initialize SQLite database
-initSqlite(config.dbPath)
+initRuntimeDb()
 
 // ── Mount API under /api/v1, then serve frontend SPA ──
 const app = new OpenAPIHono()
