@@ -697,7 +697,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 0.75rem;
   margin: 0 auto;
-  padding: 0.5rem 1rem;
+  padding: 0.5rem 1rem 1rem;
 }
 
 .playerbar-track {
@@ -708,8 +708,7 @@ onUnmounted(() => {
   .playerbar-content {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-    padding-left: 1.25rem;
-    padding-right: 1.25rem;
+    padding: 0.5rem 1.25rem 1.25rem;
   }
 
   .playerbar-controls {
