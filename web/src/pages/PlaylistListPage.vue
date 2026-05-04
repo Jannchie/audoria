@@ -312,8 +312,8 @@ function openPlaylist(id: string): void {
 <style scoped>
 .playlists-page {
   display: grid;
-  gap: 1rem;
-  padding: 1rem 0;
+  gap: 1.25rem;
+  padding: 1.25rem 0;
 }
 
 .playlists-hero {
@@ -325,23 +325,28 @@ function openPlaylist(id: string): void {
 
 .playlists-title {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: 1.625rem;
   font-weight: 700;
   color: var(--text-primary);
   font-family: var(--font-display, inherit);
+  letter-spacing: -0.02em;
 }
 
 .playlists-subtitle {
-  margin: 0.25rem 0 0;
+  display: inline-block;
+  margin: 0.375rem 0 0;
+  padding: 0.125rem 0.5rem;
   font-size: 0.75rem;
   color: var(--text-tertiary);
+  background: var(--bg-surface);
+  border-radius: 999px;
 }
 
 .playlists-new-btn {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.5rem 1rem;
+  padding: 0.625rem 1.125rem;
   border: none;
   border-radius: 999px;
   background: var(--accent);
@@ -350,6 +355,10 @@ function openPlaylist(id: string): void {
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.playlists-new-btn:hover:not(:disabled) {
+  background: var(--accent-hover);
 }
 
 .playlists-new-btn:active:not(:disabled) {
@@ -364,7 +373,7 @@ function openPlaylist(id: string): void {
 .playlist-create {
   display: grid;
   gap: 0.75rem;
-  padding: 1rem;
+  padding: 1.125rem;
   border: 1px solid var(--border);
   border-radius: 1rem;
   background: var(--bg-surface);
@@ -412,6 +421,11 @@ function openPlaylist(id: string): void {
   font-size: 0.8125rem;
   font-weight: 600;
   cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.playlist-submit:hover:not(:disabled) {
+  background: var(--accent-hover);
 }
 
 .playlist-cancel {
@@ -425,6 +439,12 @@ function openPlaylist(id: string): void {
   color: var(--text-secondary);
   font-size: 0.8125rem;
   cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.playlist-cancel:hover {
+  border-color: rgba(255, 255, 255, 0.15);
+  color: var(--text-primary);
 }
 
 .playlist-error {
@@ -458,13 +478,13 @@ function openPlaylist(id: string): void {
 
 .playlists-search-input {
   width: 100%;
-  height: 2.5rem;
-  padding: 0 1rem 0 2.375rem;
+  height: 2.625rem;
+  padding: 0 1rem 0 2.5rem;
   border: none;
   border-radius: 999px;
   background: var(--bg-surface);
   color: var(--text-primary);
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   outline: none;
   transition: background 0.15s ease;
 }
@@ -474,19 +494,24 @@ function openPlaylist(id: string): void {
 }
 
 .playlists-search-input:focus {
-  background: var(--bg-elevated, var(--bg-surface));
+  background: var(--bg-elevated);
 }
 
 .playlists-sort {
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
-  padding: 0 0.625rem;
-  height: 2.5rem;
+  padding: 0 0.75rem;
+  height: 2.625rem;
   border-radius: 999px;
   background: var(--bg-surface);
   color: var(--text-secondary);
   font-size: 0.75rem;
+  transition: background 0.15s ease;
+}
+
+.playlists-sort:hover {
+  background: var(--bg-elevated);
 }
 
 .playlists-sort-select {
@@ -499,7 +524,7 @@ function openPlaylist(id: string): void {
 
 .playlist-grid {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.625rem;
 }
 
 @media (min-width: 768px) {
@@ -512,17 +537,17 @@ function openPlaylist(id: string): void {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.875rem;
   padding: 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 1rem;
-  background: var(--bg-surface);
+  border: none;
+  border-radius: 0.875rem;
+  background: transparent;
   text-align: left;
-  transition: background 0.15s ease;
+  transition: background 0.2s ease;
 }
 
 .playlist-card:hover {
-  background: var(--bg-base);
+  background: var(--bg-surface);
 }
 
 .playlist-card--skeleton {
@@ -532,7 +557,7 @@ function openPlaylist(id: string): void {
 .playlist-card-main {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.875rem;
   min-width: 0;
   flex: 1;
   padding: 0;
@@ -545,7 +570,7 @@ function openPlaylist(id: string): void {
 .playlist-card-body {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.2rem;
   min-width: 0;
   flex: 1;
 }
@@ -558,15 +583,19 @@ function openPlaylist(id: string): void {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-family: var(--font-display, inherit);
 }
 
 .playlist-card-description {
   margin: 0;
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   color: var(--text-secondary);
-  white-space: nowrap;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .playlist-card-meta {
@@ -589,7 +618,7 @@ function openPlaylist(id: string): void {
   background: none;
   color: var(--text-tertiary);
   opacity: 0;
-  transition: opacity 0.15s ease, background 0.15s ease;
+  transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
   cursor: pointer;
 }
 
@@ -598,14 +627,15 @@ function openPlaylist(id: string): void {
 }
 
 .playlist-card-delete:hover {
-  background: var(--bg-elevated, var(--bg-surface));
-  color: var(--text-primary);
+  background: var(--bg-elevated);
+  color: var(--accent);
 }
 
 .playlist-empty {
-  padding: 2rem 1rem;
-  border: 1px dashed var(--border);
-  border-radius: 1rem;
+  padding: 3rem 1rem;
+  border: none;
+  border-radius: 0.875rem;
+  background: var(--bg-surface);
   text-align: center;
   font-size: 0.875rem;
   color: var(--text-secondary);
