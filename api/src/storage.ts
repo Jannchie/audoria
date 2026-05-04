@@ -1,5 +1,5 @@
 import type { StorageBackend } from './config.js'
-import type { Track } from './db.js'
+import type { Track } from './db/schema.js'
 import { randomUUID } from 'node:crypto'
 import { createReadStream } from 'node:fs'
 import { mkdir, mkdtemp, open, rename, rm, stat, unlink } from 'node:fs/promises'
@@ -11,7 +11,7 @@ import sharp from 'sharp'
 import { rgbaToThumbHash } from 'thumbhash'
 import { config } from './config.js'
 import { generateCoverMaskPng, getCoverMaskContentType } from './coverMask.js'
-import { db, tracks } from './db.js'
+import { __db as db, tracks } from './db/index.js'
 import { formatDurationText, probeDurationSecondsFromFile } from './probeAudio.js'
 
 interface ByteRange { start: number, end: number }

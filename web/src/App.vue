@@ -56,7 +56,7 @@ watchEffect(() => {
     class="auth-loading"
   >
     <span
-      class="i-tabler-loader-2 animate-spin auth-loading-icon"
+      class="i-tabler-loader-2 auth-loading-icon animate-spin"
       aria-hidden="true"
     />
   </div>

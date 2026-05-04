@@ -10,7 +10,8 @@ import {
   requeueRunningMusicImportJobs,
   updateMusicImportJobProgress,
   updateTrackImportedMetadata,
-} from './db.js'
+} from './db/index.js'
+import { initSqlite } from './db/sqlite.js'
 import { MusicDlBridgeError, MusicDlUnavailableError, openMusicDlStream } from './musicdl.js'
 import { storeTrack, storeTrackCover } from './storage.js'
 
@@ -111,7 +112,7 @@ async function fetchCoverAsset(coverUrl: string): Promise<{ body: Uint8Array, co
 }
 
 async function processNextJob(): Promise<boolean> {
-  const job = claimNextQueuedMusicImportJob()
+  const job = await claimNextQueuedMusicImportJob()
   if (!job) {
     return false
   }
@@ -206,6 +207,7 @@ async function main(): Promise<void> {
 
 async function run(): Promise<void> {
   try {
+    initSqlite(config.dbPath)
     await main()
   }
   catch (error) {

@@ -68,6 +68,7 @@ export interface AiConfig {
 export interface AppConfig {
   port: number
   dbPath: string
+  dbType: 'sqlite' | 'd1'
   storage: {
     backend: StorageBackend
     s3?: S3Config
@@ -237,6 +238,7 @@ export function loadConfig(source: ConfigSource = readEffectiveConfigSource()): 
   return {
     port: Number(source.PORT ?? '8787'),
     dbPath,
+    dbType: source.DB_TYPE === 'd1' ? 'd1' : 'sqlite',
     storage: loadStorageConfig(source),
     ai: loadAiConfig(source),
     musicdl: loadMusicDlConfig(source),

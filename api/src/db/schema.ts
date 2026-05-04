@@ -1,0 +1,92 @@
+import type { InferSelectModel } from 'drizzle-orm'
+import { index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+
+export const tracks = sqliteTable('tracks', {
+  id: text('id').primaryKey(),
+  filename: text('filename').notNull(),
+  storageBackend: text('storage_backend').notNull(),
+  storageKey: text('storage_key').notNull(),
+  coverStorageBackend: text('cover_storage_backend'),
+  coverStorageKey: text('cover_storage_key'),
+  coverContentType: text('cover_content_type'),
+  coverThumbStorageBackend: text('cover_thumb_storage_backend'),
+  coverThumbStorageKey: text('cover_thumb_storage_key'),
+  coverThumbContentType: text('cover_thumb_content_type'),
+  coverThumbhash: text('cover_thumbhash'),
+  title: text('title'),
+  artists: text('artists'),
+  album: text('album'),
+  source: text('source'),
+  sourceIdentifier: text('source_identifier'),
+  durationText: text('duration_text'),
+  durationSeconds: integer('duration_seconds', { mode: 'number' }),
+  size: integer('size', { mode: 'number' }).notNull(),
+  contentType: text('content_type'),
+  lyrics: text('lyrics'),
+  createdAt: integer('created_at', { mode: 'number' }).notNull(),
+})
+
+export const musicImportCandidates = sqliteTable('music_import_candidates', {
+  id: text('id').primaryKey(),
+  source: text('source').notNull(),
+  songName: text('song_name').notNull(),
+  singers: text('singers').notNull(),
+  album: text('album').notNull(),
+  ext: text('ext').notNull(),
+  fileSize: text('file_size').notNull(),
+  duration: text('duration').notNull(),
+  coverUrl: text('cover_url'),
+  downloadable: integer('downloadable', { mode: 'number' }).notNull(),
+  songInfoJson: text('song_info_json').notNull(),
+  createdAt: integer('created_at', { mode: 'number' }).notNull(),
+})
+
+export const musicImportJobs = sqliteTable('music_import_jobs', {
+  id: text('id').primaryKey(),
+  source: text('source').notNull(),
+  songName: text('song_name').notNull(),
+  singers: text('singers').notNull(),
+  status: text('status').notNull(),
+  songInfoJson: text('song_info_json').notNull(),
+  trackId: text('track_id'),
+  errorMessage: text('error_message'),
+  progressBytes: integer('progress_bytes', { mode: 'number' }),
+  totalBytes: integer('total_bytes', { mode: 'number' }),
+  progressPercent: integer('progress_percent', { mode: 'number' }),
+  createdAt: integer('created_at', { mode: 'number' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'number' }).notNull(),
+  startedAt: integer('started_at', { mode: 'number' }),
+  finishedAt: integer('finished_at', { mode: 'number' }),
+})
+
+export const playlists = sqliteTable('playlists', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  description: text('description'),
+  createdAt: integer('created_at', { mode: 'number' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'number' }).notNull(),
+})
+
+export const playlistTracks = sqliteTable('playlist_tracks', {
+  playlistId: text('playlist_id').notNull(),
+  trackId: text('track_id').notNull(),
+  position: integer('position', { mode: 'number' }).notNull(),
+  createdAt: integer('created_at', { mode: 'number' }).notNull(),
+}, table => [
+  primaryKey({ columns: [table.playlistId, table.trackId] }),
+  index('playlist_tracks_playlist_position_idx').on(table.playlistId, table.position),
+  index('playlist_tracks_track_idx').on(table.trackId),
+])
+
+export type Track = InferSelectModel<typeof tracks>
+export type MusicImportCandidate = InferSelectModel<typeof musicImportCandidates>
+export type MusicImportJob = InferSelectModel<typeof musicImportJobs>
+export type MusicImportJobStatus = 'queued' | 'running' | 'succeeded' | 'failed'
+export type Playlist = InferSelectModel<typeof playlists>
+export type PlaylistTrack = InferSelectModel<typeof playlistTracks>
+export interface PlaylistSummary extends Playlist {
+  totalDurationSeconds: number
+  trackCount: number
+  previewTrackIds: string[]
+  previewCoverThumbhashes: Array<string | null>
+}
