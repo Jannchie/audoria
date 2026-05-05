@@ -33,13 +33,13 @@ export type ConfigSource = Record<string, string | undefined>
 export type StorageBackend = 's3' | 'fs'
 
 export const aiProviderDefinitions = {
-  openai: { apiKeyEnvName: 'OPENAI_API_KEY', defaultModel: 'gpt-4o' },
+  openai: { apiKeyEnvName: 'OPENAI_API_KEY', defaultModel: 'gpt-5.4-mini' },
   anthropic: { apiKeyEnvName: 'ANTHROPIC_API_KEY', defaultModel: 'claude-sonnet-4-20250514' },
   google: { apiKeyEnvName: 'GOOGLE_API_KEY', defaultModel: 'gemini-2.5-flash' },
   groq: { apiKeyEnvName: 'GROQ_API_KEY', defaultModel: 'llama-3.3-70b-versatile' },
   openrouter: { apiKeyEnvName: 'OPENROUTER_API_KEY', defaultModel: 'openai/gpt-4o' },
   together: { apiKeyEnvName: 'TOGETHER_API_KEY', defaultModel: 'meta-llama/Llama-3.3-70B-Instruct-Turbo' },
-  deepseek: { apiKeyEnvName: 'DEEPSEEK_API_KEY', defaultModel: 'deepseek-chat' },
+  deepseek: { apiKeyEnvName: 'DEEPSEEK_API_KEY', defaultModel: 'deepseek-v4-flash' },
 } as const
 
 export type AiProvider = keyof typeof aiProviderDefinitions

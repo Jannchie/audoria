@@ -51,13 +51,13 @@ const allMusicSources: MusicDlSource[] = [
 const allUrlSources: MusicDlUrlSource[] = ['Bilibili', 'Youtube']
 
 const knownProviders: Array<{ key: string, label: string, defaultModel: string, defaultBaseUrl: string }> = [
-  { key: 'openai', label: 'OpenAI', defaultModel: 'gpt-4o', defaultBaseUrl: 'https://api.openai.com/v1' },
+  { key: 'openai', label: 'OpenAI', defaultModel: 'gpt-5.4-mini', defaultBaseUrl: 'https://api.openai.com/v1' },
   { key: 'anthropic', label: 'Anthropic', defaultModel: 'claude-sonnet-4-20250514', defaultBaseUrl: 'https://api.anthropic.com/v1' },
   { key: 'google', label: 'Google (Gemini)', defaultModel: 'gemini-2.5-flash', defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta' },
   { key: 'groq', label: 'Groq', defaultModel: 'llama-3.3-70b-versatile', defaultBaseUrl: 'https://api.groq.com/openai/v1' },
   { key: 'openrouter', label: 'OpenRouter', defaultModel: 'openai/gpt-4o', defaultBaseUrl: 'https://openrouter.ai/api/v1' },
   { key: 'together', label: 'Together AI', defaultModel: 'meta-llama/Llama-3.3-70B-Instruct-Turbo', defaultBaseUrl: 'https://api.together.xyz/v1' },
-  { key: 'deepseek', label: 'DeepSeek', defaultModel: 'deepseek-chat', defaultBaseUrl: 'https://api.deepseek.com/v1' },
+  { key: 'deepseek', label: 'DeepSeek', defaultModel: 'deepseek-v4-flash', defaultBaseUrl: 'https://api.deepseek.com/v1' },
 ]
 
 const { t } = useI18n()
@@ -550,11 +550,12 @@ const activeLanguageHint = computed(() => {
                     {{ t('settings.runtime.storage.description') }}
                   </div>
                 </div>
-                <div class="field-control field-control--chips field-control--start">
+
+                <div class="segmented-control">
                   <button
                     type="button"
-                    class="chip"
-                    :class="{ 'chip--active': runtimeForm.storageBackend === 'fs' }"
+                    class="segmented-control__item"
+                    :class="{ 'segmented-control__item--active': runtimeForm.storageBackend === 'fs' }"
                     :aria-pressed="runtimeForm.storageBackend === 'fs'"
                     @click="runtimeForm.storageBackend = 'fs'"
                   >
@@ -562,8 +563,8 @@ const activeLanguageHint = computed(() => {
                   </button>
                   <button
                     type="button"
-                    class="chip"
-                    :class="{ 'chip--active': runtimeForm.storageBackend === 's3' }"
+                    class="segmented-control__item"
+                    :class="{ 'segmented-control__item--active': runtimeForm.storageBackend === 's3' }"
                     :aria-pressed="runtimeForm.storageBackend === 's3'"
                     @click="runtimeForm.storageBackend = 's3'"
                   >
@@ -571,89 +572,101 @@ const activeLanguageHint = computed(() => {
                   </button>
                 </div>
 
-                <label
+                <div
                   v-if="runtimeForm.storageBackend === 'fs'"
-                  class="config-field"
+                  class="storage-fields"
                 >
-                  <span>STORAGE_FS_ROOT</span>
-                  <input
-                    v-model="runtimeForm.fsRootDir"
-                    class="config-input"
-                    type="text"
-                    autocomplete="off"
-                  >
-                </label>
+                  <label class="config-field">
+                    <span>STORAGE_FS_ROOT</span>
+                    <input
+                      v-model="runtimeForm.fsRootDir"
+                      class="config-input"
+                      type="text"
+                      autocomplete="off"
+                    >
+                  </label>
+                </div>
 
                 <div
                   v-else
-                  class="config-fields"
+                  class="storage-fields"
                 >
-                  <label class="config-field">
-                    <span>S3_BUCKET</span>
-                    <input
-                      v-model="runtimeForm.s3Bucket"
-                      class="config-input"
-                      type="text"
-                      autocomplete="off"
+                  <div class="storage-fields__section">
+                    <div class="storage-fields__section-title">Connection</div>
+                    <div class="storage-fields__grid">
+                      <label class="config-field storage-fields__field">
+                        <span>S3_BUCKET</span>
+                        <input
+                          v-model="runtimeForm.s3Bucket"
+                          class="config-input"
+                          type="text"
+                          autocomplete="off"
+                        >
+                      </label>
+                      <label class="config-field storage-fields__field">
+                        <span>S3_ENDPOINT</span>
+                        <input
+                          v-model="runtimeForm.s3Endpoint"
+                          class="config-input"
+                          type="url"
+                          autocomplete="off"
+                        >
+                      </label>
+                      <label class="config-field storage-fields__field">
+                        <span>S3_REGION</span>
+                        <input
+                          v-model="runtimeForm.s3Region"
+                          class="config-input"
+                          type="text"
+                          autocomplete="off"
+                        >
+                      </label>
+                      <label class="config-field storage-fields__field storage-fields__field--toggle">
+                        <span>S3_FORCE_PATH_STYLE</span>
+                        <button
+                          type="button"
+                          class="toggle"
+                          :class="{ 'toggle--on': runtimeForm.s3ForcePathStyle }"
+                          :aria-checked="runtimeForm.s3ForcePathStyle"
+                          role="switch"
+                          @click="runtimeForm.s3ForcePathStyle = !runtimeForm.s3ForcePathStyle"
+                        >
+                          <span class="toggle__thumb" />
+                        </button>
+                      </label>
+                    </div>
+                  </div>
+                  <div class="storage-fields__section">
+                    <div class="storage-fields__section-title">Credentials</div>
+                    <div class="storage-fields__grid">
+                      <label class="config-field storage-fields__field storage-fields__field--wide">
+                        <span>S3_ACCESS_KEY_ID</span>
+                        <input
+                          v-model="runtimeForm.s3AccessKeyId"
+                          class="config-input"
+                          type="password"
+                          autocomplete="new-password"
+                          :placeholder="t('settings.runtime.credentials.keepExisting')"
+                        >
+                      </label>
+                      <label class="config-field storage-fields__field storage-fields__field--wide">
+                        <span>S3_SECRET_ACCESS_KEY</span>
+                        <input
+                          v-model="runtimeForm.s3SecretAccessKey"
+                          class="config-input"
+                          type="password"
+                          autocomplete="new-password"
+                          :placeholder="t('settings.runtime.credentials.keepExisting')"
+                        >
+                      </label>
+                    </div>
+                    <p
+                      v-if="credentialStatus"
+                      class="storage-fields__note"
                     >
-                  </label>
-                  <label class="config-field">
-                    <span>S3_ENDPOINT</span>
-                    <input
-                      v-model="runtimeForm.s3Endpoint"
-                      class="config-input"
-                      type="url"
-                      autocomplete="off"
-                    >
-                  </label>
-                  <label class="config-field">
-                    <span>S3_REGION</span>
-                    <input
-                      v-model="runtimeForm.s3Region"
-                      class="config-input"
-                      type="text"
-                      autocomplete="off"
-                    >
-                  </label>
-                  <label class="config-field config-field--inline">
-                    <span>S3_FORCE_PATH_STYLE</span>
-                    <button
-                      type="button"
-                      class="toggle"
-                      :class="{ 'toggle--on': runtimeForm.s3ForcePathStyle }"
-                      :aria-checked="runtimeForm.s3ForcePathStyle"
-                      role="switch"
-                      @click="runtimeForm.s3ForcePathStyle = !runtimeForm.s3ForcePathStyle"
-                    >
-                      <span class="toggle__thumb" />
-                    </button>
-                  </label>
-                  <label class="config-field">
-                    <span>S3_ACCESS_KEY_ID</span>
-                    <input
-                      v-model="runtimeForm.s3AccessKeyId"
-                      class="config-input"
-                      type="password"
-                      autocomplete="new-password"
-                      :placeholder="t('settings.runtime.credentials.keepExisting')"
-                    >
-                  </label>
-                  <label class="config-field">
-                    <span>S3_SECRET_ACCESS_KEY</span>
-                    <input
-                      v-model="runtimeForm.s3SecretAccessKey"
-                      class="config-input"
-                      type="password"
-                      autocomplete="new-password"
-                      :placeholder="t('settings.runtime.credentials.keepExisting')"
-                    >
-                  </label>
-                  <p
-                    v-if="credentialStatus"
-                    class="runtime-note"
-                  >
-                    {{ credentialStatus }}
-                  </p>
+                      {{ credentialStatus }}
+                    </p>
+                  </div>
                 </div>
               </div>
 
@@ -1270,18 +1283,6 @@ const activeLanguageHint = computed(() => {
   color: var(--text-secondary);
 }
 
-.config-field--inline {
-  min-height: 4.375rem;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.625rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  background: var(--bg-primary);
-}
-
 .config-input {
   width: 100%;
   min-height: 2.5rem;
@@ -1352,6 +1353,102 @@ const activeLanguageHint = computed(() => {
 .ai-provider-select__dropdown:focus {
   border-color: var(--accent);
   outline: none;
+}
+
+/* ── Segmented control (storage backend) ── */
+
+.segmented-control {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  overflow: hidden;
+  align-self: start;
+}
+
+.segmented-control__item {
+  min-height: 2.25rem;
+  padding: 0 1rem;
+  border: none;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.segmented-control__item + .segmented-control__item {
+  border-left: 1px solid var(--border);
+}
+
+.segmented-control__item:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.segmented-control__item--active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.segmented-control__item--active:hover {
+  background: color-mix(in srgb, var(--accent) 85%, #000);
+}
+
+/* ── Storage fields ── */
+
+.storage-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.storage-fields__section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.storage-fields__section-title {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.storage-fields__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.storage-fields__field {
+  min-width: 0;
+}
+
+.storage-fields__field--wide {
+  grid-column: 1 / -1;
+}
+
+.storage-fields__field--toggle {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 2.5rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--bg-primary);
+}
+
+.storage-fields__note {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
 }
 
 /* ── AI Provider Rows ── */
@@ -1471,13 +1568,6 @@ const activeLanguageHint = computed(() => {
 }
 
 .ai-provider-row__note {
-  margin: 0;
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-}
-
-.runtime-note {
-  grid-column: 1 / -1;
   margin: 0;
   font-size: 0.75rem;
   color: var(--text-secondary);
