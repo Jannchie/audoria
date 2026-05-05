@@ -19,8 +19,8 @@ console.warn = (...args: unknown[]): void => {
   originalWarn(...args)
 }
 
-// Auto-reload when a new service worker takes over, so users see fresh content
-// without needing Ctrl+F5. Uses the native SW API for Vite 8/Rolldown compatibility.
+// Register the service worker and auto-reload when a new version takes over,
+// so users see fresh content without needing Ctrl+F5.
 async function setupPWAAutoUpdate() {
   if (!('serviceWorker' in navigator)) {
     return
@@ -29,31 +29,27 @@ async function setupPWAAutoUpdate() {
   try {
     const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
 
-    // Avoid reloading on first-time install — only reload for actual updates.
-    // `registration.active` is null on the very first registration.
     const isUpdate = Boolean(registration.active)
 
-    registration.addEventListener('updatefound', () => {
-      const newWorker = registration.installing
-      if (!newWorker) {
-        return
-      }
-
-      // Tell the new SW to activate immediately.
-      // The SW also calls self.skipWaiting() at install time via workbox config,
-      // but this covers edge cases (e.g. SW already in waiting state).
-      newWorker.postMessage({ type: 'SKIP_WAITING' })
-
-      newWorker.addEventListener('statechange', () => {
-        // Reload only for genuine updates, not the initial install
-        if (isUpdate && newWorker.state === 'activated') {
-          globalThis.location.reload()
-        }
-      })
+    // When the new SW has claimed this client, reload.
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (isUpdate) globalThis.location.reload()
     })
+
+    function notify(worker: ServiceWorker | null) {
+      if (!worker) return
+      worker.postMessage({ type: 'SKIP_WAITING' })
+    }
+
+    // An update may already be in progress when this script runs.
+    notify(registration.installing)
+    notify(registration.waiting)
+
+    // Listen for updates that start after the page loads.
+    registration.addEventListener('updatefound', () => notify(registration.installing))
   }
   catch (error) {
-    console.warn('[PWA] Service worker registration failed:', error)
+    console.warn('[PWA] SW registration failed:', error)
   }
 }
 
