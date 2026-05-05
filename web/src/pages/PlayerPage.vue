@@ -942,12 +942,16 @@ onUnmounted(() => {
 .player-page {
   position: relative;
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 @media (min-width: 768px) {
   .player-page {
     height: calc(100vh - 3.5rem);
+    height: calc(100dvh - 3.5rem);
+    padding-bottom: 0;
   }
 }
 
@@ -1037,7 +1041,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: 1.25rem;
+  padding: 0.75rem 1rem;
   overflow: hidden;
   max-width: 80rem;
   margin: 0 auto;
@@ -1072,8 +1076,14 @@ onUnmounted(() => {
 }
 
 .cover-art {
-  width: 80px;
+  width: 64px;
   aspect-ratio: 1;
+}
+
+@media (min-width: 400px) {
+  .cover-art {
+    width: 80px;
+  }
 }
 
 /* ---- Track info (always above lyrics) ---- */
@@ -1345,7 +1355,7 @@ onUnmounted(() => {
 /* ---- Bottom controls ---- */
 .player-bottom {
   flex-shrink: 0;
-  padding-top: 0.75rem;
+  padding-top: 0.5rem;
 }
 
 .progress-hit {
@@ -1417,7 +1427,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
-  margin-top: 0.5rem;
+  margin-top: 0.375rem;
 }
 
 .controls-side {
