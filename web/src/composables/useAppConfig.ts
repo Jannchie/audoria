@@ -27,13 +27,14 @@ export interface AppConfig {
       secretKeyConfigured: boolean
     }
   ai: {
-    providers: {
-      openai: {
-        apiKeyEnvName: 'OPENAI_API_KEY'
-        apiKeyConfigured: boolean
-        apiKeySource: 'environment' | 'settings' | null
-      }
-    }
+    defaultProvider: string
+    providers: Record<string, {
+      apiKeyEnvName: string
+      apiKeyConfigured: boolean
+      apiKeySource: 'environment' | 'settings' | null
+      defaultModel: string | null
+      baseUrl: string | null
+    }>
   }
   musicdl: {
     sources: MusicDlSource[]
@@ -66,12 +67,13 @@ export interface AppConfigUpdate {
       secretAccessKey?: string
     }
   ai?: {
-    providers?: {
-      openai?: {
-        apiKey?: string
-        removeApiKey?: boolean
-      }
-    }
+    defaultProvider?: string
+    providers?: Record<string, {
+      apiKey?: string
+      removeApiKey?: boolean
+      defaultModel?: string
+      baseUrl?: string | null
+    } | undefined>
   }
   musicdl?: {
     sources?: MusicDlSource[]

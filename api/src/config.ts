@@ -32,16 +32,27 @@ export type ConfigSource = Record<string, string | undefined>
 
 export type StorageBackend = 's3' | 'fs'
 
-export const aiProviderApiKeyEnvNames = {
-  openai: 'OPENAI_API_KEY',
+export const aiProviderDefinitions = {
+  openai: { apiKeyEnvName: 'OPENAI_API_KEY', defaultModel: 'gpt-4o' },
+  anthropic: { apiKeyEnvName: 'ANTHROPIC_API_KEY', defaultModel: 'claude-sonnet-4-20250514' },
+  google: { apiKeyEnvName: 'GOOGLE_API_KEY', defaultModel: 'gemini-2.5-flash' },
+  groq: { apiKeyEnvName: 'GROQ_API_KEY', defaultModel: 'llama-3.3-70b-versatile' },
+  openrouter: { apiKeyEnvName: 'OPENROUTER_API_KEY', defaultModel: 'openai/gpt-4o' },
+  together: { apiKeyEnvName: 'TOGETHER_API_KEY', defaultModel: 'meta-llama/Llama-3.3-70B-Instruct-Turbo' },
+  deepseek: { apiKeyEnvName: 'DEEPSEEK_API_KEY', defaultModel: 'deepseek-chat' },
 } as const
-export type AiProvider = keyof typeof aiProviderApiKeyEnvNames
+
+export type AiProvider = keyof typeof aiProviderDefinitions
+
+export const aiProviderApiKeyEnvNames = Object.fromEntries(
+  Object.entries(aiProviderDefinitions).map(([key, def]) => [key, def.apiKeyEnvName]),
+) as Record<AiProvider, string>
 
 export const secretConfigKeys = new Set([
   'S3_ACCESS_KEY_ID',
   'S3_SECRET_ACCESS_KEY',
   'D1_API_TOKEN',
-  aiProviderApiKeyEnvNames.openai,
+  ...Object.values(aiProviderDefinitions).map(def => def.apiKeyEnvName),
 ])
 
 export interface S3Config {
@@ -81,10 +92,13 @@ export interface MusicDlConfig {
 export interface AiProviderConfig {
   apiKeyEnvName: string
   apiKey?: string
+  defaultModel?: string
+  baseUrl?: string
 }
 
 export interface AiConfig {
-  providers: Record<AiProvider, AiProviderConfig>
+  defaultProvider: AiProvider
+  providers: Record<string, AiProviderConfig>
 }
 
 export interface AppConfig {
@@ -204,14 +218,23 @@ function loadMusicDlConfig(source: ConfigSource): MusicDlRuntimeConfig {
 }
 
 function loadAiConfig(source: ConfigSource): AiConfig {
-  const openaiApiKey = source[aiProviderApiKeyEnvNames.openai]?.trim()
+  const defaultProvider = (source.AI_DEFAULT_PROVIDER?.trim() || 'openai') as AiProvider
+  const providers: Record<string, AiProviderConfig> = {}
+
+  for (const [provider, def] of Object.entries(aiProviderDefinitions)) {
+    const key = source[def.apiKeyEnvName]?.trim()
+    const modelKey = `AI_${provider.toUpperCase()}_DEFAULT_MODEL`
+    const model = source[modelKey]?.trim() || def.defaultModel
+    providers[provider] = {
+      apiKeyEnvName: def.apiKeyEnvName,
+      apiKey: key || undefined,
+      defaultModel: model,
+    }
+  }
+
   return {
-    providers: {
-      openai: {
-        apiKeyEnvName: aiProviderApiKeyEnvNames.openai,
-        apiKey: openaiApiKey || undefined,
-      },
-    },
+    defaultProvider,
+    providers,
   }
 }
 

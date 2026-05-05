@@ -8,7 +8,7 @@ import { Readable } from 'node:stream'
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import { getCookie, setCookie } from 'hono/cookie'
 import { cors } from 'hono/cors'
-import { aiProviderApiKeyEnvNames, config, loadConfig, mergeConfigSources, pickSecretConfigSource, readPersistedConfigSource } from './config.js'
+import { aiProviderApiKeyEnvNames, aiProviderDefinitions, config, loadConfig, mergeConfigSources, pickSecretConfigSource, readPersistedConfigSource } from './config.js'
 import { applyConfigOverrides, writePersistedConfigOverrides } from './configOverrides.js'
 import {
   addTrackToPlaylist,
@@ -280,13 +280,14 @@ const AppConfigSchema = z.object({
     }),
   ]),
   ai: z.object({
-    providers: z.object({
-      openai: z.object({
-        apiKeyEnvName: z.string().openapi({ example: 'OPENAI_API_KEY' }),
-        apiKeyConfigured: z.boolean().openapi({ example: true }),
-        apiKeySource: z.enum(['environment', 'settings']).nullable().openapi({ example: 'settings' }),
-      }),
-    }),
+    defaultProvider: z.string().openapi({ example: 'openai' }),
+    providers: z.record(z.string(), z.object({
+      apiKeyEnvName: z.string().openapi({ example: 'OPENAI_API_KEY' }),
+      apiKeyConfigured: z.boolean().openapi({ example: true }),
+      apiKeySource: z.enum(['environment', 'settings']).nullable().openapi({ example: 'settings' }),
+      defaultModel: z.string().nullable().openapi({ example: 'gpt-4o' }),
+      baseUrl: z.string().nullable().openapi({ example: 'https://api.openai.com/v1' }),
+    })),
   }),
   musicdl: z.object({
     sources: z.array(MusicDlSourceSchema).openapi({ example: ['NeteaseMusicClient', 'QQMusicClient'] }),
@@ -320,12 +321,13 @@ const AppConfigUpdateSchema = z.object({
     }),
   ]).optional(),
   ai: z.object({
-    providers: z.object({
-      openai: z.object({
-        apiKey: z.string().optional(),
-        removeApiKey: z.boolean().optional(),
-      }).optional(),
-    }).optional(),
+    defaultProvider: z.string().optional(),
+    providers: z.record(z.string(), z.object({
+      apiKey: z.string().optional(),
+      removeApiKey: z.boolean().optional(),
+      defaultModel: z.string().optional(),
+      baseUrl: z.string().nullable().optional(),
+    }).optional()).optional(),
   }).optional(),
   musicdl: z.object({
     sources: z.array(MusicDlSourceSchema).min(1).optional(),
@@ -369,7 +371,24 @@ function toAppConfigResponse(appConfig = loadConfig()) {
         secretKeyConfigured: Boolean(appConfig.storage.s3?.secretAccessKey),
       }
 
-  const openaiApiKeyConfigured = Boolean(appConfig.ai.providers.openai.apiKey)
+  const providers: Record<string, {
+    apiKeyEnvName: string
+    apiKeyConfigured: boolean
+    apiKeySource: 'environment' | 'settings' | null
+    defaultModel: string | null
+    baseUrl: string | null
+  }> = {}
+
+  for (const [providerName, providerConfig] of Object.entries(appConfig.ai.providers)) {
+    const apiKeyConfigured = Boolean(providerConfig.apiKey)
+    providers[providerName] = {
+      apiKeyEnvName: providerConfig.apiKeyEnvName,
+      apiKeyConfigured,
+      apiKeySource: getConfiguredValueSource(providerConfig.apiKeyEnvName, apiKeyConfigured),
+      defaultModel: providerConfig.defaultModel ?? null,
+      baseUrl: providerConfig.baseUrl ?? null,
+    }
+  }
 
   return {
     api: {
@@ -387,13 +406,8 @@ function toAppConfigResponse(appConfig = loadConfig()) {
         },
     storage,
     ai: {
-      providers: {
-        openai: {
-          apiKeyEnvName: appConfig.ai.providers.openai.apiKeyEnvName,
-          apiKeyConfigured: openaiApiKeyConfigured,
-          apiKeySource: getConfiguredValueSource(aiProviderApiKeyEnvNames.openai, openaiApiKeyConfigured),
-        },
-      },
+      defaultProvider: appConfig.ai.defaultProvider,
+      providers,
     },
     musicdl: {
       sources: [...appConfig.musicdl.sources],
@@ -408,7 +422,11 @@ function toAppConfigResponse(appConfig = loadConfig()) {
   }
 }
 
-function assignOptionalSecret(overrides: ConfigOverrides, key: string, value: string | undefined): void {
+function assignOptionalSecret(overrides: ConfigOverrides, key: string, value: string | null | undefined): void {
+  if (value === null) {
+    overrides[key] = null
+    return
+  }
   const trimmed = value?.trim()
   if (trimmed) {
     overrides[key] = trimmed
@@ -436,12 +454,34 @@ function toConfigOverrides(update: AppConfigUpdate): ConfigOverrides {
     assignOptionalSecret(overrides, 'S3_SECRET_ACCESS_KEY', update.storage.secretAccessKey)
   }
 
-  const openaiUpdate = update.ai?.providers?.openai
-  if (openaiUpdate?.removeApiKey) {
-    overrides[aiProviderApiKeyEnvNames.openai] = null
+  const providersUpdate = update.ai?.providers
+  if (providersUpdate) {
+    for (const [providerName, providerUpdate] of Object.entries(providersUpdate)) {
+      if (!providerUpdate) {
+        continue
+      }
+      const envName = aiProviderApiKeyEnvNames[providerName as keyof typeof aiProviderApiKeyEnvNames]
+      if (envName) {
+        if (providerUpdate.removeApiKey) {
+          overrides[envName] = null
+        }
+        else {
+          assignOptionalSecret(overrides, envName, providerUpdate.apiKey)
+        }
+      }
+      const modelKey = `AI_${providerName.toUpperCase()}_DEFAULT_MODEL` as const
+      if (providerUpdate.defaultModel !== undefined) {
+        overrides[modelKey] = providerUpdate.defaultModel || null
+      }
+      const baseUrlKey = `AI_${providerName.toUpperCase()}_BASE_URL` as const
+      if (providerUpdate.baseUrl !== undefined) {
+        overrides[baseUrlKey] = providerUpdate.baseUrl ?? null
+      }
+    }
   }
-  else {
-    assignOptionalSecret(overrides, aiProviderApiKeyEnvNames.openai, openaiUpdate?.apiKey)
+
+  if (update.ai?.defaultProvider) {
+    overrides.AI_DEFAULT_PROVIDER = update.ai.defaultProvider
   }
 
   if (update.musicdl?.sources) {

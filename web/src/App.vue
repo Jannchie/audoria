@@ -46,7 +46,7 @@ const safeBottom = computed(() => {
   const val = safeAreaBottom.value
   // env(safe-area-inset-bottom) 在非全面屏设备上返回 0px，兜底 0.5rem
   if (!val) return '0.5rem'
-  const num = parseFloat(val)
+  const num = Number.parseFloat(val)
   return num > 0 ? val : '0.5rem'
 })
 

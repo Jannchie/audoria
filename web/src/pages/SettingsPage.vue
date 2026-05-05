@@ -10,6 +10,13 @@ import { coverEffectDefinitions } from '../constants/coverEffects'
 import { localeLabels } from '../i18n/locales'
 import { getSourceDisplay } from '../utils/source'
 
+interface ProviderFormEntry {
+  apiKey: string
+  removeApiKey: boolean
+  defaultModel: string
+  baseUrl: string
+}
+
 interface RuntimeForm {
   dbPath: string
   storageBackend: 'fs' | 's3'
@@ -20,8 +27,8 @@ interface RuntimeForm {
   s3ForcePathStyle: boolean
   s3AccessKeyId: string
   s3SecretAccessKey: string
-  openaiApiKey: string
-  removeOpenaiApiKey: boolean
+  defaultProvider: string
+  providers: Record<string, ProviderFormEntry>
   sources: MusicDlSource[]
   urlSources: MusicDlUrlSource[]
   searchTimeoutMs: number
@@ -31,6 +38,7 @@ interface RuntimeForm {
 }
 
 type SettingsSection = 'runtime' | 'appearance'
+type ExpandedProvider = string | null
 
 const allMusicSources: MusicDlSource[] = [
   'NeteaseMusicClient',
@@ -41,6 +49,16 @@ const allMusicSources: MusicDlSource[] = [
 ]
 
 const allUrlSources: MusicDlUrlSource[] = ['Bilibili', 'Youtube']
+
+const knownProviders: Array<{ key: string, label: string, defaultModel: string, defaultBaseUrl: string }> = [
+  { key: 'openai', label: 'OpenAI', defaultModel: 'gpt-4o', defaultBaseUrl: 'https://api.openai.com/v1' },
+  { key: 'anthropic', label: 'Anthropic', defaultModel: 'claude-sonnet-4-20250514', defaultBaseUrl: 'https://api.anthropic.com/v1' },
+  { key: 'google', label: 'Google (Gemini)', defaultModel: 'gemini-2.5-flash', defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta' },
+  { key: 'groq', label: 'Groq', defaultModel: 'llama-3.3-70b-versatile', defaultBaseUrl: 'https://api.groq.com/openai/v1' },
+  { key: 'openrouter', label: 'OpenRouter', defaultModel: 'openai/gpt-4o', defaultBaseUrl: 'https://openrouter.ai/api/v1' },
+  { key: 'together', label: 'Together AI', defaultModel: 'meta-llama/Llama-3.3-70B-Instruct-Turbo', defaultBaseUrl: 'https://api.together.xyz/v1' },
+  { key: 'deepseek', label: 'DeepSeek', defaultModel: 'deepseek-chat', defaultBaseUrl: 'https://api.deepseek.com/v1' },
+]
 
 const { t } = useI18n()
 const {
@@ -83,6 +101,19 @@ const appConfig = computed(() => appConfigQuery.data.value)
 const appConfigLoading = computed(() => appConfigQuery.isPending.value)
 const appConfigFailed = computed(() => appConfigQuery.isError.value)
 
+function createDefaultProviders(): Record<string, ProviderFormEntry> {
+  const entries: Record<string, ProviderFormEntry> = {}
+  for (const p of knownProviders) {
+    entries[p.key] = {
+      apiKey: '',
+      removeApiKey: false,
+      defaultModel: p.defaultModel,
+      baseUrl: p.defaultBaseUrl,
+    }
+  }
+  return entries
+}
+
 const runtimeForm = reactive<RuntimeForm>({
   dbPath: '',
   storageBackend: 's3',
@@ -93,8 +124,8 @@ const runtimeForm = reactive<RuntimeForm>({
   s3ForcePathStyle: true,
   s3AccessKeyId: '',
   s3SecretAccessKey: '',
-  openaiApiKey: '',
-  removeOpenaiApiKey: false,
+  defaultProvider: 'openai',
+  providers: createDefaultProviders(),
   sources: [...allMusicSources],
   urlSources: [...allUrlSources],
   searchTimeoutMs: 30_000,
@@ -107,6 +138,7 @@ const runtimeSaveError = ref('')
 const runtimeSaveSucceeded = ref(false)
 const runtimeRestartRequired = ref(false)
 const activeSection = ref<SettingsSection>('runtime')
+const expandedProvider = ref<ExpandedProvider>(null)
 
 watch(appConfig, (config) => {
   if (!config) {
@@ -134,8 +166,17 @@ watch(appConfig, (config) => {
 
   runtimeForm.s3AccessKeyId = ''
   runtimeForm.s3SecretAccessKey = ''
-  runtimeForm.openaiApiKey = ''
-  runtimeForm.removeOpenaiApiKey = false
+
+  runtimeForm.defaultProvider = config.ai.defaultProvider
+  for (const p of knownProviders) {
+    const providerConfig = config.ai.providers[p.key]
+    if (providerConfig && runtimeForm.providers[p.key]) {
+      runtimeForm.providers[p.key].apiKey = ''
+      runtimeForm.providers[p.key].removeApiKey = false
+      runtimeForm.providers[p.key].defaultModel = providerConfig.defaultModel ?? p.defaultModel
+      runtimeForm.providers[p.key].baseUrl = providerConfig.baseUrl ?? p.defaultBaseUrl
+    }
+  }
 }, { immediate: true })
 
 const credentialStatus = computed(() => {
@@ -148,24 +189,32 @@ const credentialStatus = computed(() => {
     : t('settings.runtime.credentials.missing')
 })
 
-const openaiApiKeyConfigured = computed(() => Boolean(appConfig.value?.ai.providers.openai.apiKeyConfigured))
-const openaiApiKeyFromEnvironment = computed(() => appConfig.value?.ai.providers.openai.apiKeySource === 'environment')
+function getProviderStatus(providerKey: string): { configured: boolean, source: 'environment' | 'settings' | null, removePending: boolean } {
+  const config = appConfig.value?.ai.providers[providerKey]
+  if (!config) {
+    return { configured: false, source: null, removePending: false }
+  }
+  const entry = runtimeForm.providers[providerKey]
+  return {
+    configured: config.apiKeyConfigured,
+    source: config.apiKeySource,
+    removePending: entry?.removeApiKey ?? false,
+  }
+}
 
-const openaiCredentialStatus = computed(() => {
-  const openai = appConfig.value?.ai.providers.openai
-  if (!openai) {
-    return ''
-  }
-  if (runtimeForm.removeOpenaiApiKey) {
-    return t('settings.runtime.apiKeys.removePending')
-  }
-  if (openai.apiKeySource === 'environment') {
-    return t('settings.runtime.apiKeys.configuredByEnvironment')
-  }
-  return openai.apiKeyConfigured
-    ? t('settings.runtime.apiKeys.configured')
-    : t('settings.runtime.apiKeys.missing')
-})
+const providerEnvNames: Record<string, string> = {
+  openai: 'OPENAI_API_KEY',
+  anthropic: 'ANTHROPIC_API_KEY',
+  google: 'GOOGLE_API_KEY',
+  groq: 'GROQ_API_KEY',
+  openrouter: 'OPENROUTER_API_KEY',
+  together: 'TOGETHER_API_KEY',
+  deepseek: 'DEEPSEEK_API_KEY',
+}
+
+function getProviderEnvName(providerKey: string): string {
+  return providerEnvNames[providerKey] ?? `${providerKey.toUpperCase()}_API_KEY`
+}
 
 const runtimeSaveDisabled = computed(() => {
   return updateAppConfig.isPending.value
@@ -235,14 +284,42 @@ function positiveInteger(value: number): number {
   return Math.max(1, Math.floor(Number(value) || 1))
 }
 
-function toggleOpenaiApiKeyRemoval(): void {
-  runtimeForm.removeOpenaiApiKey = !runtimeForm.removeOpenaiApiKey
-  if (runtimeForm.removeOpenaiApiKey) {
-    runtimeForm.openaiApiKey = ''
+function toggleProviderKeyRemoval(providerKey: string): void {
+  const entry = runtimeForm.providers[providerKey]
+  if (!entry) {
+    return
+  }
+  entry.removeApiKey = !entry.removeApiKey
+  if (entry.removeApiKey) {
+    entry.apiKey = ''
   }
 }
 
 function buildRuntimeUpdate(): AppConfigUpdate {
+  const providers: Record<string, { apiKey?: string, removeApiKey?: boolean, defaultModel?: string, baseUrl?: string | null }> = {}
+  for (const p of knownProviders) {
+    const entry = runtimeForm.providers[p.key]
+    if (!entry) {
+      continue
+    }
+    const update: { apiKey?: string, removeApiKey?: boolean, defaultModel?: string, baseUrl?: string | null } = {}
+    if (entry.apiKey.trim()) {
+      update.apiKey = entry.apiKey.trim()
+    }
+    if (entry.removeApiKey) {
+      update.removeApiKey = true
+    }
+    if (entry.defaultModel !== p.defaultModel) {
+      update.defaultModel = entry.defaultModel.trim()
+    }
+    if (entry.baseUrl !== p.defaultBaseUrl) {
+      update.baseUrl = entry.baseUrl.trim() || null
+    }
+    if (Object.keys(update).length > 0) {
+      providers[p.key] = update
+    }
+  }
+
   return {
     metadata: {
       dbPath: runtimeForm.dbPath.trim(),
@@ -262,12 +339,8 @@ function buildRuntimeUpdate(): AppConfigUpdate {
           secretAccessKey: runtimeForm.s3SecretAccessKey.trim() || undefined,
         },
     ai: {
-      providers: {
-        openai: {
-          apiKey: runtimeForm.openaiApiKey.trim() || undefined,
-          removeApiKey: runtimeForm.removeOpenaiApiKey || undefined,
-        },
-      },
+      defaultProvider: runtimeForm.defaultProvider !== 'openai' ? runtimeForm.defaultProvider : undefined,
+      providers: Object.keys(providers).length > 0 ? providers : undefined,
     },
     musicdl: {
       sources: runtimeForm.sources,
@@ -642,32 +715,124 @@ const activeLanguageHint = computed(() => {
                     {{ t('settings.runtime.ai.description') }}
                   </div>
                 </div>
-                <div class="config-fields">
-                  <label class="config-field">
-                    <span>OPENAI_API_KEY</span>
-                    <input
-                      v-model="runtimeForm.openaiApiKey"
-                      class="config-input"
-                      type="password"
-                      autocomplete="new-password"
-                      :disabled="runtimeForm.removeOpenaiApiKey || openaiApiKeyFromEnvironment"
-                      :placeholder="t('settings.runtime.apiKeys.keepExisting')"
-                    >
+
+                <div class="ai-provider-select">
+                  <label class="ai-provider-select__label">
+                    {{ t('settings.runtime.ai.defaultProvider') }}
                   </label>
-                  <button
-                    v-if="openaiApiKeyConfigured && !openaiApiKeyFromEnvironment"
-                    type="button"
-                    class="settings-button config-action-button"
-                    @click="toggleOpenaiApiKeyRemoval"
+                  <select
+                    v-model="runtimeForm.defaultProvider"
+                    class="ai-provider-select__dropdown"
                   >
-                    {{ runtimeForm.removeOpenaiApiKey ? t('settings.runtime.apiKeys.keep') : t('settings.runtime.apiKeys.remove') }}
-                  </button>
-                  <p
-                    v-if="openaiCredentialStatus"
-                    class="runtime-note"
+                    <option
+                      v-for="p in knownProviders"
+                      :key="p.key"
+                      :value="p.key"
+                    >
+                      {{ p.label }}
+                    </option>
+                  </select>
+                </div>
+
+                <div class="ai-provider-rows">
+                  <div
+                    v-for="p in knownProviders"
+                    :key="p.key"
+                    class="ai-provider-row"
+                    :class="{
+                      'ai-provider-row--active': runtimeForm.defaultProvider === p.key,
+                      'ai-provider-row--expanded': expandedProvider === p.key,
+                    }"
                   >
-                    {{ openaiCredentialStatus }}
-                  </p>
+                    <div
+                      class="ai-provider-row__head"
+                      @click="expandedProvider = expandedProvider === p.key ? null : p.key"
+                    >
+                      <span
+                        class="ai-provider-row__indicator"
+                        :class="getProviderStatus(p.key).configured || getProviderStatus(p.key).source === 'environment' ? 'ai-provider-row__indicator--on' : 'ai-provider-row__indicator--off'"
+                      />
+                      <span class="ai-provider-row__name">
+                        {{ p.label }}
+                        <span
+                          v-if="runtimeForm.defaultProvider === p.key"
+                          class="ai-provider-row__default-tag"
+                        >{{ t('settings.runtime.ai.defaultTag') }}</span>
+                      </span>
+                      <span class="ai-provider-row__status">
+                        <template v-if="getProviderStatus(p.key).removePending">
+                          {{ t('settings.runtime.apiKeys.removePendingLabel') }}
+                        </template>
+                        <template v-else-if="getProviderStatus(p.key).source === 'environment'">
+                          {{ t('settings.runtime.apiKeys.envBadge') }}
+                        </template>
+                        <template v-else-if="getProviderStatus(p.key).configured">
+                          {{ t('settings.runtime.apiKeys.configuredBadge') }}
+                        </template>
+                        <template v-else>
+                          {{ t('settings.runtime.apiKeys.missingBadge') }}
+                        </template>
+                      </span>
+                      <span
+                        class="ai-provider-row__chevron i-tabler-chevron-down"
+                        :class="{ 'ai-provider-row__chevron--open': expandedProvider === p.key }"
+                      />
+                    </div>
+                    <div
+                      v-show="expandedProvider === p.key"
+                      class="ai-provider-row__body"
+                    >
+                      <div class="ai-provider-row__fields">
+                        <label class="config-field ai-provider-row__field">
+                          <span>API Key</span>
+                          <input
+                            v-model="runtimeForm.providers[p.key].apiKey"
+                            class="config-input"
+                            type="password"
+                            autocomplete="new-password"
+                            :disabled="runtimeForm.providers[p.key].removeApiKey || getProviderStatus(p.key).source === 'environment'"
+                            :placeholder="getProviderStatus(p.key).configured ? t('settings.runtime.apiKeys.keepExisting') : ''"
+                          >
+                        </label>
+                        <label class="config-field ai-provider-row__field">
+                          <span>Model</span>
+                          <input
+                            v-model="runtimeForm.providers[p.key].defaultModel"
+                            class="config-input"
+                            type="text"
+                            autocomplete="off"
+                            :placeholder="p.defaultModel"
+                          >
+                        </label>
+                        <label class="config-field ai-provider-row__field">
+                          <span>Base URL</span>
+                          <input
+                            v-model="runtimeForm.providers[p.key].baseUrl"
+                            class="config-input"
+                            type="url"
+                            autocomplete="off"
+                            :placeholder="p.defaultBaseUrl"
+                          >
+                        </label>
+                      </div>
+                      <div class="ai-provider-row__actions">
+                        <button
+                          v-if="getProviderStatus(p.key).configured && getProviderStatus(p.key).source !== 'environment'"
+                          type="button"
+                          class="settings-button"
+                          @click="toggleProviderKeyRemoval(p.key)"
+                        >
+                          {{ runtimeForm.providers[p.key].removeApiKey ? t('settings.runtime.apiKeys.keep') : t('settings.runtime.apiKeys.remove') }}
+                        </button>
+                        <p
+                          v-if="getProviderStatus(p.key).source === 'environment'"
+                          class="ai-provider-row__note"
+                        >
+                          {{ t('settings.runtime.apiKeys.configuredByProvider', { env: getProviderEnvName(p.key) }) }}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -1149,6 +1314,168 @@ const activeLanguageHint = computed(() => {
   min-height: 2.5rem;
 }
 
+/* ── AI Provider Select ── */
+
+.ai-provider-select {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.ai-provider-select__label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.ai-provider-select__dropdown {
+  min-height: 2.25rem;
+  min-width: 12rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='%23888' d='M5 6l3 4 3-4'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  background-size: 1rem;
+  padding-right: 2rem;
+}
+
+.ai-provider-select__dropdown:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+/* ── AI Provider Rows ── */
+
+.ai-provider-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: 0.625rem;
+  overflow: hidden;
+  background: var(--border);
+}
+
+.ai-provider-row {
+  background: var(--bg-primary);
+  overflow: hidden;
+}
+
+.ai-provider-row--active {
+  background: color-mix(in srgb, var(--accent) 4%, var(--bg-primary));
+}
+
+.ai-provider-row__head {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.625rem 0.875rem;
+  cursor: pointer;
+  user-select: none;
+  transition: background 120ms ease;
+}
+
+.ai-provider-row__head:hover {
+  background: color-mix(in srgb, var(--bg-elevated) 50%, transparent);
+}
+
+.ai-provider-row__indicator {
+  flex-shrink: 0;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  opacity: 0.4;
+}
+
+.ai-provider-row__indicator--on {
+  background: #22c55e;
+  opacity: 1;
+}
+
+.ai-provider-row__indicator--off {
+  background: var(--text-secondary);
+  opacity: 0.3;
+}
+
+.ai-provider-row__name {
+  flex: 1;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ai-provider-row__default-tag {
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.0625rem 0.375rem;
+  border-radius: 0.25rem;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+}
+
+.ai-provider-row__status {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.ai-provider-row__chevron {
+  flex-shrink: 0;
+  width: 1rem;
+  height: 1rem;
+  color: var(--text-secondary);
+  transition: transform 180ms ease;
+}
+
+.ai-provider-row__chevron--open {
+  transform: rotate(180deg);
+}
+
+.ai-provider-row__body {
+  border-top: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+}
+
+.ai-provider-row__fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0.75rem;
+  padding: 0.875rem;
+}
+
+.ai-provider-row__field {
+  min-width: 0;
+}
+
+.ai-provider-row__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0 0.875rem 0.75rem;
+}
+
+.ai-provider-row__note {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
 .runtime-note {
   grid-column: 1 / -1;
   margin: 0;
@@ -1309,6 +1636,15 @@ const activeLanguageHint = computed(() => {
   .config-fields,
   .config-fields--compact {
     grid-template-columns: 1fr;
+  }
+
+  .ai-provider-row__fields {
+    grid-template-columns: 1fr;
+  }
+
+  .ai-provider-select {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .runtime-actions {
