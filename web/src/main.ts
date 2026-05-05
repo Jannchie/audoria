@@ -21,8 +21,9 @@ console.warn = (...args: unknown[]): void => {
 
 // Register the service worker and auto-reload when a new version takes over,
 // so users see fresh content without needing Ctrl+F5.
+// SW is only generated during production build, not in dev mode.
 async function setupPWAAutoUpdate() {
-  if (!('serviceWorker' in navigator)) {
+  if (import.meta.env.DEV || !('serviceWorker' in navigator)) {
     return
   }
 
@@ -40,11 +41,15 @@ async function setupPWAAutoUpdate() {
 
     // When the new SW has claimed this client, reload.
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (isUpdate) globalThis.location.reload()
+      if (isUpdate) {
+        globalThis.location.reload()
+      }
     })
 
     function notify(worker: ServiceWorker | null) {
-      if (!worker) return
+      if (!worker) {
+        return
+      }
       worker.postMessage({ type: 'SKIP_WAITING' })
     }
 

@@ -7,6 +7,7 @@ import ContextMenu from './components/ContextMenu.vue'
 import InputPromptDialog from './components/InputPromptDialog.vue'
 import PlayerBar from './components/PlayerBar.vue'
 import QueueDrawer from './components/QueueDrawer.vue'
+import { useKeyboardDetect } from './composables/useKeyboardDetect'
 import { useKeyboardShortcuts } from './composables/useKeyboardShortcuts'
 import LoginPage from './pages/LoginPage.vue'
 
@@ -20,6 +21,7 @@ onMounted(() => {
 
 useKeyboardShortcuts()
 useMediaSession()
+const { isKeyboardOpen } = useKeyboardDetect()
 
 const authReady = computed(() => status.value !== 'loading')
 
@@ -125,9 +127,9 @@ watchEffect(() => {
     <!-- Global input prompt dialog -->
     <InputPromptDialog />
 
-    <!-- Mobile bottom tab bar (hidden on desktop and player page) -->
+    <!-- Mobile bottom tab bar (hidden on desktop, player page, and when keyboard is open) -->
     <nav
-      v-show="!isPlayerPage"
+      v-show="!isPlayerPage && !isKeyboardOpen"
       class="mobile-tabs"
     >
       <div class="mobile-tabs-inner">
@@ -398,5 +400,12 @@ watchEffect(() => {
 .mobile-tab--active .mobile-tab-label {
   opacity: 1;
   font-weight: 600;
+}
+
+/* When the virtual keyboard is open on iOS, hide mobile-tabs so they
+   don't get pushed into view above the keyboard (position:fixed
+   follows the visual viewport on iOS). */
+body.keyboard-open .mobile-tabs {
+  display: none !important;
 }
 </style>

@@ -535,6 +535,9 @@ watch(currentLineIndex, async (idx, prev) => {
     return
   }
   await nextTick()
+  // Wait for the browser to finish layout before measuring positions.
+  // Mobile browsers may need an extra frame to settle after DOM updates.
+  await new Promise(resolve => requestAnimationFrame(resolve))
   const container = lyricsContainer.value
   if (!container) {
     return
@@ -543,8 +546,12 @@ watch(currentLineIndex, async (idx, prev) => {
   if (!activeLine) {
     return
   }
+  // Use getBoundingClientRect for both elements to avoid offsetTop
+  // discrepancies in flex layouts on mobile browsers.
   const containerRect = container.getBoundingClientRect()
-  const targetScroll = activeLine.offsetTop - container.offsetTop - containerRect.height / 2 + activeLine.offsetHeight / 2
+  const activeRect = activeLine.getBoundingClientRect()
+  const lineOffset = activeRect.top - containerRect.top + container.scrollTop
+  const targetScroll = lineOffset - containerRect.height / 2 + activeRect.height / 2
   container.scrollTo({ top: targetScroll, behavior: 'smooth' })
 })
 

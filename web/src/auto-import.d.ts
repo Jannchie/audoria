@@ -216,6 +216,7 @@ declare global {
   const useInterval: typeof import('@vueuse/core').useInterval
   const useIntervalFn: typeof import('@vueuse/core').useIntervalFn
   const useKeyModifier: typeof import('@vueuse/core').useKeyModifier
+  const useKeyboardDetect: typeof import('./composables/useKeyboardDetect').useKeyboardDetect
   const useKeyboardShortcuts: typeof import('./composables/useKeyboardShortcuts').useKeyboardShortcuts
   const useLastChanged: typeof import('@vueuse/core').useLastChanged
   const useListSelection: typeof import('./composables/useListSelection').useListSelection

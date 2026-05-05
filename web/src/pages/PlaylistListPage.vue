@@ -215,6 +215,18 @@ function openPlaylist(id: string): void {
           :placeholder="t('playlist.searchPlaceholder')"
           type="search"
         >
+        <button
+          v-if="search"
+          type="button"
+          class="playlists-search-clear"
+          :aria-label="t('common.actions.clear')"
+          @click="search = ''"
+        >
+          <span
+            class="i-tabler-x"
+            aria-hidden="true"
+          />
+        </button>
       </div>
       <label class="playlists-sort">
         <span class="i-tabler-sort-descending" />
@@ -489,7 +501,7 @@ function openPlaylist(id: string): void {
 .playlists-search-input {
   width: 100%;
   height: 2.625rem;
-  padding: 0 1rem 0 2.5rem;
+  padding: 0 2.25rem 0 2.5rem;
   border: 1px solid transparent;
   border-radius: 999px;
   background: var(--bg-surface);
@@ -506,6 +518,30 @@ function openPlaylist(id: string): void {
 .playlists-search-input:focus {
   background: var(--bg-elevated);
   border-color: var(--border);
+}
+
+.playlists-search-clear {
+  position: absolute;
+  right: 0.375rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.playlists-search-clear:hover {
+  color: var(--text-primary);
+  background: var(--bg-elevated);
 }
 
 .playlists-sort {

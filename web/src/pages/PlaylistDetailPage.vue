@@ -586,12 +586,6 @@ function handleDragEnd(): void {
         >
           <span class="tr-lead">
             <span
-              v-if="isManualOrder"
-              class="tr-handle i-tabler-grip-vertical"
-              aria-hidden="true"
-            />
-            <span
-              v-else
               class="tr-index"
               aria-hidden="true"
             >{{ index + 1 }}</span>
@@ -963,26 +957,9 @@ function handleDragEnd(): void {
   user-select: none;
 }
 
-.tr-handle {
-  font-size: 1rem;
-  opacity: 0.4;
-  cursor: grab;
-  transition: opacity 120ms ease;
-}
-.tr:hover .tr-handle {
-  opacity: 0.9;
-}
-.tr-handle:active {
-  cursor: grabbing;
-}
-
 .tr-index {
   font-size: 0.75rem;
   color: var(--text-tertiary);
-  transition: opacity 120ms ease;
-}
-.tr:hover .tr-index {
-  opacity: 0;
 }
 .tr--active .tr-index {
   color: var(--accent);

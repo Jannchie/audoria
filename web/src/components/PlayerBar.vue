@@ -1020,4 +1020,10 @@ onUnmounted(() => {
   background: var(--bg-surface);
   border-radius: 2px;
 }
+
+/* When the virtual keyboard is open on mobile, mobile-tabs is hidden,
+   so drop the PlayerBar to bottom: 0 to avoid a visible gap. */
+body.keyboard-open .playerbar {
+  bottom: 0;
+}
 </style>

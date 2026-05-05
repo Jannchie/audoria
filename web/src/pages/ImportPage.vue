@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import type { MusicDlSearchResult, MusicDlSource } from '../api/types.gen'
 import { useQueryClient } from '@tanstack/vue-query'
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import { useAppConfigQuery } from '../composables/useAppConfig'
 import { useImportJobQuery, useImportMusic, useMusicQuery, useSearchMusicImport } from '../composables/useMusic'
 import { formatTrackSpecs } from '../utils/audio'
@@ -59,7 +60,14 @@ const queryClient = useQueryClient()
 const { data: tracks } = useMusicQuery()
 const appConfigQuery = useAppConfigQuery()
 const { t } = useI18n()
+const route = useRoute()
 const configuredImportSources = computed<MusicDlSource[]>(() => appConfigQuery.data.value?.musicdl.sources ?? fallbackSources)
+
+// Read search keyword from route query param (e.g. /import?q=keyword).
+const routeQueryKeyword = computed(() => {
+  const q = route.query.q
+  return typeof q === 'string' ? q.trim() : ''
+})
 const sourceOptions = computed<Array<{ value: MusicDlSource | null, label: string }>>(() => [
   { value: null, label: t('import.allSources') },
   ...configuredImportSources.value.map(source => ({
@@ -377,6 +385,19 @@ watch(
   { deep: true },
 )
 
+// When navigating from another page with a query param (e.g. /import?q=...),
+// pre-fill the search field and auto-trigger the search.
+onMounted(() => {
+  const q = routeQueryKeyword.value
+  if (q && q !== searchKeyword.value) {
+    searchKeyword.value = q
+    // Run search after sources have been resolved.
+    if (configuredImportSources.value.length > 0) {
+      runSearch(initialLimitPerSource, true)
+    }
+  }
+})
+
 function resetImportState(): void {
   activeImportResultId.value = null
   activeImportJobId.value = null
@@ -474,6 +495,18 @@ function isImporting(id: string): boolean {
           :aria-label="t('import.searchLabel')"
           @keydown.enter.prevent="handleSearch"
         >
+        <button
+          v-if="searchKeyword"
+          type="button"
+          class="search-bar-clear"
+          :aria-label="t('common.actions.clear')"
+          @click="searchKeyword = ''"
+        >
+          <span
+            class="i-tabler-x"
+            aria-hidden="true"
+          />
+        </button>
         <button
           v-if="searchKeyword"
           class="search-bar-action"
@@ -769,6 +802,27 @@ function isImporting(id: string): boolean {
 
 .search-bar-input::placeholder {
   color: var(--text-tertiary);
+}
+
+.search-bar-clear {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-tertiary);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8125rem;
+  flex-shrink: 0;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.search-bar-clear:hover {
+  color: var(--text-primary);
+  background: var(--bg-elevated);
 }
 
 .search-bar-action {

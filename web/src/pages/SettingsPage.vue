@@ -335,7 +335,7 @@ function buildRuntimeUpdate(): AppConfigUpdate {
           secretAccessKey: runtimeForm.s3SecretAccessKey.trim() || undefined,
         },
     ai: {
-      defaultProvider: runtimeForm.defaultProvider !== 'openai' ? runtimeForm.defaultProvider : undefined,
+      defaultProvider: runtimeForm.defaultProvider === 'openai' ? undefined : runtimeForm.defaultProvider,
       providers: Object.keys(providers).length > 0 ? providers : undefined,
     },
     musicdl: {

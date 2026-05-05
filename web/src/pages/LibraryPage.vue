@@ -243,6 +243,18 @@ function openBatchMenu(event: MouseEvent): void {
           :placeholder="t('library.searchPlaceholder')"
           type="search"
         >
+        <button
+          v-if="search"
+          type="button"
+          class="search-clear"
+          :aria-label="t('common.actions.clear')"
+          @click="search = ''"
+        >
+          <span
+            class="i-tabler-x"
+            aria-hidden="true"
+          />
+        </button>
       </div>
       <button
         type="button"
@@ -336,6 +348,17 @@ function openBatchMenu(event: MouseEvent): void {
       <p class="empty-hint">
         {{ search ? t('library.noResultsHint') : t('library.emptyHint') }}
       </p>
+      <RouterLink
+        v-if="search"
+        class="explore-link"
+        :to="{ path: '/import', query: { q: search.trim() } }"
+      >
+        <span
+          class="i-tabler-compass"
+          aria-hidden="true"
+        />
+        <span>{{ t('library.searchInExplore') }}</span>
+      </RouterLink>
     </div>
 
     <!-- Track list -->
@@ -526,7 +549,7 @@ function openBatchMenu(event: MouseEvent): void {
 .search-input {
   width: 100%;
   height: 2.75rem;
-  padding: 0 1rem 0 2.5rem;
+  padding: 0 2.25rem 0 2.5rem;
   border: none;
   border-radius: 1.375rem;
   background: var(--bg-surface);
@@ -541,6 +564,30 @@ function openBatchMenu(event: MouseEvent): void {
 }
 
 .search-input:focus {
+  background: var(--bg-elevated);
+}
+
+.search-clear {
+  position: absolute;
+  right: 0.375rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.search-clear:hover {
+  color: var(--text-primary);
   background: var(--bg-elevated);
 }
 
@@ -842,5 +889,27 @@ function openBatchMenu(event: MouseEvent): void {
 
 .selection-action:hover {
   background: var(--bg-elevated);
+}
+
+/* ── Explore link in empty search state ── */
+.explore-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding: 0.5rem 1.25rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.explore-link:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
 }
 </style>

@@ -30,7 +30,7 @@ export function useMediaSession() {
 
   const coverArtUrl = computed(() => {
     if (!currentTrack.value?.coverUrl) {
-      return undefined
+      return
     }
     return resolveApiUrl(currentTrack.value.coverUrl)
   })
