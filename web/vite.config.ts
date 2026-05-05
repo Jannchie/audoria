@@ -111,6 +111,7 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
+    allowedHosts: ['.trycloudflare.com'],
   },
   build: {
     chunkSizeWarningLimit: 800,

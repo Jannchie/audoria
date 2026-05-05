@@ -75,6 +75,7 @@ body {
   margin: 0;
   background-color: var(--bg-base);
   min-height: 100vh;
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 body.no-scroll {
@@ -113,6 +114,16 @@ html::-webkit-scrollbar {
 .inner-scroll {
   scrollbar-width: thin;
   scrollbar-color: var(--bg-hover) transparent;
+}
+
+/* Prevent iOS Safari from auto-zooming when inputs are focused.
+   Safari zooms when font-size < 16px. Setting the floor to 16px
+   matches what Google, Baidu, etc. do to keep the page stable.
+   !important is needed to override Vue scoped component styles. */
+input:not([type="range"]):not([type="checkbox"]):not([type="radio"]),
+textarea,
+select {
+  font-size: 16px !important;
 }
 
 input[type="search"]::-webkit-search-cancel-button {

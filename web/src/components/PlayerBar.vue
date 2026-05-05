@@ -710,8 +710,8 @@ onUnmounted(() => {
      `.mobile-tabs` height exactly so the two surfaces meet without
      overlap and read as one solid control center.
 
-     --safe-bottom is set via JS useScreenSafeArea on .app-shell. */
-  bottom: calc(3.75rem + var(--safe-bottom, 0.5rem));
+     --safe-bottom uses native CSS env() for reliable iOS support. */
+  bottom: calc(3.75rem + env(safe-area-inset-bottom, 0.5rem));
   background: var(--bg-primary);
 }
 

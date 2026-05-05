@@ -40,16 +40,6 @@ const mobileNavItems = computed(() => [
   { name: t('nav.settings'), path: '/settings', icon: 'i-tabler-settings' },
 ])
 
-const { bottom: safeAreaBottom } = useScreenSafeArea()
-
-const safeBottom = computed(() => {
-  const val = safeAreaBottom.value
-  // env(safe-area-inset-bottom) 在非全面屏设备上返回 0px，兜底 0.5rem
-  if (!val) return '0.5rem'
-  const num = Number.parseFloat(val)
-  return num > 0 ? val : '0.5rem'
-})
-
 const currentPath = computed(() => route.path)
 const isPlayerPage = computed(() => route.path === '/player')
 const isLocked = useScrollLock(document.body)
@@ -78,7 +68,6 @@ watchEffect(() => {
   <div
     v-else
     class="app-shell"
-    :style="{ '--safe-bottom': safeBottom }"
   >
     <!-- Desktop top bar (hidden on mobile) -->
     <header
@@ -296,9 +285,7 @@ watchEffect(() => {
   max-width: 80rem;
   width: 100%;
   margin: 0 auto;
-  /* mobile: bottom padding for PlayerBar + tabs + safe area */
-  /* --safe-bottom is set via JS useScreenSafeArea on .app-shell */
-  padding: 0 1rem calc(9rem + var(--safe-bottom, 0.5rem));
+  padding: 0 1rem calc(9rem + env(safe-area-inset-bottom, 0.5rem));
 }
 
 @media (min-width: 768px) {
@@ -325,7 +312,7 @@ watchEffect(() => {
    PlayerBar's `bottom` offset in sync with the actual tab bar height so
    the two stack flush instead of overlapping.
 
-   Safe area is set via JS useScreenSafeArea on .app-shell. */
+   Safe area uses native CSS env() for reliable iOS support. */
 .mobile-tabs {
   position: fixed;
   bottom: 0;
@@ -333,8 +320,8 @@ watchEffect(() => {
   right: 0;
   z-index: 50;
   box-sizing: border-box;
-  height: calc(3.75rem + var(--safe-bottom));
-  padding: 0.25rem 0.5rem var(--safe-bottom);
+  height: calc(3.75rem + env(safe-area-inset-bottom, 0.5rem));
+  padding: 0.25rem 0.5rem env(safe-area-inset-bottom, 0.5rem);
   background: var(--bg-primary);
 }
 
