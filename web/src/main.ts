@@ -19,9 +19,8 @@ console.warn = (...args: unknown[]): void => {
   originalWarn(...args)
 }
 
-// When a new service worker takes over, reload to get the latest version.
-// This fixes the issue where Ctrl+F5 was needed to see fresh content.
-// Using the native API instead of virtual:pwa-register for Vite 8/Rolldown compatibility.
+// Auto-reload when a new service worker takes over, so users see fresh content
+// without needing Ctrl+F5. Uses the native SW API for Vite 8/Rolldown compatibility.
 async function setupPWAAutoUpdate() {
   if (!('serviceWorker' in navigator)) {
     return
@@ -30,16 +29,24 @@ async function setupPWAAutoUpdate() {
   try {
     const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
 
-    // Detect when the SW starts installing a new version
+    // Avoid reloading on first-time install — only reload for actual updates.
+    // `registration.active` is null on the very first registration.
+    const isUpdate = Boolean(registration.active)
+
     registration.addEventListener('updatefound', () => {
       const newWorker = registration.installing
       if (!newWorker) {
         return
       }
 
+      // Tell the new SW to activate immediately.
+      // The SW also calls self.skipWaiting() at install time via workbox config,
+      // but this covers edge cases (e.g. SW already in waiting state).
+      newWorker.postMessage({ type: 'SKIP_WAITING' })
+
       newWorker.addEventListener('statechange', () => {
-        // When the new SW is activated, reload to let it take control
-        if (newWorker.state === 'activated') {
+        // Reload only for genuine updates, not the initial install
+        if (isUpdate && newWorker.state === 'activated') {
           globalThis.location.reload()
         }
       })
