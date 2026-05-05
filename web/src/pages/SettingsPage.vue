@@ -24,7 +24,6 @@ interface RuntimeForm {
   s3Bucket: string
   s3Endpoint: string
   s3Region: string
-  s3ForcePathStyle: boolean
   s3AccessKeyId: string
   s3SecretAccessKey: string
   defaultProvider: string
@@ -121,7 +120,6 @@ const runtimeForm = reactive<RuntimeForm>({
   s3Bucket: '',
   s3Endpoint: '',
   s3Region: 'us-east-1',
-  s3ForcePathStyle: true,
   s3AccessKeyId: '',
   s3SecretAccessKey: '',
   defaultProvider: 'openai',
@@ -161,7 +159,6 @@ watch(appConfig, (config) => {
     runtimeForm.s3Bucket = config.storage.bucket
     runtimeForm.s3Endpoint = config.storage.endpoint ?? ''
     runtimeForm.s3Region = config.storage.region
-    runtimeForm.s3ForcePathStyle = config.storage.forcePathStyle
   }
 
   runtimeForm.s3AccessKeyId = ''
@@ -334,7 +331,6 @@ function buildRuntimeUpdate(): AppConfigUpdate {
           bucket: runtimeForm.s3Bucket.trim(),
           endpoint: runtimeForm.s3Endpoint.trim() || null,
           region: runtimeForm.s3Region.trim(),
-          forcePathStyle: runtimeForm.s3ForcePathStyle,
           accessKeyId: runtimeForm.s3AccessKeyId.trim() || undefined,
           secretAccessKey: runtimeForm.s3SecretAccessKey.trim() || undefined,
         },
@@ -577,7 +573,7 @@ const activeLanguageHint = computed(() => {
                   class="storage-fields"
                 >
                   <label class="config-field">
-                    <span>STORAGE_FS_ROOT</span>
+                    <span>{{ t('settings.runtime.storage.fsRootLabel') }}</span>
                     <input
                       v-model="runtimeForm.fsRootDir"
                       class="config-input"
@@ -591,56 +587,40 @@ const activeLanguageHint = computed(() => {
                   v-else
                   class="storage-fields"
                 >
-                  <div class="storage-fields__section">
-                    <div class="storage-fields__section-title">Connection</div>
-                    <div class="storage-fields__grid">
-                      <label class="config-field storage-fields__field">
-                        <span>S3_BUCKET</span>
-                        <input
-                          v-model="runtimeForm.s3Bucket"
-                          class="config-input"
-                          type="text"
-                          autocomplete="off"
-                        >
-                      </label>
-                      <label class="config-field storage-fields__field">
-                        <span>S3_ENDPOINT</span>
-                        <input
-                          v-model="runtimeForm.s3Endpoint"
-                          class="config-input"
-                          type="url"
-                          autocomplete="off"
-                        >
-                      </label>
-                      <label class="config-field storage-fields__field">
-                        <span>S3_REGION</span>
-                        <input
-                          v-model="runtimeForm.s3Region"
-                          class="config-input"
-                          type="text"
-                          autocomplete="off"
-                        >
-                      </label>
-                      <label class="config-field storage-fields__field storage-fields__field--toggle">
-                        <span>S3_FORCE_PATH_STYLE</span>
-                        <button
-                          type="button"
-                          class="toggle"
-                          :class="{ 'toggle--on': runtimeForm.s3ForcePathStyle }"
-                          :aria-checked="runtimeForm.s3ForcePathStyle"
-                          role="switch"
-                          @click="runtimeForm.s3ForcePathStyle = !runtimeForm.s3ForcePathStyle"
-                        >
-                          <span class="toggle__thumb" />
-                        </button>
-                      </label>
-                    </div>
+                  <div class="storage-fields__grid">
+                    <label class="config-field storage-fields__field">
+                      <span>{{ t('settings.runtime.storage.bucketLabel') }}</span>
+                      <input
+                        v-model="runtimeForm.s3Bucket"
+                        class="config-input"
+                        type="text"
+                        autocomplete="off"
+                      >
+                    </label>
+                    <label class="config-field storage-fields__field">
+                      <span>{{ t('settings.runtime.storage.endpointLabel') }}</span>
+                      <input
+                        v-model="runtimeForm.s3Endpoint"
+                        class="config-input"
+                        type="url"
+                        autocomplete="off"
+                      >
+                    </label>
+                    <label class="config-field storage-fields__field">
+                      <span>{{ t('settings.runtime.storage.regionLabel') }}</span>
+                      <input
+                        v-model="runtimeForm.s3Region"
+                        class="config-input"
+                        type="text"
+                        autocomplete="off"
+                      >
+                    </label>
+                    <div />
                   </div>
                   <div class="storage-fields__section">
-                    <div class="storage-fields__section-title">Credentials</div>
                     <div class="storage-fields__grid">
                       <label class="config-field storage-fields__field storage-fields__field--wide">
-                        <span>S3_ACCESS_KEY_ID</span>
+                        <span>{{ t('settings.runtime.storage.accessKeyLabel') }}</span>
                         <input
                           v-model="runtimeForm.s3AccessKeyId"
                           class="config-input"
@@ -650,7 +630,7 @@ const activeLanguageHint = computed(() => {
                         >
                       </label>
                       <label class="config-field storage-fields__field storage-fields__field--wide">
-                        <span>S3_SECRET_ACCESS_KEY</span>
+                        <span>{{ t('settings.runtime.storage.secretKeyLabel') }}</span>
                         <input
                           v-model="runtimeForm.s3SecretAccessKey"
                           class="config-input"
@@ -1410,14 +1390,6 @@ const activeLanguageHint = computed(() => {
   gap: 0.5rem;
 }
 
-.storage-fields__section-title {
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-secondary);
-}
-
 .storage-fields__grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1430,19 +1402,6 @@ const activeLanguageHint = computed(() => {
 
 .storage-fields__field--wide {
   grid-column: 1 / -1;
-}
-
-.storage-fields__field--toggle {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  min-height: 2.5rem;
-  padding: 0 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  background: var(--bg-primary);
 }
 
 .storage-fields__note {

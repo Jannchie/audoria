@@ -167,6 +167,22 @@ function readCsvEnv<T extends string>(
   return [...new Set(values)] as T[]
 }
 
+function detectS3ForcePathStyle(endpoint: string): boolean {
+  try {
+    const url = new URL(endpoint)
+    if (url.hostname === 'localhost' || url.hostname === '127.0.0.1' || /^\d+\.\d+\.\d+\.\d+$/.test(url.hostname)) {
+      return true
+    }
+    if (url.port) {
+      return true
+    }
+    return false
+  }
+  catch {
+    return true
+  }
+}
+
 function loadStorageConfig(source: ConfigSource): AppConfig['storage'] {
   const backendValue = source.STORAGE_BACKEND ?? 's3'
   if (backendValue !== 's3' && backendValue !== 'fs') {
@@ -182,15 +198,18 @@ function loadStorageConfig(source: ConfigSource): AppConfig['storage'] {
     }
   }
 
+  const s3Endpoint = source.S3_ENDPOINT
+  const forcePathStyle = s3Endpoint ? detectS3ForcePathStyle(s3Endpoint) : true
+
   return {
     backend: 's3',
     s3: {
       bucket: requireEnv(source, 'S3_BUCKET'),
-      endpoint: source.S3_ENDPOINT,
+      endpoint: s3Endpoint,
       region: source.S3_REGION ?? 'us-east-1',
       accessKeyId: requireEnv(source, 'S3_ACCESS_KEY_ID'),
       secretAccessKey: requireEnv(source, 'S3_SECRET_ACCESS_KEY'),
-      forcePathStyle: source.S3_FORCE_PATH_STYLE !== 'false',
+      forcePathStyle,
     },
   }
 }

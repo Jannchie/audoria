@@ -8,7 +8,7 @@ import { Readable } from 'node:stream'
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import { getCookie, setCookie } from 'hono/cookie'
 import { cors } from 'hono/cors'
-import { aiProviderApiKeyEnvNames, aiProviderDefinitions, config, loadConfig, mergeConfigSources, pickSecretConfigSource, readPersistedConfigSource } from './config.js'
+import { aiProviderApiKeyEnvNames, config, loadConfig, mergeConfigSources, pickSecretConfigSource, readPersistedConfigSource } from './config.js'
 import { applyConfigOverrides, writePersistedConfigOverrides } from './configOverrides.js'
 import {
   addTrackToPlaylist,
@@ -315,7 +315,6 @@ const AppConfigUpdateSchema = z.object({
       bucket: z.string().trim().min(1),
       endpoint: z.string().trim().nullable().optional(),
       region: z.string().trim().min(1),
-      forcePathStyle: z.boolean(),
       accessKeyId: z.string().optional(),
       secretAccessKey: z.string().optional(),
     }),
@@ -449,7 +448,6 @@ function toConfigOverrides(update: AppConfigUpdate): ConfigOverrides {
     overrides.S3_BUCKET = update.storage.bucket
     overrides.S3_ENDPOINT = update.storage.endpoint?.trim() || null
     overrides.S3_REGION = update.storage.region
-    overrides.S3_FORCE_PATH_STYLE = update.storage.forcePathStyle ? 'true' : 'false'
     assignOptionalSecret(overrides, 'S3_ACCESS_KEY_ID', update.storage.accessKeyId)
     assignOptionalSecret(overrides, 'S3_SECRET_ACCESS_KEY', update.storage.secretAccessKey)
   }

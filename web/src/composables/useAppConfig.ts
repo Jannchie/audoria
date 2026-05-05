@@ -62,7 +62,6 @@ export interface AppConfigUpdate {
       bucket: string
       endpoint?: string | null
       region: string
-      forcePathStyle: boolean
       accessKeyId?: string
       secretAccessKey?: string
     }
