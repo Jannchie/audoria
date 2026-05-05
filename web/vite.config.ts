@@ -32,6 +32,7 @@ export default defineConfig({
     }),
     VitePWA({
       registerType: 'autoUpdate',
+      injectRegister: false,
       includeAssets: ['audoria.svg'],
       manifest: {
         name: 'Audoria',
