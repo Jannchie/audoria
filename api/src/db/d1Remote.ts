@@ -1,5 +1,5 @@
-import { drizzle } from 'drizzle-orm/d1'
 import type { D1HttpConfig } from '../config.js'
+import { drizzle } from 'drizzle-orm/d1'
 import { setDb } from './index.js'
 import * as schema from './schema.js'
 
@@ -37,17 +37,17 @@ interface D1ApiEnvelope<T> {
 type D1Value = string | number | boolean | null | ArrayBuffer | Uint8Array
 
 interface D1PreparedStatementLike {
-  bind(...values: D1Value[]): D1PreparedStatementLike
-  first<T = Record<string, unknown>>(columnName?: string): Promise<T | null>
-  run<T = D1QueryResult>(): Promise<T>
-  all<T = D1QueryResult>(): Promise<T>
-  raw<T = unknown[]>(): Promise<T[]>
+  bind: (...values: D1Value[]) => D1PreparedStatementLike
+  first: <T = Record<string, unknown>>(columnName?: string) => Promise<T | null>
+  run: <T = D1QueryResult>() => Promise<T>
+  all: <T = D1QueryResult>() => Promise<T>
+  raw: <T = unknown[]>() => Promise<T[]>
 }
 
 interface D1DatabaseLike {
-  prepare(query: string): D1PreparedStatementLike
-  batch<T = D1QueryResult>(statements: D1PreparedStatementLike[]): Promise<T[]>
-  exec(query: string): Promise<D1QueryResult>
+  prepare: (query: string) => D1PreparedStatementLike
+  batch: <T = D1QueryResult>(statements: D1PreparedStatementLike[]) => Promise<T[]>
+  exec: (query: string) => Promise<D1QueryResult>
 }
 
 function toErrorMessage(status: number, body: string): string {
@@ -121,7 +121,7 @@ class D1RemoteDatabase implements D1DatabaseLike {
   constructor(private readonly config: D1HttpConfig) {
     this.baseUrl = `${config.apiBaseUrl.replace(/\/+$/, '')}/accounts/${config.accountId}/d1/database/${config.databaseId}`
     this.headers = {
-      Authorization: `Bearer ${config.apiToken}`,
+      'Authorization': `Bearer ${config.apiToken}`,
       'Content-Type': 'application/json',
     }
   }

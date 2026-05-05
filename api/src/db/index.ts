@@ -65,7 +65,7 @@ async function reindexPlaylistTracksWithinTransaction(playlistId: string): Promi
   for (const [index, item] of items.entries()) {
     await queryRun(db.update(schema.playlistTracks)
       .set({ position: index })
-      .where(and(eq(schema.playlistTracks.playlistId, playlistId), eq(schema.playlistTracks.trackId, item.trackId)))
+      .where(and(eq(schema.playlistTracks.playlistId, playlistId), eq(schema.playlistTracks.trackId, item.trackId))),
     )
   }
 }
@@ -95,7 +95,7 @@ export async function updateTrackEditableMetadata(id: string, metadata: {
       source: metadata.source,
       lyrics: metadata.lyrics,
     })
-    .where(eq(schema.tracks.id, id))
+    .where(eq(schema.tracks.id, id)),
   )
 }
 
@@ -118,7 +118,7 @@ export async function updateTrackCover(id: string, cover: {
       coverThumbContentType: cover.thumbContentType,
       coverThumbhash: cover.thumbhash,
     })
-    .where(eq(schema.tracks.id, id))
+    .where(eq(schema.tracks.id, id)),
   )
 }
 
@@ -157,7 +157,7 @@ export async function updateTrackImportedMetadata(id: string, metadata: {
       durationText: metadata.durationText,
       durationSeconds: metadata.durationSeconds,
     })
-    .where(eq(schema.tracks.id, id))
+    .where(eq(schema.tracks.id, id)),
   )
 }
 
@@ -180,7 +180,7 @@ export async function listPlaylists(): Promise<schema.PlaylistSummary[]> {
       })
       .from(schema.playlistTracks)
       .leftJoin(schema.tracks, eq(schema.playlistTracks.trackId, schema.tracks.id))
-      .where(eq(schema.playlistTracks.playlistId, playlist.id))
+      .where(eq(schema.playlistTracks.playlistId, playlist.id)),
     )
 
     const previewCovers = await queryAll<Array<{ trackId: string, coverThumbhash: string | null }>>(db
@@ -195,7 +195,7 @@ export async function listPlaylists(): Promise<schema.PlaylistSummary[]> {
         sql`(${schema.tracks.coverThumbStorageKey} IS NOT NULL OR ${schema.tracks.coverStorageKey} IS NOT NULL)`,
       ))
       .orderBy(asc(schema.playlistTracks.position), asc(schema.playlistTracks.createdAt))
-      .limit(4)
+      .limit(4),
     )
 
     return {
@@ -238,7 +238,7 @@ export async function updatePlaylist(id: string, input: {
       description: input.description,
       updatedAt: Date.now(),
     })
-    .where(eq(schema.playlists.id, id))
+    .where(eq(schema.playlists.id, id)),
   )
 }
 
@@ -288,7 +288,7 @@ export async function addTrackToPlaylist(playlistId: string, trackId: string): P
       position: sql<number>`max(${schema.playlistTracks.position})`,
     })
     .from(schema.playlistTracks)
-    .where(eq(schema.playlistTracks.playlistId, playlistId))
+    .where(eq(schema.playlistTracks.playlistId, playlistId)),
   )
 
   await queryRun(db.insert(schema.playlistTracks).values({
@@ -300,14 +300,14 @@ export async function addTrackToPlaylist(playlistId: string, trackId: string): P
 
   await queryRun(db.update(schema.playlists)
     .set({ updatedAt: Date.now() })
-    .where(eq(schema.playlists.id, playlistId))
+    .where(eq(schema.playlists.id, playlistId)),
   )
 }
 
 export async function removeTrackFromPlaylist(playlistId: string, trackId: string): Promise<boolean> {
   return await runTransaction(async () => {
     const deleted = await queryRun<{ changes: number }>(db.delete(schema.playlistTracks)
-      .where(and(eq(schema.playlistTracks.playlistId, playlistId), eq(schema.playlistTracks.trackId, trackId)))
+      .where(and(eq(schema.playlistTracks.playlistId, playlistId), eq(schema.playlistTracks.trackId, trackId))),
     )
 
     if (deleted.changes === 0) {
@@ -317,7 +317,7 @@ export async function removeTrackFromPlaylist(playlistId: string, trackId: strin
     await reindexPlaylistTracksWithinTransaction(playlistId)
     await queryRun(db.update(schema.playlists)
       .set({ updatedAt: Date.now() })
-      .where(eq(schema.playlists.id, playlistId))
+      .where(eq(schema.playlists.id, playlistId)),
     )
     return true
   })
@@ -328,13 +328,13 @@ export async function reorderPlaylistTracks(playlistId: string, orderedTrackIds:
     for (const [index, trackId] of orderedTrackIds.entries()) {
       await queryRun(db.update(schema.playlistTracks)
         .set({ position: index })
-        .where(and(eq(schema.playlistTracks.playlistId, playlistId), eq(schema.playlistTracks.trackId, trackId)))
+        .where(and(eq(schema.playlistTracks.playlistId, playlistId), eq(schema.playlistTracks.trackId, trackId))),
       )
     }
 
     await queryRun(db.update(schema.playlists)
       .set({ updatedAt: Date.now() })
-      .where(eq(schema.playlists.id, playlistId))
+      .where(eq(schema.playlists.id, playlistId)),
     )
   })
 }
@@ -370,7 +370,7 @@ export async function listAllTrackPlaylistPairs(): Promise<Map<string, string[]>
       trackId: schema.playlistTracks.trackId,
       playlistId: schema.playlistTracks.playlistId,
     })
-    .from(schema.playlistTracks)
+    .from(schema.playlistTracks),
   )
 
   const map = new Map<string, string[]>()
@@ -405,7 +405,7 @@ export async function removeTrackFromAllPlaylists(trackId: string): Promise<void
       await reindexPlaylistTracksWithinTransaction(playlistId)
       await queryRun(db.update(schema.playlists)
         .set({ updatedAt: Date.now() })
-        .where(eq(schema.playlists.id, playlistId))
+        .where(eq(schema.playlists.id, playlistId)),
       )
     }
   })
@@ -485,7 +485,7 @@ export async function requeueRunningMusicImportJobs(): Promise<void> {
       totalBytes: null,
       progressPercent: null,
     })
-    .where(eq(schema.musicImportJobs.status, 'running'))
+    .where(eq(schema.musicImportJobs.status, 'running')),
   )
 }
 
@@ -494,7 +494,7 @@ export async function claimNextQueuedMusicImportJob(): Promise<schema.MusicImpor
     .select()
     .from(schema.musicImportJobs)
     .where(eq(schema.musicImportJobs.status, 'queued'))
-    .orderBy(schema.musicImportJobs.createdAt)
+    .orderBy(schema.musicImportJobs.createdAt),
   )
 
   if (!queuedJob) {
@@ -512,7 +512,7 @@ export async function claimNextQueuedMusicImportJob(): Promise<schema.MusicImpor
       totalBytes: null,
       progressPercent: null,
     })
-    .where(and(eq(schema.musicImportJobs.id, queuedJob.id), eq(schema.musicImportJobs.status, 'queued')))
+    .where(and(eq(schema.musicImportJobs.id, queuedJob.id), eq(schema.musicImportJobs.status, 'queued'))),
   )
 
   if (updateResult.changes === 0) {
@@ -539,7 +539,7 @@ export async function updateMusicImportJobProgress(id: string, progress: {
       progressPercent,
       updatedAt: Date.now(),
     })
-    .where(eq(schema.musicImportJobs.id, id))
+    .where(eq(schema.musicImportJobs.id, id)),
   )
 }
 
@@ -556,7 +556,7 @@ export async function markMusicImportJobSucceeded(id: string, trackId: string, s
       finishedAt: now,
       errorMessage: null,
     })
-    .where(eq(schema.musicImportJobs.id, id))
+    .where(eq(schema.musicImportJobs.id, id)),
   )
 }
 
@@ -569,6 +569,6 @@ export async function markMusicImportJobFailed(id: string, errorMessage: string)
       updatedAt: now,
       finishedAt: now,
     })
-    .where(eq(schema.musicImportJobs.id, id))
+    .where(eq(schema.musicImportJobs.id, id)),
   )
 }
