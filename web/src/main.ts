@@ -27,7 +27,14 @@ async function setupPWAAutoUpdate() {
   }
 
   try {
-    const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
+    // updateViaCache: 'none' ensures the browser always fetches sw.js from
+    // the network, never from HTTP cache.  This is critical: if sw.js is
+    // served stale (e.g. by a CDN), the old precache manifest keeps the
+    // entire app frozen at the previous deploy.
+    const registration = await navigator.serviceWorker.register('/sw.js', {
+      scope: '/',
+      updateViaCache: 'none',
+    })
 
     const isUpdate = Boolean(registration.active)
 
@@ -47,6 +54,13 @@ async function setupPWAAutoUpdate() {
 
     // Listen for updates that start after the page loads.
     registration.addEventListener('updatefound', () => notify(registration.installing))
+
+    // Periodically check for SW updates (every 5 minutes).  The browser also
+    // checks on navigation / focus, but if the user keeps the tab open the
+    // default 24 h check interval is too long.
+    setInterval(() => {
+      registration.update().catch(() => { /* ignore network errors */ })
+    }, 5 * 60 * 1000)
   }
   catch (error) {
     console.warn('[PWA] SW registration failed:', error)

@@ -39,10 +39,19 @@ if (existsSync(frontendDistPath)) {
 
     if (fullPath.startsWith(frontendDistPath) && existsSync(fullPath)) {
       const ext = path.extname(fullPath)
+      const basename = path.basename(fullPath)
       const content = readFileSync(fullPath)
+
+      // sw.js and workbox bundles must never be cached — they carry the
+      // precache revision list.  Stale SW means stale app forever.
+      const isServiceWorker = basename === 'sw.js' || basename.startsWith('workbox-')
+      const cacheControl = ext === '.html' || isServiceWorker
+        ? 'no-store, max-age=0'
+        : 'public, max-age=31536000, immutable'
+
       return c.body(content, 200, {
         'Content-Type': mimeTypes[ext] ?? 'application/octet-stream',
-        'Cache-Control': ext === '.html' ? 'no-cache' : 'public, max-age=31536000, immutable',
+        'Cache-Control': cacheControl,
       })
     }
 
