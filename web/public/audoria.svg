@@ -8,7 +8,7 @@
     </linearGradient>
   </defs>
 
-  <rect width="512" height="512" rx="120" fill="url(#audoria-bg)"/>
+  <rect width="512" height="512" fill="url(#audoria-bg)"/>
 
   <rect x="112" y="248" width="40" height="120" rx="20" fill="white" opacity="0.6"/>
   <rect x="176" y="168" width="40" height="200" rx="20" fill="white" opacity="0.8"/>

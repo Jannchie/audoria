@@ -19,6 +19,7 @@ onMounted(() => {
 })
 
 useKeyboardShortcuts()
+useMediaSession()
 
 const authReady = computed(() => status.value !== 'loading')
 
