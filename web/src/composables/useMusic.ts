@@ -3,7 +3,7 @@ import type { Music, MusicDlSearchResult, MusicDlSource, MusicImportJob } from '
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed } from 'vue'
 import { client } from '../api/client.gen'
-import { deleteMusicById, getMusic, getMusicImportsById, postMusic, postMusicImports, postMusicImportsSearch } from '../api/sdk.gen'
+import { deleteMusicById, getMusicImportsById, postMusic, postMusicImports, postMusicImportsSearch } from '../api/sdk.gen'
 import { translate } from '../i18n'
 
 export const musicQueryKey = ['music'] as const
@@ -30,12 +30,20 @@ export function resolveApiUrl(path: string): string {
   }
 }
 
-export function useMusicQuery() {
+export function useMusicQuery(sortKey?: Ref<string | undefined>) {
+  const order = computed(() => sortKey?.value)
   return useQuery({
-    queryKey: musicQueryKey,
+    queryKey: computed(() => [...musicQueryKey, order.value]),
     queryFn: async (): Promise<Music[]> => {
-      const response = await getMusic({ throwOnError: true })
-      return response.data
+      const baseUrl = client.getConfig().baseUrl ?? ''
+      const url = order.value === 'manual'
+        ? `${baseUrl}/music?order=manual`
+        : `${baseUrl}/music`
+      const response = await fetch(url)
+      if (!response.ok) {
+        await parseJsonError(response, 'errors.loadFailed')
+      }
+      return await response.json() as Music[]
     },
     staleTime: 10_000,
   })
@@ -208,6 +216,29 @@ export function useDeleteCover() {
       return await response.json() as Music
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: musicQueryKey }).catch(() => {})
+    },
+  })
+}
+
+export function useReorderMusic() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (orderedIds: string[]): Promise<Music[]> => {
+      const baseUrl = client.getConfig().baseUrl ?? ''
+      const response = await fetch(`${baseUrl}/music/reorder`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderedIds }),
+      })
+      if (!response.ok) {
+        await parseJsonError(response, 'errors.updateFailedStatus')
+      }
+      return await response.json() as Music[]
+    },
+    onSuccess: (tracks) => {
+      queryClient.setQueryData<Music[]>(musicQueryKey, tracks)
       queryClient.invalidateQueries({ queryKey: musicQueryKey }).catch(() => {})
     },
   })

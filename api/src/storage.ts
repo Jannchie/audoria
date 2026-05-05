@@ -462,6 +462,7 @@ export async function storeTrack({
       size: tempFile.size,
       contentType,
       lyrics: null,
+      sortOrder: null,
       createdAt,
     }
 

@@ -72,7 +72,12 @@ async function reindexPlaylistTracksWithinTransaction(playlistId: string): Promi
 
 // ── Track queries ──
 
-export async function listTracks(): Promise<schema.Track[]> {
+export async function listTracks(order?: 'manual' | 'default'): Promise<schema.Track[]> {
+  if (order === 'manual') {
+    return await queryAll<schema.Track[]>(
+      db.select().from(schema.tracks).orderBy(asc(schema.tracks.sortOrder), desc(schema.tracks.createdAt)),
+    )
+  }
   return await queryAll<schema.Track[]>(db.select().from(schema.tracks).orderBy(desc(schema.tracks.createdAt)))
 }
 
@@ -163,6 +168,17 @@ export async function updateTrackImportedMetadata(id: string, metadata: {
 
 export async function deleteTrackRecord(id: string): Promise<void> {
   await queryRun(db.delete(schema.tracks).where(eq(schema.tracks.id, id)))
+}
+
+export async function reorderTracks(orderedTrackIds: string[]): Promise<void> {
+  await runTransaction(async () => {
+    for (const [index, trackId] of orderedTrackIds.entries()) {
+      await queryRun(db.update(schema.tracks)
+        .set({ sortOrder: index })
+        .where(eq(schema.tracks.id, trackId)),
+      )
+    }
+  })
 }
 
 // ── Playlist queries ──

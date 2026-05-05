@@ -265,6 +265,7 @@ declare global {
   const useRafFn: typeof import('@vueuse/core').useRafFn
   const useRefHistory: typeof import('@vueuse/core').useRefHistory
   const useRemoveTrackFromPlaylist: typeof import('./composables/usePlaylists').useRemoveTrackFromPlaylist
+  const useReorderMusic: typeof import('./composables/useMusic').useReorderMusic
   const useReorderPlaylistTracks: typeof import('./composables/usePlaylists').useReorderPlaylistTracks
   const useResizeObserver: typeof import('@vueuse/core').useResizeObserver
   const useSSRWidth: typeof import('@vueuse/core').useSSRWidth

@@ -113,6 +113,7 @@ export function initSqlite(dbPath: string): void {
       size INTEGER NOT NULL,
       content_type TEXT,
       lyrics TEXT,
+      sort_order INTEGER,
       created_at INTEGER NOT NULL
     );
 
@@ -227,6 +228,9 @@ export function initSqlite(dbPath: string): void {
   }
   if (!trackColumns.some(column => column.name === 'lyrics')) {
     sqlite.exec('ALTER TABLE tracks ADD COLUMN lyrics TEXT')
+  }
+  if (!trackColumns.some(column => column.name === 'sort_order')) {
+    sqlite.exec('ALTER TABLE tracks ADD COLUMN sort_order INTEGER')
   }
 
   if (hasLegacyS3Key) {

@@ -197,6 +197,7 @@ export const messages = {
       inPlaylists: 'In: {names}',
       sort: {
         label: 'Sort',
+        manual: 'Custom order',
         addedDesc: 'Recently added',
         nameAsc: 'Name (A–Z)',
         nameDesc: 'Name (Z–A)',
@@ -576,6 +577,7 @@ export const messages = {
       inPlaylists: '所属：{names}',
       sort: {
         label: '排序',
+        manual: '自定义顺序',
         addedDesc: '最近添加',
         nameAsc: '名称（A-Z）',
         nameDesc: '名称（Z-A）',

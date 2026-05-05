@@ -23,6 +23,7 @@ export const tracks = sqliteTable('tracks', {
   size: integer('size', { mode: 'number' }).notNull(),
   contentType: text('content_type'),
   lyrics: text('lyrics'),
+  sortOrder: integer('sort_order', { mode: 'number' }),
   createdAt: integer('created_at', { mode: 'number' }).notNull(),
 })
 

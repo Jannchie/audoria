@@ -27,6 +27,7 @@ import {
   listAllTrackPlaylistPairs,
   listPlaylists,
   listTracks,
+  reorderTracks,
   pruneExpiredMusicImportCandidates,
   removeTrackFromAllPlaylists,
   removeTrackFromPlaylist,
@@ -1024,6 +1025,11 @@ const listMusicRoute = createRoute({
   method: 'get',
   path: '/music',
   summary: 'List uploaded music metadata',
+  request: {
+    query: z.object({
+      order: z.enum(['default', 'manual']).optional(),
+    }),
+  },
   responses: {
     200: {
       description: 'List of music files',
@@ -1037,7 +1043,8 @@ const listMusicRoute = createRoute({
 })
 
 api.openapi(listMusicRoute, async (c) => {
-  const items = await listTracks()
+  const order = c.req.valid('query').order
+  const items = await listTracks(order)
   const playlistMap = await listAllTrackPlaylistPairs()
   return c.json(items.map(item => toMusicResponse(item, playlistMap.get(item.id) ?? [])))
 })
@@ -1837,6 +1844,58 @@ api.openapi(updateMusicRoute, async (c) => {
   }
   const playlistIds = await getPlaylistIdsForTracks([updated.id])
   return c.json(toMusicResponse(updated, playlistIds.get(updated.id) ?? []), 200)
+})
+
+const MusicReorderRequestSchema = z.object({
+  orderedIds: z.array(z.string().min(1)).max(20_000),
+}).openapi('MusicReorderRequest')
+
+const reorderMusicRoute = createRoute({
+  method: 'patch',
+  path: '/music/reorder',
+  summary: 'Reorder tracks in the library (manual sort order)',
+  request: {
+    body: {
+      content: {
+        'application/json': {
+          schema: MusicReorderRequestSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: 'Order updated',
+      content: {
+        'application/json': {
+          schema: z.array(MusicSchema),
+        },
+      },
+    },
+    400: {
+      description: 'Invalid order',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+})
+
+api.openapi(reorderMusicRoute, async (c) => {
+  const { orderedIds } = c.req.valid('json')
+
+  const existingTracks = await listTracks('manual')
+  const existingIds = new Set(existingTracks.map(t => t.id))
+
+  if (orderedIds.length !== existingIds.size || orderedIds.some(id => !existingIds.has(id))) {
+    return c.json({ message: 'Track order does not match library contents' }, 400)
+  }
+
+  await reorderTracks(orderedIds)
+  const playlistMap = await listAllTrackPlaylistPairs()
+  return c.json(existingTracks.map(item => toMusicResponse(item, playlistMap.get(item.id) ?? [])), 200)
 })
 
 const updateCoverRoute = createRoute({

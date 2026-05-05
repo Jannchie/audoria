@@ -8,7 +8,7 @@ import MetadataEditDialog from '../components/MetadataEditDialog.vue'
 import SoundWave from '../components/SoundWave.vue'
 import { useContextMenu } from '../composables/useContextMenu'
 import { useListSelection } from '../composables/useListSelection'
-import { resolveApiUrl, useDeleteMusic, useMusicQuery } from '../composables/useMusic'
+import { resolveApiUrl, useDeleteMusic, useMusicQuery, useReorderMusic } from '../composables/useMusic'
 import { usePlayerState } from '../composables/usePlayerState'
 import { usePlaylistsQuery } from '../composables/usePlaylists'
 import { useTrackContextMenu } from '../composables/useTrackContextMenu'
@@ -22,21 +22,25 @@ const skeletonTitleWidths = [72, 56, 80, 48, 68, 60, 76, 52]
 const skeletonMetaWidths = [38, 30, 44, 26, 40, 34, 48, 32]
 
 const { t } = useI18n()
-const { data: tracks, isPending, isError, error } = useMusicQuery()
+const sortKey = ref<TrackSortKey>((globalThis.sessionStorage.getItem(librarySortStateKey) ?? 'addedDesc') as TrackSortKey)
+const { data: tracks, isPending, isError, error } = useMusicQuery(
+  computed(() => sortKey.value === 'manual' ? 'manual' : undefined),
+)
 const { data: playlists } = usePlaylistsQuery()
 const deleteMutation = useDeleteMusic()
+const reorderMutation = useReorderMusic()
 const { currentTrackId, isPlaying, selectTrack, setPlaying } = usePlayerState()
 const { buildItems } = useTrackContextMenu()
 const { openFromEvent, openFromAnchor } = useContextMenu()
 
-const librarySortKeys: TrackSortKey[] = ['addedDesc', 'nameAsc', 'nameDesc', 'artistAsc', 'durationDesc', 'durationAsc']
-function isLibrarySortKey(value: string): value is TrackSortKey {
-  return (librarySortKeys as string[]).includes(value)
-}
+const librarySortKeys: TrackSortKey[] = ['manual', 'addedDesc', 'nameAsc', 'nameDesc', 'artistAsc', 'durationDesc', 'durationAsc']
 
 const search = ref(globalThis.sessionStorage.getItem(librarySearchStateKey) ?? '')
-const initialSort = globalThis.sessionStorage.getItem(librarySortStateKey) ?? ''
-const sortKey = ref<TrackSortKey>(isLibrarySortKey(initialSort) ? initialSort : 'addedDesc')
+
+// Drag-and-drop state for manual ordering
+const dragTrackId = ref<string | null>(null)
+const dragOverTrackId = ref<string | null>(null)
+const pendingOrder = ref<string[] | null>(null)
 
 watch(search, (value) => {
   globalThis.sessionStorage.setItem(librarySearchStateKey, value)
@@ -44,6 +48,9 @@ watch(search, (value) => {
 
 watch(sortKey, (value) => {
   globalThis.sessionStorage.setItem(librarySortStateKey, value)
+  if (value !== 'manual') {
+    pendingOrder.value = null
+  }
 })
 
 const playlistNameMap = computed(() => {
@@ -78,17 +85,28 @@ function playlistSummaryFor(track: Music): string {
 const filteredTracks = computed(() => {
   const keyword = search.value.trim().toLowerCase()
   const list = tracks.value ?? []
+  const override = pendingOrder.value
+  const base = override
+    ? (() => {
+        const map = new Map(list.map(t => [t.id, t]))
+        const ordered = override.map(id => map.get(id)).filter(Boolean) as Music[]
+        const remaining = list.filter(t => !override.includes(t.id))
+        return [...ordered, ...remaining]
+      })()
+    : list
   const searched = keyword
-    ? list.filter((item) => {
+    ? base.filter((item: Music) => {
         const searchable = [item.filename, item.title, item.artists, item.album]
           .filter(Boolean)
           .join(' ')
           .toLowerCase()
         return searchable.includes(keyword)
       })
-    : list
+    : base
   return sortTracks(searched, sortKey.value)
 })
+
+const isManualOrder = computed(() => sortKey.value === 'manual')
 
 function openSortMenu(event: MouseEvent): void {
   event.stopPropagation()
@@ -228,6 +246,65 @@ function openBatchMenu(event: MouseEvent): void {
   if (anchor) {
     openFromAnchor(anchor, items)
   }
+}
+
+// ── Drag-and-drop reorder ──
+
+function handleDragStart(trackId: string, event: DragEvent): void {
+  if (!isManualOrder.value) {
+    return
+  }
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+  }
+  dragTrackId.value = trackId
+}
+
+function handleDragOver(targetTrackId: string, event: DragEvent): void {
+  if (!dragTrackId.value || dragTrackId.value === targetTrackId) {
+    return
+  }
+  event.preventDefault()
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'move'
+  }
+  dragOverTrackId.value = targetTrackId
+}
+
+async function handleDrop(targetTrackId: string, event: DragEvent): Promise<void> {
+  event.preventDefault()
+  const sourceId = dragTrackId.value
+  dragTrackId.value = null
+  dragOverTrackId.value = null
+
+  if (!sourceId || sourceId === targetTrackId) {
+    return
+  }
+
+  const list = (tracks.value ?? []).map(t => t.id)
+  const sourceIndex = list.indexOf(sourceId)
+  const targetIndex = list.indexOf(targetTrackId)
+  if (sourceIndex === -1 || targetIndex === -1) {
+    return
+  }
+
+  const nextOrder = [...list]
+  nextOrder.splice(sourceIndex, 1)
+  nextOrder.splice(targetIndex, 0, sourceId)
+
+  pendingOrder.value = nextOrder
+  try {
+    await reorderMutation.mutateAsync(nextOrder)
+    pendingOrder.value = null
+  }
+  catch {
+    pendingOrder.value = null
+  }
+}
+
+function handleDragEnd(): void {
+  dragTrackId.value = null
+  dragOverTrackId.value = null
 }
 </script>
 
@@ -373,7 +450,10 @@ function openBatchMenu(event: MouseEvent): void {
         :class="{
           'tr--active': currentTrackId === track.id,
           'tr--selected': selection.isSelected(track.id),
+          'tr--dragging': dragTrackId === track.id,
+          'tr--drag-over': dragOverTrackId === track.id && dragTrackId !== track.id,
         }"
+        :draggable="isManualOrder"
         role="button"
         tabindex="0"
         :aria-label="currentTrackId === track.id && isPlaying ? t('library.pauseTrack', { title: track.title || track.filename }) : t('library.playTrack', { title: track.title || track.filename })"
@@ -382,6 +462,10 @@ function openBatchMenu(event: MouseEvent): void {
         @keydown.enter.prevent="activateTrack(track.id)"
         @keydown.space.prevent="activateTrack(track.id)"
         @contextmenu="handleContextMenu(track, $event)"
+        @dragstart="handleDragStart(track.id, $event)"
+        @dragover="handleDragOver(track.id, $event)"
+        @drop="handleDrop(track.id, $event)"
+        @dragend="handleDragEnd"
       >
         <div class="tr-cover">
           <LazyCoverImage
@@ -687,6 +771,13 @@ function openBatchMenu(event: MouseEvent): void {
 }
 .tr--active.tr--selected {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 36%, transparent);
+}
+
+.tr--dragging {
+  opacity: 0.4;
+}
+.tr--drag-over {
+  box-shadow: inset 0 0 0 2px var(--accent);
 }
 
 /* --- Cover --- */
