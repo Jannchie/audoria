@@ -289,6 +289,7 @@ watchEffect(() => {
   width: 100%;
   margin: 0 auto;
   padding: 0 1rem calc(9rem + env(safe-area-inset-bottom, 0.5rem));
+  padding-top: env(safe-area-inset-top, 0px);
 }
 
 @media (min-width: 768px) {
