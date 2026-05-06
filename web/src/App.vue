@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { RouterLink, RouterView, useRoute } from 'vue-router'
+import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import AudoriaLogo from './components/AudoriaLogo.vue'
 import ContextMenu from './components/ContextMenu.vue'
 import InputPromptDialog from './components/InputPromptDialog.vue'
@@ -13,6 +13,7 @@ import LoginPage from './pages/LoginPage.vue'
 
 const { t } = useI18n()
 const route = useRoute()
+const router = useRouter()
 const { status, isGuest, check } = useAuth()
 
 onMounted(() => {
@@ -35,7 +36,7 @@ const allNavItems = [
   { name: t('nav.settings'), path: '/settings', icon: 'i-tabler-settings' },
 ]
 
-const restrictedPaths = new Set(['/import', '/parse', '/upload'])
+const restrictedPaths: Set<string> = new Set(GUEST_RESTRICTED_PATHS)
 
 const loginNavItem = { name: t('nav.login'), path: '/login', icon: 'i-tabler-login' }
 
@@ -71,12 +72,32 @@ const currentPath = computed(() => route.path)
 const isPlayerPage = computed(() => route.path === '/player')
 const isLocked = useScrollLock(document.body)
 
+const showSafeAreaFill = computed(() =>
+  authReady.value && route.path !== '/login' && !isPlayerPage.value,
+)
+
+// Redirect guest users away from restricted routes once auth resolves
+watch(
+  [authReady, isGuest, () => route.path],
+  ([ready, guest, path]) => {
+    if (ready && guest && restrictedPaths.has(path)) {
+      router.replace('/library')
+    }
+  },
+)
+
 watchEffect(() => {
   isLocked.value = isPlayerPage.value
 })
 </script>
 
 <template>
+  <!-- Safe area fill: fixed bg strip behind the status bar (non-player pages) -->
+  <div
+    v-if="showSafeAreaFill"
+    class="safe-area-fill"
+  />
+
   <!-- Auth loading -->
   <div
     v-if="!authReady"
@@ -182,6 +203,17 @@ watchEffect(() => {
 </template>
 
 <style scoped>
+.safe-area-fill {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: env(safe-area-inset-top, 0px);
+  background: var(--bg-base);
+  z-index: 9;
+  pointer-events: none;
+}
+
 .auth-loading {
   display: flex;
   align-items: center;

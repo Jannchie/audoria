@@ -103,6 +103,7 @@ async function handleSubmit(): Promise<void> {
   min-height: 100vh;
   background: var(--bg-base);
   padding: 1.5rem;
+  padding-top: calc(1.5rem + env(safe-area-inset-top, 0px));
 }
 
 .login-card {

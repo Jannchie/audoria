@@ -1,6 +1,6 @@
 import { h } from 'vue'
 import { createRouter, createWebHistory } from 'vue-router'
-import { authStatus } from './composables/useAuth'
+import { authStatus, GUEST_RESTRICTED_PATHS } from './composables/useAuth'
 
 const scrollPositions = new Map<string, { left: number, top: number }>()
 
@@ -73,10 +73,11 @@ const router = createRouter({
   ],
 })
 
-const restrictedRoutes = ['/upload', '/import', '/parse']
-
 router.beforeEach((_to) => {
-  if (authStatus.value === 'guest' && restrictedRoutes.some(path => _to.path.startsWith(path))) {
+  if (authStatus.value === 'guest' && GUEST_RESTRICTED_PATHS.some(path => _to.path.startsWith(path))) {
+    return '/library'
+  }
+  if (authStatus.value === 'authenticated' && _to.path === '/login') {
     return '/library'
   }
 })

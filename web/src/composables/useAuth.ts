@@ -1,7 +1,9 @@
 import { computed, ref } from 'vue'
 import { client } from '../api/client.gen'
 
-export type AuthStatus = 'loading' | 'unauthenticated' | 'authenticated' | 'guest'
+export type AuthStatus = 'loading' | 'authenticated' | 'guest'
+
+export const GUEST_RESTRICTED_PATHS = ['/upload', '/import', '/parse'] as const
 
 export const authStatus = ref<AuthStatus>('loading')
 
@@ -50,14 +52,18 @@ export function useAuth() {
         setStoredGuestFlag(false)
         return
       }
+      // Auth server rejected — persist guest
+      if (response.status === 401 || response.status === 403) {
+        authStatus.value = 'guest'
+        setStoredGuestFlag(true)
+        return
+      }
     }
     catch {
-      // Network error
+      // Network error — guest without persisting, retry next visit
     }
 
-    // Not authenticated — default to guest mode
     authStatus.value = 'guest'
-    setStoredGuestFlag(true)
   }
 
   async function login(token: string): Promise<{ ok: boolean, message: string }> {
@@ -81,11 +87,6 @@ export function useAuth() {
     }
   }
 
-  function enterGuestMode(): void {
-    setStoredGuestFlag(true)
-    authStatus.value = 'guest'
-  }
-
   const isGuest = computed(() => authStatus.value === 'guest')
   const isAuthenticated = computed(() => authStatus.value === 'authenticated')
 
@@ -95,6 +96,5 @@ export function useAuth() {
     isAuthenticated,
     check,
     login,
-    enterGuestMode,
   }
 }

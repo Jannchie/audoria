@@ -140,6 +140,13 @@ const runtimeRestartRequired = ref(false)
 const activeSection = ref<SettingsSection>(isGuest.value ? 'appearance' : 'runtime')
 const expandedProvider = ref<ExpandedProvider>(null)
 
+// Switch to runtime section if user authenticates while on this page
+watch(isGuest, (now) => {
+  if (!now && activeSection.value !== 'runtime') {
+    activeSection.value = 'runtime'
+  }
+})
+
 watch(appConfig, (config) => {
   if (!config) {
     return

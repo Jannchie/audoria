@@ -4,7 +4,6 @@ export const messages = {
       loginPrompt: 'Enter your access token to continue',
       tokenPlaceholder: 'Access token',
       tokenLabel: 'Access token',
-      continueAsGuest: 'Continue as guest',
       goBack: 'Go back',
     },
     nav: {
@@ -388,7 +387,6 @@ export const messages = {
       loginPrompt: '请输入访问令牌以继续',
       tokenPlaceholder: '访问令牌',
       tokenLabel: '访问令牌',
-      continueAsGuest: '以游客身份继续',
       goBack: '返回',
     },
     nav: {
