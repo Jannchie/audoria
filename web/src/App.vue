@@ -187,7 +187,6 @@ watchEffect(() => {
   background: var(--bg-primary);
   border-bottom: 1px solid var(--border);
   padding-top: env(safe-area-inset-top, 0px);
-  transition: background 0.3s ease, border-color 0.3s ease;
 }
 
 @media (min-width: 768px) {
@@ -265,11 +264,11 @@ watchEffect(() => {
 }
 
 .topbar--floating .desktop-nav-item {
-  color: var(--text-tertiary);
+  color: rgba(255, 255, 255, 0.45);
 }
 
 .topbar--floating .desktop-nav-item:hover {
-  color: var(--text-primary);
+  color: rgba(255, 255, 255, 0.9);
   background: rgba(255, 255, 255, 0.08);
 }
 

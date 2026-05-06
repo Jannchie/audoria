@@ -1091,7 +1091,7 @@ onUnmounted(() => {
 }
 .track-artist {
   font-size: 0.8125rem;
-  color: var(--text-secondary);
+  color: rgba(255, 255, 255, 0.6);
   margin-top: 0.125rem;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1099,7 +1099,7 @@ onUnmounted(() => {
 }
 .track-specs {
   font-size: 0.75rem;
-  color: var(--text-tertiary);
+  color: rgba(255, 255, 255, 0.4);
   margin-top: 0.25rem;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1111,7 +1111,7 @@ onUnmounted(() => {
 }
 
 .track-source {
-  color: var(--text-secondary);
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .lyrics-toolbar {
@@ -1134,7 +1134,7 @@ onUnmounted(() => {
   min-height: 2rem;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(255, 255, 255, 0.06);
-  color: var(--text-secondary);
+  color: rgba(255, 255, 255, 0.6);
   border-radius: 0.5rem;
 }
 
@@ -1171,7 +1171,7 @@ onUnmounted(() => {
   gap: 0.35rem;
   padding: 0 0.55rem;
   font-size: 0.75rem;
-  color: var(--text-secondary);
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .lyrics-offset-field input {
@@ -1190,7 +1190,7 @@ onUnmounted(() => {
 }
 
 .lyrics-offset-unit {
-  color: var(--text-tertiary);
+  color: rgba(255, 255, 255, 0.4);
 }
 
 .lyrics-saving {
@@ -1198,7 +1198,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   width: 2rem;
-  color: var(--text-secondary);
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .lyrics-error {
@@ -1313,20 +1313,20 @@ onUnmounted(() => {
   font-weight: 600;
 }
 .lyric-line--past {
-  color: var(--text-tertiary);
+  color: rgba(255, 255, 255, 0.4);
   font-size: 0.9375rem;
 }
 .lyric-line--future {
-  color: var(--text-tertiary);
+  color: rgba(255, 255, 255, 0.4);
   font-size: 0.9375rem;
 }
 .lyric-line:hover {
-  color: var(--text-secondary);
+  color: rgba(255, 255, 255, 0.65);
 }
 
 .lyrics-plain {
   font-size: 0.9375rem;
-  color: var(--text-tertiary);
+  color: rgba(255, 255, 255, 0.4);
   line-height: 2;
   white-space: pre-wrap;
   word-break: break-word;
@@ -1406,7 +1406,7 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   font-size: 11px;
-  color: var(--text-tertiary);
+  color: rgba(255, 255, 255, 0.4);
   margin-top: 0.125rem;
   font-variant-numeric: tabular-nums;
 }
@@ -1451,16 +1451,16 @@ onUnmounted(() => {
   background: none;
   border: none;
   cursor: pointer;
-  color: var(--text-tertiary);
+  color: rgba(255, 255, 255, 0.45);
   transition: color 0.15s ease;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0.25rem;
 }
-.ctrl-btn:hover { color: var(--text-secondary); }
+.ctrl-btn:hover { color: rgba(255, 255, 255, 0.7); }
 .ctrl-btn--sm { font-size: 1.125rem; }
-.ctrl-btn--md { font-size: 1.5rem; color: var(--text-secondary); }
+.ctrl-btn--md { font-size: 1.5rem; color: rgba(255, 255, 255, 0.65); }
 .ctrl-btn--md:hover {  color: var(--text-primary); }
 .ctrl-btn--active { color: var(--accent) !important; }
 
