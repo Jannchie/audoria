@@ -48,6 +48,8 @@ const {
   getResumeTime,
   syncTrackContext,
   upNextQueue,
+  seekTarget,
+  finalizeSeek,
 } = usePlayerState()
 const { toggle: toggleQueuePanel, isOpen: isQueueOpen } = useQueuePanel()
 
@@ -212,11 +214,24 @@ function handleTimeUpdate(): void {
   if (!audio) {
     return
   }
+  // Level 1: skip timeupdate during pending seek (race-condition guard)
+  if (seekTarget.value !== null) {
+    return
+  }
   if (pendingResumeTime.value !== null && audio.currentTime < Math.max(0, pendingResumeTime.value - 0.5)) {
     return
   }
   pendingResumeTime.value = null
   updateProgress(audio.currentTime, audio.duration || duration.value)
+}
+
+function handleSeeked(): void {
+  const audio = audioRef.value
+  if (!audio) {
+    return
+  }
+  // Seek completed: clear guard + record iOS imprecision delta
+  finalizeSeek(audio.currentTime)
 }
 
 function handleLoaded(): void {
@@ -501,6 +516,20 @@ watch(isPlaying, (playing) => {
   }
 })
 
+// Level 1: consume seekTarget — PlayerPage requests, PlayerBar executes
+watch(seekTarget, (target) => {
+  if (target === null) {
+    return
+  }
+  const audio = audioRef.value
+  if (!audio) {
+    return
+  }
+  audio.currentTime = target
+  // seekTarget stays non-null, blocking stale timeupdate events,
+  // until the seek completes and @seeked calls finalizeSeek()
+})
+
 watch([tracks, isTracksPending], ([items, pending]) => {
   if (pending) {
     return
@@ -697,6 +726,7 @@ onUnmounted(() => {
     @ended="handleEnded"
     @loadedmetadata="handleLoaded"
     @timeupdate="handleTimeUpdate"
+    @seeked="handleSeeked"
   />
 </template>
 

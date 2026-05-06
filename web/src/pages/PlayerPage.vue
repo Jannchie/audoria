@@ -63,7 +63,7 @@ const {
   selectTrack,
   setPlaying,
   cyclePlayMode,
-  seekTo,
+  requestSeek,
   setVolume,
   toggleMute,
   getNextTrackId,
@@ -269,9 +269,9 @@ function formattedTime(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, '0')}`
 }
 
-function getAudioElement(): HTMLAudioElement | null {
-  return document.querySelector('audio')
-}
+// function getAudioElement(): HTMLAudioElement | null {
+//   return document.querySelector('audio')
+// }
 
 function ratioFromPointer(event: PointerEvent | MouseEvent): number {
   const track = progressTrack.value
@@ -286,7 +286,7 @@ function ratioFromPointer(event: PointerEvent | MouseEvent): number {
 }
 
 function setPreviewByRatio(ratio: number): void {
-  const total = duration.value || getAudioElement()?.duration || 0
+  const total = duration.value || 0
   if (!total) {
     previewRatio.value = null
     return
@@ -325,18 +325,14 @@ function isPointerWithinTrack(event: PointerEvent): boolean {
 }
 
 function commitSeekByRatio(ratio: number): void {
-  const total = duration.value || getAudioElement()?.duration || 0
+  const total = duration.value || 0
   const newTime = Math.min(1, Math.max(0, ratio)) * total
-  seekTo(newTime)
+  requestSeek(newTime)
   scrubPreviewTime.value = null
-  const audio = getAudioElement()
-  if (audio) {
-    audio.currentTime = newTime
-  }
 }
 
 function handleProgressKeydown(event: KeyboardEvent): void {
-  const total = duration.value || getAudioElement()?.duration || 0
+  const total = duration.value || 0
   if (!total) {
     return
   }
@@ -424,11 +420,7 @@ function toggleLyricsToolbar(): void {
 }
 
 function handleLyricClick(line: { time: number }): void {
-  seekTo(line.time)
-  const audio = getAudioElement()
-  if (audio) {
-    audio.currentTime = line.time
-  }
+  requestSeek(line.time)
   if (!isPlaying.value) {
     setPlaying(true)
   }
@@ -510,20 +502,10 @@ function handlePrev(): void {
 }
 
 function togglePlayPause(): void {
-  const audio = getAudioElement()
-  if (!audio) {
-    return
+  if (!currentTrackId.value && resolvedCurrentTrackId.value) {
+    selectTrack(resolvedCurrentTrackId.value, { contextTracks: tracks.value ?? [] })
   }
-  if (audio.paused) {
-    if (!currentTrackId.value && resolvedCurrentTrackId.value) {
-      selectTrack(resolvedCurrentTrackId.value, { contextTracks: tracks.value ?? [] })
-    }
-    audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false))
-  }
-  else {
-    audio.pause()
-    setPlaying(false)
-  }
+  setPlaying(!isPlaying.value)
 }
 
 const lyricTick = ref(0)

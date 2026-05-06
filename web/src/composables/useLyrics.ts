@@ -77,7 +77,7 @@ export function findLyricLineAtTime(lines: LyricLine[] | null | undefined, time:
 }
 
 export function useLyrics(lyricsRaw: () => string | null | undefined) {
-  const { currentTime } = usePlayerState()
+  const { currentTime, lastSeekDelta } = usePlayerState()
 
   const parsed = computed(() => {
     const raw = lyricsRaw()
@@ -103,12 +103,15 @@ export function useLyrics(lyricsRaw: () => string | null | undefined) {
     return raw.trim()
   })
 
+  // Level 2: compensate lyrics highlight for iOS seek imprecision
+  const compensatedTime = computed(() => currentTime.value - lastSeekDelta.value)
+
   const currentLineIndex = computed(() => {
     const lines = parsed.value
     if (!lines || lines.length === 0) {
       return -1
     }
-    const t = currentTime.value
+    const t = compensatedTime.value
     let idx = -1
     for (const [i, line] of lines.entries()) {
       if (line.time <= t) {

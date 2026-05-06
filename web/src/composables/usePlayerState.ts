@@ -150,6 +150,14 @@ const playHistory = ref<string[]>(storage.value.history)
 const playbackContext = ref<PlaybackContext | null>(storage.value.context)
 const upNextQueue = ref<string[]>(storage.value.upNextQueue)
 
+// ── Seek coordination channel ──
+// Non-null = a seek is pending; PlayerBar consumes via watcher
+const seekTarget = ref<number | null>(null)
+// Dynamic seek-error compensation for lyrics (Level 2)
+const lastSeekDelta = ref(0)
+// Tracks what time was requested, for computing delta after seek completes
+let _lastRequestedSeek: number | null = null
+
 function persistState(): void {
   storage.value = {
     context: playbackContext.value,
@@ -295,6 +303,29 @@ export function usePlayerState() {
   const seekTo = (time: number) => {
     currentTime.value = normalizeTime(time)
     persistState()
+  }
+
+  const requestSeek = (time: number) => {
+    const normalized = normalizeTime(time)
+    currentTime.value = normalized
+    seekTarget.value = normalized
+    _lastRequestedSeek = normalized
+    // Reset delta until the actual seek completes
+    lastSeekDelta.value = 0
+    persistState()
+  }
+
+  // Called by PlayerBar's @seeked handler when the seek actually completes.
+  // Clears the guard and records the delta for Level 2 compensation.
+  const finalizeSeek = (actualTime: number) => {
+    const requested = _lastRequestedSeek
+    if (requested === null) {
+      return // not our seek (e.g. internal audio seek)
+    }
+    _lastRequestedSeek = null
+    seekTarget.value = null
+    const delta = actualTime - requested
+    lastSeekDelta.value = Math.abs(delta) > 0.3 ? delta : 0
   }
 
   const setVolume = (v: number) => {
@@ -494,6 +525,7 @@ export function usePlayerState() {
 
   return {
     clearQueue,
+    finalizeSeek,
     consumeUpNextHead,
     currentTime,
     currentTrackId,
@@ -507,6 +539,7 @@ export function usePlayerState() {
     getPreviousTrackId,
     getResumeTime,
     isPlaying,
+    lastSeekDelta,
     moveInQueue,
     muted,
     playHistory,
@@ -514,6 +547,8 @@ export function usePlayerState() {
     playbackContext,
     pruneQueue,
     removeFromQueueAt,
+    requestSeek,
+    seekTarget,
     seekTo,
     selectTrack,
     setPlaying,
