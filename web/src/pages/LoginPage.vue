@@ -5,7 +5,7 @@ import AudoriaLogo from '../components/AudoriaLogo.vue'
 import { useAuth } from '../composables/useAuth'
 
 const { t } = useI18n()
-const { login } = useAuth()
+const { login, enterGuestMode } = useAuth()
 
 const token = ref('')
 const error = ref('')
@@ -71,6 +71,20 @@ async function handleSubmit(): Promise<void> {
         <span v-else>
           {{ t('common.actions.login') }}
         </span>
+      </button>
+
+      <div class="login-divider">
+        <span class="login-divider__line" />
+        <span class="login-divider__text">{{ t('common.or') }}</span>
+        <span class="login-divider__line" />
+      </div>
+
+      <button
+        type="button"
+        class="guest-btn"
+        @click="enterGuestMode"
+      >
+        {{ t('auth.continueAsGuest') }}
       </button>
     </form>
   </div>
@@ -169,5 +183,48 @@ async function handleSubmit(): Promise<void> {
 .login-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.login-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.login-divider__line {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.login-divider__text {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.guest-btn {
+  width: 100%;
+  height: 2.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s ease, color 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.guest-btn:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
 }
 </style>

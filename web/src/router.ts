@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import LoginPage from './pages/LoginPage.vue'
+import { authStatus } from './composables/useAuth'
 
 const scrollPositions = new Map<string, { left: number, top: number }>()
 
@@ -70,6 +71,14 @@ const router = createRouter({
       component: () => import('./pages/SettingsPage.vue'),
     },
   ],
+})
+
+const restrictedRoutes = ['/upload', '/import', '/parse']
+
+router.beforeEach((_to) => {
+  if (authStatus.value === 'guest' && restrictedRoutes.some(path => _to.path.startsWith(path))) {
+    return '/library'
+  }
 })
 
 export default router

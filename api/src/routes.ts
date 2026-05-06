@@ -588,9 +588,36 @@ function setSessionCookie(c: Context, token: string): void {
 
 // ── Auth middleware (protects API routes only) ──
 
-const apiAuthPaths = ['/music/*', '/playlists/*', '/app/*', '/openapi.json', '/docs', '/auth/check']
+// Paths where GET (read) requests are allowed without auth
+const apiReadAuthPaths = ['/music/*', '/playlists/*', '/app/*', '/openapi.json', '/docs']
+// Paths that always require full authentication
+const apiWriteAuthPaths = ['/auth/check']
 
-async function authMiddleware(c: any, next: any) {
+async function readAuthMiddleware(c: any, next: any) {
+  const secretKey = config.secretKey
+  if (!secretKey) {
+    return next()
+  }
+
+  // Allow GET (read) requests without authentication (guest mode)
+  if (c.req.method === 'GET') {
+    return next()
+  }
+
+  // Non-GET requests require authentication
+  const token = getCookie(c, 'token')
+  if (!token || !verifySessionToken(token, secretKey)) {
+    return c.json({ message: 'Unauthorized' }, 401)
+  }
+
+  // Sliding session: refresh cookie on each request
+  const newToken = createSessionToken(secretKey)
+  setSessionCookie(c, newToken)
+
+  return next()
+}
+
+async function strictAuthMiddleware(c: any, next: any) {
   const secretKey = config.secretKey
   if (!secretKey) {
     return next()
@@ -608,8 +635,11 @@ async function authMiddleware(c: any, next: any) {
   return next()
 }
 
-for (const p of apiAuthPaths) {
-  api.use(p, authMiddleware)
+for (const p of apiReadAuthPaths) {
+  api.use(p, readAuthMiddleware)
+}
+for (const p of apiWriteAuthPaths) {
+  api.use(p, strictAuthMiddleware)
 }
 
 // ── Auth routes ──

@@ -5,6 +5,7 @@ import type { LocalePreference } from '../i18n/locales'
 import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppConfigQuery, useUpdateAppConfig } from '../composables/useAppConfig'
+import { useAuth } from '../composables/useAuth'
 import { useSettings } from '../composables/useSettings'
 import { coverEffectDefinitions } from '../constants/coverEffects'
 import { localeLabels } from '../i18n/locales'
@@ -71,6 +72,7 @@ const {
   setCoverEffectEnabled,
   setProgressEffectEnabled,
 } = useSettings()
+const { isGuest } = useAuth()
 
 const languageOptions = computed<Array<{ value: LocalePreference, label: string, hint?: string }>>(() => [
   {
@@ -135,7 +137,7 @@ const runtimeForm = reactive<RuntimeForm>({
 const runtimeSaveError = ref('')
 const runtimeSaveSucceeded = ref(false)
 const runtimeRestartRequired = ref(false)
-const activeSection = ref<SettingsSection>('runtime')
+const activeSection = ref<SettingsSection>(isGuest.value ? 'appearance' : 'runtime')
 const expandedProvider = ref<ExpandedProvider>(null)
 
 watch(appConfig, (config) => {
@@ -388,6 +390,7 @@ const activeLanguageHint = computed(() => {
         :aria-label="t('settings.sections.label')"
       >
         <button
+          v-if="!isGuest"
           type="button"
           class="settings-tab"
           :class="{ 'settings-tab--active': activeSection === 'runtime' }"
@@ -417,7 +420,7 @@ const activeLanguageHint = computed(() => {
 
       <main class="settings-main">
         <section
-          v-if="activeSection === 'runtime'"
+          v-if="activeSection === 'runtime' && !isGuest"
           class="settings-group"
         >
           <h2 class="group-title">

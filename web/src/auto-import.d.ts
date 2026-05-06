@@ -8,6 +8,7 @@ export {}
 declare global {
   const EffectScope: typeof import('vue').EffectScope
   const asyncComputed: typeof import('@vueuse/core').asyncComputed
+  const authStatus: typeof import('./composables/useAuth').authStatus
   const autoResetRef: typeof import('@vueuse/core').autoResetRef
   const buildDownloadUrl: typeof import('./composables/useMusic').buildDownloadUrl
   const computed: typeof import('vue').computed

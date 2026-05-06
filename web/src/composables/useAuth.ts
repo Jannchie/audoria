@@ -1,33 +1,64 @@
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { client } from '../api/client.gen'
 
-export type AuthStatus = 'loading' | 'unauthenticated' | 'authenticated'
+export type AuthStatus = 'loading' | 'unauthenticated' | 'authenticated' | 'guest'
 
-const status = ref<AuthStatus>('loading')
+export const authStatus = ref<AuthStatus>('loading')
+
+const GUEST_STORAGE_KEY = 'audoria.guest-mode'
 
 function apiUrl(path: string): string {
   const base = client.getConfig().baseUrl ?? ''
   return `${base}${path}`
 }
 
+function getStoredGuestFlag(): boolean {
+  try {
+    return globalThis.localStorage.getItem(GUEST_STORAGE_KEY) === 'true'
+  }
+  catch {
+    return false
+  }
+}
+
+function setStoredGuestFlag(value: boolean): void {
+  try {
+    if (value) {
+      globalThis.localStorage.setItem(GUEST_STORAGE_KEY, 'true')
+    }
+    else {
+      globalThis.localStorage.removeItem(GUEST_STORAGE_KEY)
+    }
+  }
+  catch {
+    // localStorage unavailable
+  }
+}
+
 export function useAuth() {
   async function check(): Promise<void> {
+    // If guest mode was active on last visit, skip auth check
+    if (getStoredGuestFlag()) {
+      authStatus.value = 'guest'
+      return
+    }
+
     try {
       const response = await globalThis.fetch(apiUrl('/auth/check'), { credentials: 'include' })
       if (response.ok) {
-        status.value = 'authenticated'
+        authStatus.value = 'authenticated'
       }
       else if (response.status === 401) {
-        status.value = 'unauthenticated'
+        authStatus.value = 'unauthenticated'
       }
       else {
         // Auth not configured or server error — allow access
-        status.value = 'authenticated'
+        authStatus.value = 'authenticated'
       }
     }
     catch {
       // Network error — treat as unauthenticated
-      status.value = 'unauthenticated'
+      authStatus.value = 'unauthenticated'
     }
   }
 
@@ -41,7 +72,8 @@ export function useAuth() {
       })
       const data = await response.json().catch(() => ({ message: 'Unknown error' })) as { message?: string }
       if (response.ok) {
-        status.value = 'authenticated'
+        setStoredGuestFlag(false)
+        authStatus.value = 'authenticated'
         return { ok: true, message: data.message ?? 'Authenticated' }
       }
       return { ok: false, message: data.message ?? 'Authentication failed' }
@@ -51,9 +83,20 @@ export function useAuth() {
     }
   }
 
+  function enterGuestMode(): void {
+    setStoredGuestFlag(true)
+    authStatus.value = 'guest'
+  }
+
+  const isGuest = computed(() => authStatus.value === 'guest')
+  const isAuthenticated = computed(() => authStatus.value === 'authenticated')
+
   return {
-    status,
+    status: authStatus,
+    isGuest,
+    isAuthenticated,
     check,
     login,
+    enterGuestMode,
   }
 }

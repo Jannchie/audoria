@@ -13,7 +13,7 @@ import LoginPage from './pages/LoginPage.vue'
 
 const { t } = useI18n()
 const route = useRoute()
-const { status, check } = useAuth()
+const { status, isGuest, check } = useAuth()
 
 onMounted(() => {
   check()
@@ -25,7 +25,7 @@ const { isKeyboardOpen } = useKeyboardDetect()
 
 const authReady = computed(() => status.value !== 'loading')
 
-const navItems = computed(() => [
+const allNavItems = [
   { name: t('nav.library'), path: '/library', icon: 'i-tabler-vinyl' },
   { name: t('nav.playlists'), path: '/playlists', icon: 'i-tabler-playlist' },
   { name: t('nav.explore'), path: '/import', icon: 'i-tabler-compass' },
@@ -33,15 +33,29 @@ const navItems = computed(() => [
   { name: t('nav.upload'), path: '/upload', icon: 'i-tabler-upload' },
   { name: t('nav.player'), path: '/player', icon: 'i-tabler-wave-sine' },
   { name: t('nav.settings'), path: '/settings', icon: 'i-tabler-settings' },
-])
+]
 
-// Mobile tabs: 5 primary destinations, merging add-music flows under Explore
-const mobileNavItems = computed(() => [
+const restrictedPaths = new Set(['/import', '/parse', '/upload'])
+
+const navItems = computed(() =>
+  isGuest.value
+    ? allNavItems.filter(item => !restrictedPaths.has(item.path))
+    : allNavItems,
+)
+
+// Mobile tabs
+const allMobileNavItems = [
   { name: t('nav.library'), path: '/library', icon: 'i-tabler-vinyl' },
   { name: t('nav.playlists'), path: '/playlists', icon: 'i-tabler-playlist' },
   { name: t('nav.explore'), path: '/import', icon: 'i-tabler-compass' },
   { name: t('nav.settings'), path: '/settings', icon: 'i-tabler-settings' },
-])
+]
+
+const mobileNavItems = computed(() =>
+  isGuest.value
+    ? allMobileNavItems.filter(item => !restrictedPaths.has(item.path))
+    : allMobileNavItems,
+)
 
 const currentPath = computed(() => route.path)
 const isPlayerPage = computed(() => route.path === '/player')

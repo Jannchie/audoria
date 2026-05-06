@@ -749,7 +749,7 @@ function isImporting(id: string): boolean {
 /* ---- Search ---- */
 .search-area {
   position: sticky;
-  top: 0;
+  top: env(safe-area-inset-top, 0px);
   z-index: 10;
   display: flex;
   flex-direction: column;

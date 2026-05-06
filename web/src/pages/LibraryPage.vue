@@ -6,6 +6,7 @@ import { useI18n } from 'vue-i18n'
 import LazyCoverImage from '../components/LazyCoverImage.vue'
 import MetadataEditDialog from '../components/MetadataEditDialog.vue'
 import SoundWave from '../components/SoundWave.vue'
+import { useAuth } from '../composables/useAuth'
 import { useContextMenu } from '../composables/useContextMenu'
 import { useListSelection } from '../composables/useListSelection'
 import { resolveApiUrl, useDeleteMusic, useMusicQuery, useReorderMusic } from '../composables/useMusic'
@@ -22,6 +23,7 @@ const skeletonTitleWidths = [72, 56, 80, 48, 68, 60, 76, 52]
 const skeletonMetaWidths = [38, 30, 44, 26, 40, 34, 48, 32]
 
 const { t } = useI18n()
+const { isGuest } = useAuth()
 const sortKey = ref<TrackSortKey>((globalThis.sessionStorage.getItem(librarySortStateKey) ?? 'addedDesc') as TrackSortKey)
 const { data: tracks, isPending, isError, error } = useMusicQuery(
   computed(() => sortKey.value === 'manual' ? 'manual' : undefined),
@@ -426,7 +428,7 @@ function handleDragEnd(): void {
         {{ search ? t('library.noResultsHint') : t('library.emptyHint') }}
       </p>
       <RouterLink
-        v-if="search"
+        v-if="search && !isGuest"
         class="explore-link"
         :to="{ path: '/import', query: { q: search.trim() } }"
       >
@@ -568,7 +570,7 @@ function handleDragEnd(): void {
 /* ---- Search ---- */
 .search-wrapper {
   position: sticky;
-  top: 0;
+  top: env(safe-area-inset-top, 0px);
   z-index: 10;
   display: flex;
   gap: 0.5rem;
