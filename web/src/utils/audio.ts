@@ -10,6 +10,52 @@ const losslessExtensions = new Set([
   'wave',
 ])
 
+const contentTypeToFormat: Record<string, string> = {
+  'audio/mpeg': 'MP3',
+  'audio/mp3': 'MP3',
+  'audio/mp4': 'M4A',
+  'audio/x-m4a': 'M4A',
+  'audio/flac': 'FLAC',
+  'audio/x-flac': 'FLAC',
+  'audio/wav': 'WAV',
+  'audio/wave': 'WAV',
+  'audio/x-wav': 'WAV',
+  'audio/ogg': 'OGG',
+  'audio/vorbis': 'OGG',
+  'audio/aac': 'AAC',
+  'audio/x-aac': 'AAC',
+  'audio/webm': 'WebM',
+  'audio/x-ms-wma': 'WMA',
+  'audio/x-wavpack': 'WV',
+  'audio/x-ape': 'APE',
+  'audio/x-aiff': 'AIFF',
+  'audio/aiff': 'AIFF',
+  'audio/opus': 'Opus',
+  'audio/x-mpegurl': 'M3U',
+  'audio/x-scpls': 'PLS',
+}
+
+const extensionToFormat: Record<string, string> = {
+  'mp3': 'MP3',
+  'm4a': 'M4A',
+  'flac': 'FLAC',
+  'wav': 'WAV',
+  'wave': 'WAV',
+  'ogg': 'OGG',
+  'oga': 'OGG',
+  'aac': 'AAC',
+  'wma': 'WMA',
+  'webm': 'WebM',
+  'opus': 'Opus',
+  'wv': 'WV',
+  'ape': 'APE',
+  'aif': 'AIFF',
+  'aiff': 'AIFF',
+  'alac': 'ALAC',
+  'm3u': 'M3U',
+  'pls': 'PLS',
+}
+
 function getFileExtension(filename: string): string {
   const dotIndex = filename.lastIndexOf('.')
   if (dotIndex === -1) {
@@ -86,10 +132,31 @@ export function formatTrackQuality(track: Pick<Music, 'filename' | 'contentType'
   return bitrateKbps ? `${bitrateKbps} kbps` : null
 }
 
+export function getFormatName(track: Pick<Music, 'filename' | 'contentType'>): string {
+  const contentType = track.contentType?.toLowerCase() ?? ''
+  const fromContentType = contentTypeToFormat[contentType]
+  if (fromContentType) {
+    return fromContentType
+  }
+  const ext = getFileExtension(track.filename)
+  if (ext) {
+    return extensionToFormat[ext] ?? ext.toUpperCase()
+  }
+  return ''
+}
+
 export function formatTrackSpecs(track: Pick<Music, 'filename' | 'contentType' | 'size' | 'durationSeconds'>): string {
   const quality = formatTrackQuality(track)
-  if (!quality) {
-    return formatBytes(track.size)
+  const formatName = getFormatName(track)
+  const parts: string[] = []
+  if (quality) {
+    parts.push(formatBytes(track.size), quality)
   }
-  return `${formatBytes(track.size)} · ${quality}`
+  else {
+    parts.push(formatBytes(track.size))
+  }
+  if (formatName) {
+    parts.push(formatName)
+  }
+  return parts.join(' · ')
 }

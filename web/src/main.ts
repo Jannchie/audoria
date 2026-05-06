@@ -1,3 +1,5 @@
+// Prevent pinch-zoom and double-tap zoom on mobile devices.
+// viewport user-scalable=no is ignored by iOS 10+, so we also block gestures.
 import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query'
 import { createApp } from 'vue'
 import { client } from './api/client.gen'
@@ -7,6 +9,22 @@ import router from './router'
 import '@unocss/reset/tailwind.css'
 import 'virtual:uno.css'
 import './style.css'
+
+function disableMobileZoom() {
+  // Block iOS Safari pinch-zoom gesture events.
+  document.addEventListener('gesturestart', e => e.preventDefault())
+  document.addEventListener('gesturechange', e => e.preventDefault())
+  document.addEventListener('gestureend', e => e.preventDefault())
+
+  // Block multi-touch drag (covers Android browsers that respect preventDefault).
+  document.addEventListener('touchmove', (e) => {
+    if (e.touches.length > 1) {
+      e.preventDefault()
+    }
+  }, { passive: false })
+}
+
+disableMobileZoom()
 
 // Suppress the noisy THREE.Clock deprecation warning emitted by
 // `@shader-gradient/vue`'s bundled three build. Not our code; can't patch.
