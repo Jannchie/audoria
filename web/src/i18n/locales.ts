@@ -8,7 +8,7 @@ export const defaultLocale: SupportedLocale = 'en-US'
 export const localeLabels: Record<SupportedLocale, string> = {
   'en-US': 'English',
   'zh-CN': '简体中文',
-  ja: '日本語',
+  'ja': '日本語',
 }
 
 export function isSupportedLocale(value: unknown): value is SupportedLocale {

@@ -87,7 +87,6 @@ const currentTrackCoverUrl = computed(() => {
   }
   return resolveApiUrl(coverUrl)
 })
-const isPlayerPage = computed(() => route.path === '/player')
 const { parsed } = useLyrics(() => currentTrack.value?.lyrics)
 
 const progress = computed(() => {
@@ -546,10 +545,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <footer
-    v-show="!isPlayerPage"
-    class="playerbar"
-  >
+  <footer class="playerbar">
     <!-- Progress bar (top edge) -->
     <div
       ref="progressTrack"
@@ -732,22 +728,17 @@ onUnmounted(() => {
 
 <style scoped>
 .playerbar {
-  position: fixed;
-  left: 0;
-  right: 0;
-  z-index: 40;
-  /* mobile: stacked flush above the tab bar; the offset matches
-     `.mobile-tabs` height exactly so the two surfaces meet without
-     overlap and read as one solid control center.
-
-     --safe-bottom uses native CSS env() for reliable iOS support. */
-  bottom: calc(3.75rem + env(safe-area-inset-bottom, 0.5rem));
   background: var(--bg-primary);
 }
 
+/* Desktop: fixed at the bottom of the viewport, independent of mobile-tabs */
 @media (min-width: 768px) {
   .playerbar {
+    position: fixed;
+    left: 0;
+    right: 0;
     bottom: 0;
+    z-index: 40;
     border-top: 1px solid var(--border);
   }
 }
@@ -1049,11 +1040,5 @@ onUnmounted(() => {
   height: 3px;
   background: var(--bg-surface);
   border-radius: 2px;
-}
-
-/* When the virtual keyboard is open on mobile, mobile-tabs is hidden,
-   so drop the PlayerBar to bottom: 0 to avoid a visible gap. */
-body.keyboard-open .playerbar {
-  bottom: 0;
 }
 </style>

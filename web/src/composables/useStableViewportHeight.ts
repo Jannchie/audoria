@@ -4,6 +4,33 @@ interface StableViewportHeightOptions {
   variableName?: string
 }
 
+function measureSmallViewportHeight(): number {
+  if (!globalThis.document) {
+    return globalThis.innerHeight
+  }
+
+  if (!CSS.supports('height', '100svh')) {
+    return Math.round(Math.min(
+      globalThis.innerHeight,
+      globalThis.visualViewport?.height ?? globalThis.innerHeight,
+    ))
+  }
+
+  const probe = document.createElement('div')
+  probe.style.position = 'fixed'
+  probe.style.inset = '0 auto auto 0'
+  probe.style.width = '0'
+  probe.style.height = '100svh'
+  probe.style.visibility = 'hidden'
+  probe.style.pointerEvents = 'none'
+
+  document.documentElement.append(probe)
+  const height = probe.getBoundingClientRect().height
+  probe.remove()
+
+  return Math.round(height || globalThis.innerHeight)
+}
+
 /**
  * Provides a stable viewport height for full-screen mobile layouts.
  *
@@ -18,33 +45,6 @@ export function useStableViewportHeight(options: StableViewportHeightOptions = {
   const variableName = options.variableName ?? '--stable-viewport-height'
   let frame = 0
   let lastViewportWidth = 0
-
-  function measureSmallViewportHeight(): number {
-    if (!globalThis.document) {
-      return globalThis.innerHeight
-    }
-
-    if (!CSS.supports('height', '100svh')) {
-      return Math.round(Math.min(
-        globalThis.innerHeight,
-        globalThis.visualViewport?.height ?? globalThis.innerHeight,
-      ))
-    }
-
-    const probe = document.createElement('div')
-    probe.style.position = 'fixed'
-    probe.style.inset = '0 auto auto 0'
-    probe.style.width = '0'
-    probe.style.height = '100svh'
-    probe.style.visibility = 'hidden'
-    probe.style.pointerEvents = 'none'
-
-    document.documentElement.appendChild(probe)
-    const height = probe.getBoundingClientRect().height
-    probe.remove()
-
-    return Math.round(height || globalThis.innerHeight)
-  }
 
   function update(force = false): void {
     const currentWidth = Math.round(globalThis.visualViewport?.width ?? globalThis.innerWidth)
@@ -67,7 +67,7 @@ export function useStableViewportHeight(options: StableViewportHeightOptions = {
   }
 
   function handleOrientationChange(): void {
-    window.setTimeout(() => scheduleUpdate(true), 250)
+    globalThis.setTimeout(scheduleUpdate, 250, true)
   }
 
   onMounted(() => {

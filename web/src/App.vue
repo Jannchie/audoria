@@ -164,8 +164,39 @@ watchEffect(() => {
       <RouterView />
     </main>
 
-    <!-- Player bar -->
-    <PlayerBar />
+    <!-- Unified mobile bottom bar: PlayerBar + nav tabs stacked in one
+         fixed container. Hidden on player page and when keyboard is open.
+         On desktop the wrapper is a pass-through; PlayerBar uses its own
+         position:fixed via media query. -->
+    <div
+      v-show="!isPlayerPage && !isKeyboardOpen"
+      class="bottom-area"
+    >
+      <PlayerBar />
+      <nav class="mobile-tabs">
+        <div class="mobile-tabs-inner">
+          <RouterLink
+            v-for="item in mobileNavItems"
+            :key="item.path"
+            class="mobile-tab"
+            :class="{ 'mobile-tab--active': currentPath.startsWith(item.path) }"
+            :to="item.path"
+            :aria-current="currentPath.startsWith(item.path) ? 'page' : undefined"
+          >
+            <span
+              class="mobile-tab-indicator"
+              aria-hidden="true"
+            />
+            <span
+              class="mobile-tab-icon"
+              :class="[item.icon]"
+              aria-hidden="true"
+            />
+            <span class="mobile-tab-label">{{ item.name }}</span>
+          </RouterLink>
+        </div>
+      </nav>
+    </div>
 
     <!-- Global context menu singleton -->
     <ContextMenu />
@@ -175,34 +206,6 @@ watchEffect(() => {
 
     <!-- Global input prompt dialog -->
     <InputPromptDialog />
-
-    <!-- Mobile bottom tab bar (hidden on desktop, player page, and when keyboard is open) -->
-    <nav
-      v-show="!isPlayerPage && !isKeyboardOpen"
-      class="mobile-tabs"
-    >
-      <div class="mobile-tabs-inner">
-        <RouterLink
-          v-for="item in mobileNavItems"
-          :key="item.path"
-          class="mobile-tab"
-          :class="{ 'mobile-tab--active': currentPath.startsWith(item.path) }"
-          :to="item.path"
-          :aria-current="currentPath.startsWith(item.path) ? 'page' : undefined"
-        >
-          <span
-            class="mobile-tab-indicator"
-            aria-hidden="true"
-          />
-          <span
-            class="mobile-tab-icon"
-            :class="[item.icon]"
-            aria-hidden="true"
-          />
-          <span class="mobile-tab-label">{{ item.name }}</span>
-        </RouterLink>
-      </div>
-    </nav>
   </div>
 </template>
 
@@ -370,19 +373,24 @@ watchEffect(() => {
   }
 }
 
-/* ---- Mobile bottom tab bar ---- */
-/* Visually fused with PlayerBar above: shares the same surface, stacked
-   into one solid control center with no divider. The fixed height keeps
-   PlayerBar's `bottom` offset in sync with the actual tab bar height so
-   the two stack flush instead of overlapping.
+/* ---- Unified mobile bottom bar ---- */
+/* One fixed container holding PlayerBar + nav tabs stacked vertically.
+   Hidden on player page and when the virtual keyboard is open.
+   On desktop the wrapper is a pass-through; PlayerBar positions itself
+   via its own media query. */
+@media (max-width: 767px) {
+  .bottom-area {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 40;
+    display: flex;
+    flex-direction: column;
+  }
+}
 
-   Safe area uses native CSS env() for reliable iOS support. */
 .mobile-tabs {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 50;
   box-sizing: border-box;
   height: calc(3.75rem + env(safe-area-inset-bottom, 0.5rem));
   padding: 0.25rem 0.5rem env(safe-area-inset-bottom, 0.5rem);
@@ -461,12 +469,5 @@ watchEffect(() => {
 .mobile-tab--active .mobile-tab-label {
   opacity: 1;
   font-weight: 600;
-}
-
-/* When the virtual keyboard is open on iOS, hide mobile-tabs so they
-   don't get pushed into view above the keyboard (position:fixed
-   follows the visual viewport on iOS). */
-body.keyboard-open .mobile-tabs {
-  display: none !important;
 }
 </style>

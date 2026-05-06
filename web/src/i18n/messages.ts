@@ -382,7 +382,7 @@ export const messages = {
       },
     },
   },
-  ja: {
+  'ja': {
     auth: {
       loginPrompt: 'アクセストークンを入力してください',
       tokenPlaceholder: 'アクセストークン',
