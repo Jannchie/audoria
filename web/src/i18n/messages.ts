@@ -5,6 +5,7 @@ export const messages = {
       tokenPlaceholder: 'Access token',
       tokenLabel: 'Access token',
       continueAsGuest: 'Continue as guest',
+      goBack: 'Go back',
     },
     nav: {
       library: 'Library',
@@ -14,6 +15,7 @@ export const messages = {
       upload: 'Upload',
       player: 'Player',
       settings: 'Settings',
+      login: 'Log in',
     },
     common: {
       unknown: 'Unknown',
@@ -387,6 +389,7 @@ export const messages = {
       tokenPlaceholder: '访问令牌',
       tokenLabel: '访问令牌',
       continueAsGuest: '以游客身份继续',
+      goBack: '返回',
     },
     nav: {
       library: '音乐库',
@@ -396,6 +399,7 @@ export const messages = {
       upload: '上传',
       player: '播放器',
       settings: '设置',
+      login: '登录',
     },
     common: {
       unknown: '未知',

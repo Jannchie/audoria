@@ -47,19 +47,17 @@ export function useAuth() {
       const response = await globalThis.fetch(apiUrl('/auth/check'), { credentials: 'include' })
       if (response.ok) {
         authStatus.value = 'authenticated'
-      }
-      else if (response.status === 401) {
-        authStatus.value = 'unauthenticated'
-      }
-      else {
-        // Auth not configured or server error — allow access
-        authStatus.value = 'authenticated'
+        setStoredGuestFlag(false)
+        return
       }
     }
     catch {
-      // Network error — treat as unauthenticated
-      authStatus.value = 'unauthenticated'
+      // Network error
     }
+
+    // Not authenticated — default to guest mode
+    authStatus.value = 'guest'
+    setStoredGuestFlag(true)
   }
 
   async function login(token: string): Promise<{ ok: boolean, message: string }> {

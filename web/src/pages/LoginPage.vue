@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import AudoriaLogo from '../components/AudoriaLogo.vue'
 import { useAuth } from '../composables/useAuth'
 
 const { t } = useI18n()
-const { login, enterGuestMode } = useAuth()
+const router = useRouter()
+const { login } = useAuth()
 
 const token = ref('')
 const error = ref('')
@@ -19,7 +21,10 @@ async function handleSubmit(): Promise<void> {
   loading.value = true
   const result = await login(token.value.trim())
   loading.value = false
-  if (!result.ok) {
+  if (result.ok) {
+    router.push('/library')
+  }
+  else {
     error.value = result.message
   }
 }
@@ -82,9 +87,9 @@ async function handleSubmit(): Promise<void> {
       <button
         type="button"
         class="guest-btn"
-        @click="enterGuestMode"
+        @click="router.push('/library')"
       >
-        {{ t('auth.continueAsGuest') }}
+        {{ t('auth.goBack') }}
       </button>
     </form>
   </div>

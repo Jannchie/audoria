@@ -37,11 +37,17 @@ const allNavItems = [
 
 const restrictedPaths = new Set(['/import', '/parse', '/upload'])
 
-const navItems = computed(() =>
-  isGuest.value
-    ? allNavItems.filter(item => !restrictedPaths.has(item.path))
-    : allNavItems,
-)
+const loginNavItem = { name: t('nav.login'), path: '/login', icon: 'i-tabler-login' }
+
+const navItems = computed(() => {
+  if (isGuest.value) {
+    return [
+      ...allNavItems.filter(item => !restrictedPaths.has(item.path)),
+      loginNavItem,
+    ]
+  }
+  return allNavItems
+})
 
 // Mobile tabs
 const allMobileNavItems = [
@@ -51,11 +57,15 @@ const allMobileNavItems = [
   { name: t('nav.settings'), path: '/settings', icon: 'i-tabler-settings' },
 ]
 
-const mobileNavItems = computed(() =>
-  isGuest.value
-    ? allMobileNavItems.filter(item => !restrictedPaths.has(item.path))
-    : allMobileNavItems,
-)
+const mobileNavItems = computed(() => {
+  if (isGuest.value) {
+    return [
+      ...allMobileNavItems.filter(item => !restrictedPaths.has(item.path)),
+      loginNavItem,
+    ]
+  }
+  return allMobileNavItems
+})
 
 const currentPath = computed(() => route.path)
 const isPlayerPage = computed(() => route.path === '/player')
@@ -78,8 +88,8 @@ watchEffect(() => {
     />
   </div>
 
-  <!-- Login page -->
-  <LoginPage v-else-if="status === 'unauthenticated'" />
+  <!-- Login page (full overlay, no app shell) -->
+  <LoginPage v-else-if="route.path === '/login'" />
 
   <!-- App shell -->
   <div
