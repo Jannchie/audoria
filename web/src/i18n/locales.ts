@@ -1,4 +1,4 @@
-export const supportedLocales = ['en-US', 'zh-CN'] as const
+export const supportedLocales = ['en-US', 'zh-CN', 'ja'] as const
 
 export type SupportedLocale = typeof supportedLocales[number]
 export type LocalePreference = SupportedLocale | 'system'
@@ -8,6 +8,7 @@ export const defaultLocale: SupportedLocale = 'en-US'
 export const localeLabels: Record<SupportedLocale, string> = {
   'en-US': 'English',
   'zh-CN': '简体中文',
+  ja: '日本語',
 }
 
 export function isSupportedLocale(value: unknown): value is SupportedLocale {
@@ -33,6 +34,9 @@ export function resolveLocale(preference: LocalePreference, language = getBrowse
   const normalized = language.toLowerCase()
   if (normalized.startsWith('zh')) {
     return 'zh-CN'
+  }
+  if (normalized.startsWith('ja')) {
+    return 'ja'
   }
 
   return defaultLocale
