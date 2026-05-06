@@ -10,6 +10,7 @@ import '@unocss/reset/tailwind.css'
 import 'virtual:uno.css'
 import './style.css'
 
+// iOS Safari's 100dvh includes/excludes the bottom toolbar unpredictably
 function disableMobileZoom() {
   // Block iOS Safari pinch-zoom gesture events.
   document.addEventListener('gesturestart', e => e.preventDefault())

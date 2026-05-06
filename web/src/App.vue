@@ -87,7 +87,11 @@ watch(
 )
 
 watchEffect(() => {
-  isLocked.value = isPlayerPage.value
+  const locked = isPlayerPage.value
+
+  isLocked.value = locked
+  document.documentElement.classList.toggle('player-page-open', locked)
+  document.body.classList.toggle('player-page-open', locked)
 })
 </script>
 

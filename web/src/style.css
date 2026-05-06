@@ -81,6 +81,15 @@ body {
 body.no-scroll {
   overflow: hidden;
   height: 100vh;
+  height: 100dvh;
+}
+
+/* Lock scrolling when the full-screen player page is open. */
+html.player-page-open,
+body.player-page-open {
+  position: fixed;
+  width: 100%;
+  overscroll-behavior: none;
 }
 
 h1, h2, h3, h4, h5, h6 {

@@ -12,6 +12,7 @@ import { findLyricLineAtTime, shiftLrcTimestamps, useLyrics } from '../composabl
 import { resolveApiUrl, useMusicQuery, useUpdateMusic } from '../composables/useMusic'
 import { usePlayerState } from '../composables/usePlayerState'
 import { useSettings } from '../composables/useSettings'
+import { useStableViewportHeight } from '../composables/useStableViewportHeight'
 import { formatTrackSpecs } from '../utils/audio'
 import { getSourceDisplay } from '../utils/source'
 
@@ -24,6 +25,7 @@ const { t } = useI18n()
 const { coverEffect, coverEffectEnabled, progressEffectEnabled } = useSettings()
 const router = useRouter()
 const isMobile = useMediaQuery('(max-width: 767px)')
+useStableViewportHeight({ variableName: '--player-viewport-height' })
 const isDev = import.meta.env.DEV
 const filamentConfig = ref<FilamentConfig>({
   gain: 2.1,
@@ -929,25 +931,26 @@ onUnmounted(() => {
 
 <style scoped>
 .player-page {
+  --player-safe-top: env(safe-area-inset-top, 0px);
+  --player-safe-bottom: env(safe-area-inset-bottom, 0px);
+
   position: relative;
-  height: 100vh;
-  height: 100dvh;
+  height: var(--player-viewport-height, 100svh);
   overflow: hidden;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  box-sizing: border-box;
+  overscroll-behavior: none;
 }
 
 @media (min-width: 768px) {
   .player-page {
-    height: calc(100vh - 3.5rem);
     height: calc(100dvh - 3.5rem);
-    padding-bottom: 0;
   }
 }
 
 /* ---- Back button ---- */
 .player-back {
   position: absolute;
-  top: calc(0.75rem + env(safe-area-inset-top, 0px));
+  top: calc(0.75rem + var(--player-safe-top));
   left: 0.75rem;
   z-index: 20;
   display: flex;
@@ -1030,21 +1033,31 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: calc(0.75rem + env(safe-area-inset-top, 0px)) 1rem;
+  padding:
+    calc(0.75rem + var(--player-safe-top))
+    1rem
+    calc(0.75rem + var(--player-safe-bottom));
   overflow: hidden;
   max-width: 80rem;
   margin: 0 auto;
+  box-sizing: border-box;
 }
 
 @media (min-width: 768px) {
   .player-layout {
-    padding: calc(2.5rem + env(safe-area-inset-top, 0px)) 3rem;
+    padding:
+      calc(2.5rem + var(--player-safe-top))
+      3rem
+      2.5rem;
   }
 }
 
 @media (min-width: 1200px) {
   .player-layout {
-    padding: calc(2.5rem + env(safe-area-inset-top, 0px)) 4rem;
+    padding:
+      calc(2.5rem + var(--player-safe-top))
+      4rem
+      2.5rem;
   }
 }
 
@@ -1292,7 +1305,7 @@ onUnmounted(() => {
 }
 
 .lyrics-pad {
-  padding: 2.5rem 0 40vh;
+  padding: 2.5rem 0 6rem;
 }
 
 .lyric-line {
