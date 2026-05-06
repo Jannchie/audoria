@@ -186,6 +186,7 @@ watchEffect(() => {
   z-index: 30;
   background: var(--bg-primary);
   border-bottom: 1px solid var(--border);
+  padding-top: env(safe-area-inset-top, 0px);
   transition: background 0.3s ease, border-color 0.3s ease;
 }
 

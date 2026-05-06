@@ -965,7 +965,7 @@ onUnmounted(() => {
 /* ---- Back button ---- */
 .player-back {
   position: absolute;
-  top: 0.75rem;
+  top: calc(0.75rem + env(safe-area-inset-top, 0px));
   left: 0.75rem;
   z-index: 20;
   display: flex;
@@ -1048,7 +1048,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: 0.75rem 1rem;
+  padding: calc(0.75rem + env(safe-area-inset-top, 0px)) 1rem;
   overflow: hidden;
   max-width: 80rem;
   margin: 0 auto;
@@ -1056,13 +1056,13 @@ onUnmounted(() => {
 
 @media (min-width: 768px) {
   .player-layout {
-    padding: 2.5rem 3rem;
+    padding: calc(2.5rem + env(safe-area-inset-top, 0px)) 3rem;
   }
 }
 
 @media (min-width: 1200px) {
   .player-layout {
-    padding: 2.5rem 4rem;
+    padding: calc(2.5rem + env(safe-area-inset-top, 0px)) 4rem;
   }
 }
 
