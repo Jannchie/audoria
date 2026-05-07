@@ -93,6 +93,11 @@ const importMutation = useImportMusic()
 const importJobQuery = useImportJobQuery(activeImportJobId)
 type LibraryMatchState = 'confirmed' | 'possible' | null
 
+const enabledSourceSet = computed(() => new Set(configuredImportSources.value))
+const filteredSearchResults = computed(() =>
+  searchResults.value.filter(result => enabledSourceSet.value.has(result.source as MusicDlSource)),
+)
+
 watch(configuredImportSources, (sources) => {
   if (selectedSource.value && !sources.includes(selectedSource.value)) {
     selectedSource.value = null
@@ -454,6 +459,10 @@ function handleImport(result: MusicDlSearchResult): void {
   if (!result.downloadable || isAlreadyImported(result) || pendingImports.value.has(result.id)) {
     return
   }
+  if (!enabledSourceSet.value.has(result.source as MusicDlSource)) {
+    importFormError.value = `Source is disabled: ${result.source}`
+    return
+  }
   importFormError.value = ''
   activeImportResultId.value = result.id
   activeImportJobId.value = null
@@ -612,11 +621,11 @@ function isImporting(id: string): boolean {
 
     <!-- Results -->
     <div
-      v-else-if="searchResults.length > 0"
+      v-else-if="filteredSearchResults.length > 0"
       class="result-list"
     >
       <button
-        v-for="result in searchResults"
+        v-for="result in filteredSearchResults"
         :key="result.id"
         type="button"
         class="result-row"
@@ -724,12 +733,12 @@ function isImporting(id: string): boolean {
 
     <!-- No results -->
     <div
-      v-else-if="searchMutation.isSuccess.value"
+      v-else-if="searchMutation.isSuccess.value || searchResults.length > 0"
       class="empty-state"
     >
       <span class="i-tabler-mood-empty text-4xl text-[var(--text-tertiary)]/30" />
       <p class="empty-text">
-        {{ t('import.noResults') }}
+        {{ searchResults.length > 0 && filteredSearchResults.length === 0 ? t('import.noEnabledResults') : t('import.noResults') }}
       </p>
     </div>
   </section>

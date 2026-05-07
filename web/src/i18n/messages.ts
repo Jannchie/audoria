@@ -270,6 +270,7 @@ export const messages = {
       enterKeyword: 'Enter a keyword to search.',
       emptyText: 'Search across multiple music sources',
       noResults: 'No results found',
+      noEnabledResults: 'All results are from disabled sources. Enable the source in Settings.',
       titleAlreadyInLibrary: 'Already in your library',
       titlePossibleMatch: 'Possibly already in your library',
       badges: {
@@ -653,6 +654,7 @@ export const messages = {
       enterKeyword: '検索キーワードを入力してください。',
       emptyText: '複数の音楽ソースを横断検索',
       noResults: '検索結果がありません',
+      noEnabledResults: 'すべての検索結果は無効化されたソースからのものです。設定でソースを有効にしてください。',
       titleAlreadyInLibrary: 'すでにライブラリにあります',
       titlePossibleMatch: 'ライブラリに存在する可能性があります',
       badges: {
@@ -1036,6 +1038,7 @@ export const messages = {
       enterKeyword: '请输入搜索关键词。',
       emptyText: '跨多个音乐源搜索',
       noResults: '没有搜索结果',
+      noEnabledResults: '所有结果来自已禁用的源，请在设置中启用对应源。',
       titleAlreadyInLibrary: '已在音乐库中',
       titlePossibleMatch: '可能已在音乐库中',
       badges: {

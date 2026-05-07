@@ -38,7 +38,7 @@ function patchMusicCachePlaylistIds(
   trackId: string,
   updater: (current: string[]) => string[],
 ): void {
-  queryClient.setQueryData<Music[] | undefined>(musicQueryKey, (current) => {
+  queryClient.setQueriesData<Music[] | undefined>({ queryKey: musicQueryKey, exact: false }, (current) => {
     if (!current) {
       return current
     }
@@ -216,7 +216,7 @@ export function useDeletePlaylist() {
       patchPlaylistListSummary(queryClient, id, () => null)
       queryClient.removeQueries({ queryKey: playlistDetailQueryKey(id) })
       // Strip this playlist id from every track's playlistIds so chips disappear instantly.
-      queryClient.setQueryData<Music[] | undefined>(musicQueryKey, (current) => {
+      queryClient.setQueriesData<Music[] | undefined>({ queryKey: musicQueryKey, exact: false }, (current) => {
         if (!current) {
           return current
         }

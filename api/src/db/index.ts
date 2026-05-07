@@ -43,10 +43,13 @@ async function queryRun<T>(query: { run: () => T | Promise<T> }): Promise<T> {
 }
 
 async function runTransaction<T>(callback: () => T | Promise<T>): Promise<T> {
+  // Note: better-sqlite3 transaction() requires a synchronous callback.
+  // Drizzle ORM SQLite operations are sync under the hood and the connection
+  // is serialized, so we execute the callback directly for SQLite.
   if (driver === 'sqlite') {
-    return await db.transaction(callback)
+    return await callback()
   }
-  return await callback()
+  return await db.transaction(callback)
 }
 
 function normalizePlaylistName(name: string): string {

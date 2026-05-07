@@ -173,7 +173,7 @@ export function useUpdateMusic() {
       return await response.json() as Music
     },
     onSuccess: (updated) => {
-      queryClient.setQueryData<Music[]>(musicQueryKey, current =>
+      queryClient.setQueriesData<Music[]>({ queryKey: musicQueryKey, exact: false }, current =>
         current?.map(track => track.id === updated.id ? updated : track) ?? current)
       queryClient.invalidateQueries({ queryKey: musicQueryKey }).catch(() => {})
     },
@@ -238,7 +238,7 @@ export function useReorderMusic() {
       return await response.json() as Music[]
     },
     onSuccess: (tracks) => {
-      queryClient.setQueryData<Music[]>(musicQueryKey, tracks)
+      queryClient.setQueriesData<Music[]>({ queryKey: musicQueryKey, exact: false }, tracks)
       queryClient.invalidateQueries({ queryKey: musicQueryKey }).catch(() => {})
     },
   })

@@ -584,10 +584,16 @@ export async function storeTrackCoverMask(record: Track): Promise<void> {
 
 export async function deleteStoredTrack(record: Track): Promise<void> {
   const trackRef = getTrackObjectRef(record)
-  await getStorageDriver(trackRef.backend).deleteObject(trackRef.key)
+  await getStorageDriver(trackRef.backend).deleteObject(trackRef.key).catch((err: unknown) => {
+    if (!isStorageObjectMissingError(err)) throw err
+  })
 
   const coverRefs = listCoverObjectRefs(record)
-  await Promise.all(coverRefs.map(ref => getStorageDriver(ref.backend).deleteObject(ref.key)))
+  await Promise.all(coverRefs.map(ref =>
+    getStorageDriver(ref.backend).deleteObject(ref.key).catch((err: unknown) => {
+      if (!isStorageObjectMissingError(err)) throw err
+    }),
+  ))
 }
 
 export async function deleteTrackCover(record: Track): Promise<void> {
