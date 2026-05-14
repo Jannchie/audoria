@@ -635,7 +635,7 @@ function handleDragEnd(): void {
 .search-input {
   width: 100%;
   height: 2.75rem;
-  padding: 0 2.25rem 0 2.5rem;
+  padding: 0 2.75rem 0 2.5rem;
   border: none;
   border-radius: 1.375rem;
   background: var(--bg-surface);
@@ -655,19 +655,19 @@ function handleDragEnd(): void {
 
 .search-clear {
   position: absolute;
-  right: 0.375rem;
+  right: 0.5rem;
   top: 50%;
   transform: translateY(-50%);
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 1.5rem;
-  height: 1.5rem;
+  width: 1.75rem;
+  height: 1.75rem;
   border: none;
   border-radius: 50%;
   background: transparent;
   color: var(--text-tertiary);
-  font-size: 0.875rem;
+  font-size: 1rem;
   cursor: pointer;
   transition: color 0.15s ease, background 0.15s ease;
 }
