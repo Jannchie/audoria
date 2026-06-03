@@ -24,8 +24,14 @@ FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ffmpeg ca-certificates \
+  && apt-get install -y --no-install-recommends ffmpeg ca-certificates curl \
+  && curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux -o /usr/local/bin/yt-dlp \
+  && chmod +x /usr/local/bin/yt-dlp \
+  && apt-get purge -y curl \
+  && apt-get autoremove -y \
   && rm -rf /var/lib/apt/lists/*
+
+ENV YTDLP_PATH=/usr/local/bin/yt-dlp
 
 RUN corepack enable
 
