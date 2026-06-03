@@ -23,9 +23,15 @@ FROM node:22-bookworm-slim AS runtime
 
 WORKDIR /app
 
+ARG TARGETARCH
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ffmpeg ca-certificates curl \
-  && curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux -o /usr/local/bin/yt-dlp \
+  && case "$TARGETARCH" in \
+       amd64) ytdlp_asset=yt-dlp_linux ;; \
+       arm64) ytdlp_asset=yt-dlp_linux_aarch64 ;; \
+       *) echo "unsupported TARGETARCH: $TARGETARCH" >&2; exit 1 ;; \
+     esac \
+  && curl -L "https://github.com/yt-dlp/yt-dlp/releases/latest/download/${ytdlp_asset}" -o /usr/local/bin/yt-dlp \
   && chmod +x /usr/local/bin/yt-dlp \
   && apt-get purge -y curl \
   && apt-get autoremove -y \
