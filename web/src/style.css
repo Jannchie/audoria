@@ -47,6 +47,8 @@
   /* HarmonyOS Sans / PingFang read heavy on the dark background at 400;
      body copy uses the light cut, emphasis steps up to 400–500. */
   font-weight: 300;
+  /* 17px base: everything is sized in rem, so type (and spacing) scale up together. */
+  font-size: 106.25%;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
@@ -57,8 +59,9 @@
   --bg-hover: #28282e;
 
   --text-primary: #ededf0;
-  --text-secondary: #bcbcc7;
-  --text-tertiary: #82828c;
+  /* Light font weights need brighter greys to stay legible on the dark base. */
+  --text-secondary: #d2d2da;
+  --text-tertiary: #a4a4ae;
 
   --accent: #e8574a;
   --accent-hover: #d44d41;

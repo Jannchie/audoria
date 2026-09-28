@@ -11,7 +11,7 @@ import QueueDrawer from './components/QueueDrawer.vue'
 import ShortcutHelpDialog from './components/ShortcutHelpDialog.vue'
 import ToastHost from './components/ToastHost.vue'
 import { useKeyboardDetect } from './composables/useKeyboardDetect'
-import { useKeyboardShortcuts, useShortcutHelp } from './composables/useKeyboardShortcuts'
+import { useKeyboardShortcuts } from './composables/useKeyboardShortcuts'
 import LoginPage from './pages/LoginPage.vue'
 
 const { t } = useI18n()
@@ -25,7 +25,6 @@ onMounted(() => {
 
 useKeyboardShortcuts()
 useMediaSession()
-const { open: openShortcutHelp } = useShortcutHelp()
 const { isKeyboardOpen } = useKeyboardDetect()
 
 const authReady = computed(() => status.value !== 'loading')
@@ -159,19 +158,6 @@ watchEffect(() => {
             />
             <span>{{ item.name }}</span>
           </RouterLink>
-          <button
-            type="button"
-            class="desktop-nav-item desktop-nav-shortcuts"
-            :aria-label="t('shortcuts.open')"
-            :title="`${t('shortcuts.open')} (?)`"
-            aria-keyshortcuts="?"
-            @click="openShortcutHelp"
-          >
-            <span
-              class="i-tabler-keyboard"
-              aria-hidden="true"
-            />
-          </button>
         </nav>
       </div>
     </header>
@@ -342,15 +328,6 @@ watchEffect(() => {
 
 .desktop-nav-item:active {
   background: var(--bg-elevated);
-}
-
-.desktop-nav-shortcuts {
-  margin-left: 0.25rem;
-  padding: 0.5rem 0.625rem;
-  border: none;
-  background: none;
-  font-size: 1rem;
-  cursor: pointer;
 }
 
 .desktop-nav-item:hover {
