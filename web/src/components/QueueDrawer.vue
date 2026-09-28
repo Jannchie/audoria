@@ -402,7 +402,7 @@ watch(isOpen, (open) => {
 .queue-title {
   margin: 0;
   font-size: 1rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-primary);
 }
 
@@ -444,7 +444,7 @@ watch(isOpen, (open) => {
   margin: 0;
   padding: 0.25rem 0.5rem 0.375rem;
   font-size: 0.6875rem;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--text-tertiary);
@@ -552,7 +552,7 @@ watch(isOpen, (open) => {
 .queue-track-title {
   margin: 0;
   font-size: 0.8125rem;
-  font-weight: 500;
+  font-weight: 400;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;

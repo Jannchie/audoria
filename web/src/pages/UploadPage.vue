@@ -245,7 +245,7 @@ function formatFileSize(bytes: number): string {
 
 .drop-filename {
   font-size: 0.875rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-primary);
   font-family: var(--font-display);
 }
@@ -258,7 +258,7 @@ function formatFileSize(bytes: number): string {
 .drop-hint {
   font-size: 0.875rem;
   color: var(--text-secondary);
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .drop-formats {
@@ -277,7 +277,7 @@ function formatFileSize(bytes: number): string {
   background: var(--accent);
   color: white;
   font-size: 0.8125rem;
-  font-weight: 600;
+  font-weight: 500;
   border: none;
   cursor: pointer;
   transition: all 0.15s ease;

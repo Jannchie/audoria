@@ -700,7 +700,7 @@ function handleDragEnd(): void {
 .playlist-hero-kicker {
   margin: 0;
   font-size: 0.6875rem;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: 0.15em;
   text-transform: uppercase;
   color: var(--text-tertiary);
@@ -709,7 +709,7 @@ function handleDragEnd(): void {
 .playlist-hero-name {
   margin: 0;
   font-size: clamp(1.5rem, 4vw, 2.5rem);
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-primary);
   line-height: 1.1;
   letter-spacing: -0.01em;
@@ -720,7 +720,7 @@ function handleDragEnd(): void {
   margin: 0;
   padding: 0.25rem 0.5rem;
   font-size: clamp(1.5rem, 4vw, 2.5rem);
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-primary);
   line-height: 1.1;
   background: var(--bg-base);
@@ -776,7 +776,7 @@ function handleDragEnd(): void {
   background: var(--bg-base);
   color: var(--text-primary);
   font-size: 0.8125rem;
-  font-weight: 500;
+  font-weight: 400;
   cursor: pointer;
   transition: background 0.15s ease, transform 0.1s ease, border-color 0.15s ease;
 }
@@ -798,7 +798,7 @@ function handleDragEnd(): void {
   border-color: transparent;
   background: var(--accent);
   color: white;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .playlist-hero-btn--primary:hover:not(:disabled) {
@@ -1024,7 +1024,7 @@ function handleDragEnd(): void {
   margin: 0;
   font-family: var(--font-display);
   font-size: 0.875rem;
-  font-weight: 500;
+  font-weight: 400;
   letter-spacing: -0.005em;
   line-height: 1.3;
   color: var(--text-primary);
@@ -1122,7 +1122,7 @@ function handleDragEnd(): void {
 .playlist-selection-count {
   flex: 1;
   color: var(--text-primary);
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .playlist-selection-action {

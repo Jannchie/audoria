@@ -862,7 +862,7 @@ function handleDragEnd(): void {
   margin: 0;
   font-family: var(--font-display);
   font-size: 0.875rem;
-  font-weight: 500;
+  font-weight: 400;
   letter-spacing: -0.005em;
   line-height: 1.3;
   color: var(--text-primary);
@@ -966,7 +966,7 @@ function handleDragEnd(): void {
 .selection-count {
   flex: 1;
   color: var(--text-primary);
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .selection-action {

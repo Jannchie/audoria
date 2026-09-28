@@ -1006,7 +1006,7 @@ const activeLanguageHint = computed(() => {
 .settings-title {
   margin: 0;
   font-size: 1.625rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-primary);
   letter-spacing: -0.01em;
 }
@@ -1044,7 +1044,7 @@ const activeLanguageHint = computed(() => {
   background: transparent;
   color: var(--text-secondary);
   font-size: 0.875rem;
-  font-weight: 600;
+  font-weight: 500;
   text-align: left;
   cursor: pointer;
   transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
@@ -1084,7 +1084,7 @@ const activeLanguageHint = computed(() => {
   margin: 0;
   padding: 0 0.25rem;
   font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-secondary);
@@ -1134,7 +1134,7 @@ const activeLanguageHint = computed(() => {
 
 .field-label {
   font-size: 0.9375rem;
-  font-weight: 500;
+  font-weight: 400;
   color: var(--text-primary);
   line-height: 1.35;
 }
@@ -1188,7 +1188,7 @@ const activeLanguageHint = computed(() => {
   background: var(--bg-primary);
   color: var(--text-primary);
   font-size: 0.8125rem;
-  font-weight: 500;
+  font-weight: 400;
   cursor: pointer;
   transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
 }
@@ -1239,7 +1239,7 @@ const activeLanguageHint = computed(() => {
 
 .config-item dt {
   font-size: 0.6875rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-secondary);
   line-height: 1.35;
   overflow-wrap: anywhere;
@@ -1269,7 +1269,7 @@ const activeLanguageHint = computed(() => {
   flex-direction: column;
   gap: 0.375rem;
   font-size: 0.6875rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-secondary);
 }
 
@@ -1283,7 +1283,7 @@ const activeLanguageHint = computed(() => {
   color: var(--text-primary);
   font: inherit;
   font-size: 0.8125rem;
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .config-input:focus {
@@ -1315,7 +1315,7 @@ const activeLanguageHint = computed(() => {
 
 .ai-provider-select__label {
   font-size: 0.8125rem;
-  font-weight: 500;
+  font-weight: 400;
   color: var(--text-primary);
   white-space: nowrap;
 }
@@ -1330,7 +1330,7 @@ const activeLanguageHint = computed(() => {
   color: var(--text-primary);
   font: inherit;
   font-size: 0.8125rem;
-  font-weight: 500;
+  font-weight: 400;
   cursor: pointer;
   appearance: none;
   background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='%23888' d='M5 6l3 4 3-4'/%3e%3c/svg%3e");
@@ -1363,7 +1363,7 @@ const activeLanguageHint = computed(() => {
   color: var(--text-secondary);
   font: inherit;
   font-size: 0.8125rem;
-  font-weight: 500;
+  font-weight: 400;
   cursor: pointer;
   transition: background 120ms ease, color 120ms ease;
 }
@@ -1477,7 +1477,7 @@ const activeLanguageHint = computed(() => {
 .ai-provider-row__name {
   flex: 1;
   font-size: 0.8125rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-primary);
   display: flex;
   align-items: center;
@@ -1486,7 +1486,7 @@ const activeLanguageHint = computed(() => {
 
 .ai-provider-row__default-tag {
   font-size: 0.625rem;
-  font-weight: 700;
+  font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   padding: 0.0625rem 0.375rem;
@@ -1497,7 +1497,7 @@ const activeLanguageHint = computed(() => {
 
 .ai-provider-row__status {
   font-size: 0.6875rem;
-  font-weight: 500;
+  font-weight: 400;
   color: var(--text-secondary);
   white-space: nowrap;
 }
@@ -1570,7 +1570,7 @@ const activeLanguageHint = computed(() => {
   background: var(--bg-primary);
   color: var(--text-primary);
   font-size: 0.8125rem;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
 }
 
@@ -1596,7 +1596,7 @@ const activeLanguageHint = computed(() => {
   background: var(--bg-primary);
   color: var(--text-secondary);
   font-size: 0.8125rem;
-  font-weight: 500;
+  font-weight: 400;
   cursor: pointer;
   transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
 }

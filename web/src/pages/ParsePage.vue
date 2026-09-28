@@ -592,7 +592,7 @@ watch(
 
 .preview-title {
   font-size: 1rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-primary);
   font-family: var(--font-display);
   overflow: hidden;
@@ -628,7 +628,7 @@ watch(
   background: var(--bg-elevated);
   color: var(--text-tertiary);
   font-size: 0.6875rem;
-  font-weight: 500;
+  font-weight: 400;
   letter-spacing: 0.02em;
   white-space: nowrap;
 }
@@ -656,7 +656,7 @@ watch(
   border: none;
   cursor: pointer;
   font-size: 0.8125rem;
-  font-weight: 500;
+  font-weight: 400;
   transition: background 0.15s ease, opacity 0.15s ease;
   font-family: inherit;
 }

@@ -457,7 +457,7 @@ function applySourcePreset(value: string): void {
 
 .metadata-title {
   font-size: 1rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-primary);
 }
 
@@ -687,7 +687,7 @@ function applySourcePreset(value: string): void {
   border-radius: 0.5rem;
   border: 1px solid transparent;
   font-size: 0.8125rem;
-  font-weight: 500;
+  font-weight: 400;
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }

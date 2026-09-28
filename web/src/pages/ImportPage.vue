@@ -1039,7 +1039,7 @@ function isImporting(id: string): boolean {
   padding: 0.3rem 0.625rem;
   border-radius: 999px;
   font-size: 0.6875rem;
-  font-weight: 500;
+  font-weight: 400;
   letter-spacing: 0.02em;
   white-space: nowrap;
   transition: background 0.15s ease, color 0.15s ease;
@@ -1111,7 +1111,7 @@ function isImporting(id: string): boolean {
 
 .result-name {
   font-size: 0.8125rem;
-  font-weight: 500;
+  font-weight: 400;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;

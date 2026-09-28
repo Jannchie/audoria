@@ -339,7 +339,7 @@ function openPlaylist(id: string): void {
 .playlists-title {
   margin: 0;
   font-size: 2rem;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--text-primary);
   font-family: var(--font-display, inherit);
   letter-spacing: -0.025em;
@@ -351,7 +351,7 @@ function openPlaylist(id: string): void {
   margin: 0.5rem 0 0;
   padding: 0.125rem 0.625rem;
   font-size: 0.75rem;
-  font-weight: 500;
+  font-weight: 400;
   color: var(--text-tertiary);
   background: var(--bg-surface);
   border-radius: 999px;
@@ -368,7 +368,7 @@ function openPlaylist(id: string): void {
   background: var(--accent);
   color: white;
   font-size: 0.875rem;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
   transition: background 0.15s ease, transform 0.1s ease;
   white-space: nowrap;
@@ -439,7 +439,7 @@ function openPlaylist(id: string): void {
   background: var(--accent);
   color: white;
   font-size: 0.8125rem;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
   transition: background 0.15s ease;
 }
@@ -458,7 +458,7 @@ function openPlaylist(id: string): void {
   background: transparent;
   color: var(--text-secondary);
   font-size: 0.8125rem;
-  font-weight: 500;
+  font-weight: 400;
   cursor: pointer;
   transition: border-color 0.15s ease, color 0.15s ease;
 }
@@ -567,7 +567,7 @@ function openPlaylist(id: string): void {
   border: none;
   color: var(--text-primary);
   font-size: 0.8125rem;
-  font-weight: 500;
+  font-weight: 400;
   cursor: pointer;
   outline: none;
 }
@@ -627,7 +627,7 @@ function openPlaylist(id: string): void {
 .playlist-card-title {
   margin: 0;
   font-size: 0.9375rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
@@ -654,7 +654,7 @@ function openPlaylist(id: string): void {
   gap: 0.25rem;
   margin-top: 0.125rem;
   font-size: 0.75rem;
-  font-weight: 500;
+  font-weight: 400;
   color: var(--text-tertiary);
 }
 

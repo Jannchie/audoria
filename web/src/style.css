@@ -23,6 +23,9 @@
   --font-display: 'HarmonyOS Sans SC', 'HarmonyOS Sans', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', 'DM Sans', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'Berkeley Mono Latin', 'SFMono-Regular', ui-monospace, monospace;
   font-family: var(--font-sans);
+  /* HarmonyOS Sans / PingFang read heavy on the dark background at 400;
+     body copy uses the light cut, emphasis steps up to 400–500. */
+  font-weight: 300;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
@@ -167,7 +170,7 @@ input[type="search"]::-webkit-search-cancel-button {
 
 .empty-title {
   font-size: 0.9375rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-secondary);
   margin-top: 1rem;
   font-family: var(--font-display);

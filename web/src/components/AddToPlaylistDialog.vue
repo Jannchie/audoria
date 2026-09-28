@@ -272,7 +272,7 @@ function handleBackdropClick(event: MouseEvent): void {
 .playlist-dialog-title {
   margin: 0;
   font-size: 1rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-primary);
 }
 
@@ -308,7 +308,7 @@ function handleBackdropClick(event: MouseEvent): void {
 .playlist-dialog-section-title {
   margin: 0;
   font-size: 0.875rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-primary);
 }
 
@@ -333,7 +333,7 @@ function handleBackdropClick(event: MouseEvent): void {
 
 .playlist-dialog-list-name {
   font-size: 0.875rem;
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .playlist-dialog-list-meta,
@@ -376,7 +376,7 @@ function handleBackdropClick(event: MouseEvent): void {
   background: var(--accent);
   color: white;
   font-size: 0.875rem;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .playlist-dialog-error {

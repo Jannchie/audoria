@@ -282,7 +282,7 @@ watchEffect(() => {
 
 .logo-text {
   font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-secondary);
   letter-spacing: 0.15em;
   text-transform: uppercase;
@@ -461,7 +461,7 @@ watchEffect(() => {
 
 .mobile-tab-label {
   font-size: 0.65rem;
-  font-weight: 500;
+  font-weight: 400;
   letter-spacing: 0.02em;
   opacity: 0.7;
   transition: opacity 0.2s ease;
@@ -470,6 +470,6 @@ watchEffect(() => {
 
 .mobile-tab--active .mobile-tab-label {
   opacity: 1;
-  font-weight: 600;
+  font-weight: 500;
 }
 </style>

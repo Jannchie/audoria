@@ -125,7 +125,7 @@ function handleKey(event: KeyboardEvent): void {
 .input-prompt-title {
   margin: 0;
   font-size: 0.9375rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-primary);
 }
 
@@ -166,7 +166,7 @@ function handleKey(event: KeyboardEvent): void {
   border-color: transparent;
   background: var(--accent);
   color: white;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .input-prompt-fade-enter-active,

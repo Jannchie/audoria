@@ -874,7 +874,7 @@ onUnmounted(() => {
 .playerbar-title {
   margin: 0;
   font-size: 0.8125rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-primary);
   font-family: var(--font-display, inherit);
   white-space: nowrap;

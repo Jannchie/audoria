@@ -121,7 +121,7 @@ async function handleSubmit(): Promise<void> {
 
 .login-title {
   font-size: 1.25rem;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-primary);
   font-family: var(--font-display);
   letter-spacing: 0.02em;
@@ -173,7 +173,7 @@ async function handleSubmit(): Promise<void> {
   background: var(--accent);
   color: white;
   font-size: 0.875rem;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
   font-family: inherit;
   transition: opacity 0.15s ease;
@@ -220,7 +220,7 @@ async function handleSubmit(): Promise<void> {
   background: var(--bg-surface);
   color: var(--text-secondary);
   font-size: 0.875rem;
-  font-weight: 500;
+  font-weight: 400;
   cursor: pointer;
   font-family: inherit;
   transition: background 0.15s ease, color 0.15s ease;
