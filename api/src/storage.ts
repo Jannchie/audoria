@@ -476,6 +476,10 @@ export async function storeTrack({
       contentType,
       lyrics: embedded.lyrics,
       sortOrder: null,
+      playCount: 0,
+      skipCount: 0,
+      listenedSeconds: 0,
+      lastPlayedAt: null,
       createdAt,
     }
 

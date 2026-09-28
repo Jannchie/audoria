@@ -36,6 +36,7 @@ import {
   updateTrackCover,
   updateTrackEditableMetadata,
 } from './db/index.js'
+import { deletePlayEventsForTrack, getListeningStats, PlaySessionConflictError, recordPlayEvent } from './db/playStats.js'
 import { annotateLyricsFurigana } from './furigana.js'
 import { MusicDlBridgeError, MusicDlUnavailableError, resolveMusicDlSongInfo, resolveMusicUrl, searchMusicDl } from './musicdl.js'
 import { musicDlSources, musicDlUrlSources } from './musicSources.js'
@@ -76,6 +77,10 @@ function toMusicResponse(row: Track, playlistIds: string[] = []) {
     durationText: row.durationText,
     durationSeconds: row.durationSeconds,
     playlistIds,
+    playCount: row.playCount ?? 0,
+    skipCount: row.skipCount ?? 0,
+    listenedSeconds: row.listenedSeconds ?? 0,
+    lastPlayedAt: row.lastPlayedAt ? new Date(row.lastPlayedAt).toISOString() : null,
     createdAt: new Date(row.createdAt).toISOString(),
   }
 }
@@ -155,6 +160,10 @@ const MusicSchema = z.object({
     example: ['3d4fe5c7-280f-4b32-bf8d-7571466ae1a3'],
     description: 'Ids of playlists this track is part of',
   }),
+  playCount: z.number().int().nonnegative().openapi({ example: 12, description: 'Counted plays (see play rule on POST /music/{id}/plays)' }),
+  skipCount: z.number().int().nonnegative().openapi({ example: 2, description: 'Sessions skipped before the play threshold' }),
+  listenedSeconds: z.number().int().nonnegative().openapi({ example: 2410, description: 'Total seconds actually listened (excludes paused time and seeked-over ranges)' }),
+  lastPlayedAt: z.string().datetime().nullable().openapi({ example: '2024-01-03T21:15:00.000Z' }),
   createdAt: z.string().datetime().openapi({ example: '2024-01-01T12:00:00.000Z' }),
 }).openapi('Music')
 
@@ -590,7 +599,7 @@ function setSessionCookie(c: Context, token: string): void {
 // ── Auth middleware (protects API routes only) ──
 
 // Paths where GET (read) requests are allowed without auth
-const apiReadAuthPaths = ['/music/*', '/playlists/*', '/app/*', '/openapi.json', '/docs']
+const apiReadAuthPaths = ['/music/*', '/playlists/*', '/stats/*', '/app/*', '/openapi.json', '/docs']
 // Paths that always require full authentication
 const apiWriteAuthPaths = ['/auth/check']
 
@@ -1864,6 +1873,7 @@ api.openapi(deleteRoute, async (c) => {
 
   await deleteStoredTrack(record)
   await removeTrackFromAllPlaylists(id)
+  await deletePlayEventsForTrack(id)
   await deleteTrackRecord(id)
 
   return c.newResponse(null, 204)
@@ -2198,6 +2208,177 @@ api.openapi(updateAppConfigRoute, async (c) => {
   return c.json({
     config: toAppConfigResponse(nextConfig),
     restartRequired: requiresRestart(overrides),
+  }, 200)
+})
+
+// ── Listening statistics ──
+
+const PlayEventRequestSchema = z.object({
+  sessionId: z.string().uuid().openapi({ description: 'Client-generated id of this listening session; repeated reports update the same session' }),
+  startedAt: z.string().datetime().openapi({ example: '2024-01-03T21:15:00.000Z' }),
+  listenedSeconds: z.number().nonnegative().max(86_400).openapi({ example: 95.4, description: 'Seconds actually heard in this session (paused time and seeked-over ranges excluded)' }),
+  durationSeconds: z.number().nonnegative().max(86_400).nullable().optional(),
+  status: z.enum(['playing', 'ended', 'skipped', 'stopped']).openapi({
+    description: '`playing` is a progress checkpoint; `ended` (played to the end), `skipped` (user moved on) and `stopped` (page closed) finalize the session',
+  }),
+}).openapi('PlayEventRequest')
+
+const PlayEventResponseSchema = z.object({
+  counted: z.boolean().openapi({ description: 'Whether this session counts as a play' }),
+  finalized: z.boolean(),
+}).openapi('PlayEventResponse')
+
+const recordPlayRoute = createRoute({
+  method: 'post',
+  path: '/music/{id}/plays',
+  summary: 'Report listening progress for a track',
+  description: 'A session counts as a play once min(240s, max(30s, 50% of duration), 80% of duration) has actually been heard. Requires a session when auth is enabled; guest listening is not recorded.',
+  request: {
+    params: z.object({
+      id: z.string().min(1),
+    }),
+    body: {
+      content: {
+        'application/json': {
+          schema: PlayEventRequestSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: 'Recorded',
+      content: {
+        'application/json': {
+          schema: PlayEventResponseSchema,
+        },
+      },
+    },
+    404: {
+      description: 'Not found',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+    409: {
+      description: 'Session belongs to another track',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+})
+
+api.openapi(recordPlayRoute, async (c) => {
+  const { id } = c.req.valid('param')
+  const body = c.req.valid('json')
+  const track = await getTrackById(id)
+  if (!track) {
+    return c.json({ message: 'Music not found' }, 404)
+  }
+
+  try {
+    const result = await recordPlayEvent({
+      sessionId: body.sessionId,
+      track,
+      startedAt: Date.parse(body.startedAt),
+      listenedSeconds: body.listenedSeconds,
+      durationSeconds: body.durationSeconds ?? null,
+      status: body.status,
+    })
+    return c.json(result, 200)
+  }
+  catch (error) {
+    if (error instanceof PlaySessionConflictError) {
+      return c.json({ message: error.message }, 409)
+    }
+    throw error
+  }
+})
+
+const ListeningStatsSchema = z.object({
+  totals: z.object({
+    playCount: z.number().int().nonnegative(),
+    skipCount: z.number().int().nonnegative(),
+    listenedSeconds: z.number().int().nonnegative(),
+    playedTrackCount: z.number().int().nonnegative(),
+    trackCount: z.number().int().nonnegative(),
+  }),
+  period: z.object({
+    days: z.number().int().positive(),
+    playCount: z.number().int().nonnegative(),
+    listenedSeconds: z.number().int().nonnegative(),
+  }),
+  daily: z.array(z.object({
+    date: z.string().openapi({ example: '2024-01-03', description: 'Local calendar day (per tzOffsetMinutes)' }),
+    playCount: z.number().int().nonnegative(),
+    listenedSeconds: z.number().int().nonnegative(),
+  })),
+  topTracks: z.array(z.object({
+    track: MusicSchema,
+    playCount: z.number().int().nonnegative(),
+    listenedSeconds: z.number().int().nonnegative(),
+  })),
+  recentPlays: z.array(z.object({
+    track: MusicSchema,
+    playedAt: z.string().datetime(),
+    listenedSeconds: z.number().int().nonnegative(),
+    completed: z.boolean(),
+  })),
+}).openapi('ListeningStats')
+
+const listeningStatsRoute = createRoute({
+  method: 'get',
+  path: '/stats',
+  summary: 'Listening statistics: totals, per-day history, top and recent tracks',
+  request: {
+    query: z.object({
+      days: z.coerce.number().int().min(1).max(365).optional().openapi({ example: 30 }),
+      tzOffsetMinutes: z.coerce.number().int().min(-840).max(840).optional().openapi({ example: -540, description: 'Client Date#getTimezoneOffset()' }),
+      limit: z.coerce.number().int().min(1).max(50).optional().openapi({ example: 10 }),
+    }),
+  },
+  responses: {
+    200: {
+      description: 'Listening statistics',
+      content: {
+        'application/json': {
+          schema: ListeningStatsSchema,
+        },
+      },
+    },
+  },
+})
+
+api.openapi(listeningStatsRoute, async (c) => {
+  const query = c.req.valid('query')
+  const stats = await getListeningStats({
+    days: query.days ?? 30,
+    tzOffsetMinutes: query.tzOffsetMinutes ?? 0,
+    limit: query.limit ?? 10,
+  })
+  const trackIds = [...new Set([...stats.topTracks, ...stats.recentPlays].map(item => item.track.id))]
+  const playlistMap = await getPlaylistIdsForTracks(trackIds)
+
+  return c.json({
+    totals: stats.totals,
+    period: stats.period,
+    daily: stats.daily,
+    topTracks: stats.topTracks.map(item => ({
+      track: toMusicResponse(item.track, playlistMap.get(item.track.id) ?? []),
+      playCount: item.playCount,
+      listenedSeconds: item.listenedSeconds,
+    })),
+    recentPlays: stats.recentPlays.map(item => ({
+      track: toMusicResponse(item.track, playlistMap.get(item.track.id) ?? []),
+      playedAt: new Date(item.playedAt).toISOString(),
+      listenedSeconds: item.listenedSeconds,
+      completed: item.completed,
+    })),
   }, 200)
 })
 

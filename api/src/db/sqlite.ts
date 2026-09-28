@@ -114,6 +114,10 @@ export function initSqlite(dbPath: string): void {
       content_type TEXT,
       lyrics TEXT,
       sort_order INTEGER,
+      play_count INTEGER NOT NULL DEFAULT 0,
+      skip_count INTEGER NOT NULL DEFAULT 0,
+      listened_seconds INTEGER NOT NULL DEFAULT 0,
+      last_played_at INTEGER,
       created_at INTEGER NOT NULL
     );
 
@@ -171,6 +175,26 @@ export function initSqlite(dbPath: string): void {
 
     CREATE INDEX IF NOT EXISTS playlist_tracks_track_idx
     ON playlist_tracks (track_id);
+
+    CREATE TABLE IF NOT EXISTS play_events (
+      id TEXT PRIMARY KEY,
+      track_id TEXT NOT NULL,
+      started_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      ended_at INTEGER,
+      listened_seconds INTEGER NOT NULL DEFAULT 0,
+      duration_seconds INTEGER,
+      counted INTEGER NOT NULL DEFAULT 0,
+      completed INTEGER NOT NULL DEFAULT 0,
+      skipped INTEGER NOT NULL DEFAULT 0,
+      end_reason TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS play_events_track_idx
+    ON play_events (track_id);
+
+    CREATE INDEX IF NOT EXISTS play_events_started_at_idx
+    ON play_events (started_at);
   `)
 
   // Legacy migration: add missing columns
@@ -264,6 +288,24 @@ export function initSqlite(dbPath: string): void {
 
   if (hasLegacyS3Key || hasLegacyCoverS3Key) {
     rebuildLegacyTracksTable(sqlite)
+  }
+
+  // Play statistics columns (added after the legacy rebuild so they survive it)
+  const statColumns = new Set((sqlite.prepare('PRAGMA table_info(tracks)').all() as Array<{ name: string }>).map(column => column.name))
+  if (!statColumns.has('sort_order')) {
+    sqlite.exec('ALTER TABLE tracks ADD COLUMN sort_order INTEGER')
+  }
+  if (!statColumns.has('play_count')) {
+    sqlite.exec('ALTER TABLE tracks ADD COLUMN play_count INTEGER NOT NULL DEFAULT 0')
+  }
+  if (!statColumns.has('skip_count')) {
+    sqlite.exec('ALTER TABLE tracks ADD COLUMN skip_count INTEGER NOT NULL DEFAULT 0')
+  }
+  if (!statColumns.has('listened_seconds')) {
+    sqlite.exec('ALTER TABLE tracks ADD COLUMN listened_seconds INTEGER NOT NULL DEFAULT 0')
+  }
+  if (!statColumns.has('last_played_at')) {
+    sqlite.exec('ALTER TABLE tracks ADD COLUMN last_played_at INTEGER')
   }
 
   const importJobColumns = sqlite.prepare('PRAGMA table_info(music_import_jobs)').all() as Array<{ name: string }>
