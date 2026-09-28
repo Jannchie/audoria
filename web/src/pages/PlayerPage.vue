@@ -183,6 +183,11 @@ const isFuriganaEditing = ref(false)
 const editingReading = ref<{ line: string, index: number } | null>(null)
 const editingReadingValue = ref('')
 const KANJI_RE = /\p{Script=Han}/u
+const KANA_RE = /[\p{Script=Hiragana}\p{Script=Katakana}]/u
+
+function lyricLang(text: string): string | undefined {
+  return KANA_RE.test(text) ? 'ja' : undefined
+}
 
 function isRubyEditable(segment: RubySegment): boolean {
   return isFuriganaEditing.value && KANJI_RE.test(segment.text)
@@ -842,6 +847,7 @@ onUnmounted(() => {
                   <span
                     v-if="furiganaByLine[line.source]"
                     class="lyric-text"
+                    :lang="lyricLang(line.text)"
                   >
                     <template
                       v-for="(segment, j) in furiganaByLine[line.source]"
@@ -872,6 +878,7 @@ onUnmounted(() => {
                   <span
                     v-else
                     class="lyric-text"
+                    :lang="lyricLang(line.text)"
                   >{{ line.text || '···' }}</span>
                   <span
                     v-for="(translation, j) in line.translations"
@@ -1484,12 +1491,13 @@ onUnmounted(() => {
   border: none;
   background: none;
   font-family: inherit;
+  font-weight: 300;
   line-height: 1.7;
 }
 .lyric-line--active {
   color: var(--text-primary);
   font-size: 1.125rem;
-  font-weight: 600;
+  font-weight: 500;
 }
 .lyric-line--past {
   color: rgba(255, 255, 255, 0.4);
@@ -1508,9 +1516,13 @@ onUnmounted(() => {
 }
 .lyric-translation {
   font-size: 0.8em;
-  font-weight: 400;
+  font-weight: 300;
   line-height: 1.5;
   opacity: 0.7;
+}
+/* Japanese lines get Japanese glyph forms instead of the SC font's Chinese ones. */
+.lyric-text:lang(ja) {
+  font-family: 'Hiragino Sans', 'Noto Sans JP', 'Yu Gothic UI', 'Meiryo', var(--font-sans);
 }
 .lyric-ruby rt {
   font-size: 0.5em;
@@ -1543,6 +1555,7 @@ onUnmounted(() => {
 
 .lyrics-plain {
   font-size: 0.9375rem;
+  font-weight: 300;
   color: rgba(255, 255, 255, 0.4);
   line-height: 2;
   white-space: pre-wrap;
