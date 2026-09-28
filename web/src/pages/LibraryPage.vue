@@ -536,11 +536,19 @@ function handleDragEnd(): void {
             class="tr-album"
           >{{ track.album }}</span>
           <span
-            v-if="playlistBadgesFor(track).length > 0"
-            class="tr-in"
-            :title="t('library.inPlaylists', { names: playlistBadgesFor(track).join(', ') })"
-          >{{ playlistSummaryFor(track) }}</span>
-          <TrackPlayMeta :track="track" />
+            v-if="playlistBadgesFor(track).length > 0 || (track.playCount ?? 0) > 0"
+            class="tr-meta"
+          >
+            <span
+              v-if="playlistBadgesFor(track).length > 0"
+              class="tr-in"
+              :title="t('library.inPlaylists', { names: playlistBadgesFor(track).join(', ') })"
+            >{{ playlistSummaryFor(track) }}</span>
+            <TrackPlayMeta
+              class="tr-play-meta"
+              :track="track"
+            />
+          </span>
         </div>
 
         <span class="tr-duration time-code">{{ formatTrackDuration(track.durationSeconds) }}</span>
@@ -770,8 +778,17 @@ function handleDragEnd(): void {
     line-height: 1.3;
     overflow: hidden;
   }
+  /* Playlists and play stats share the second line, so the column stays two lines tall like the title column. */
+  .tr-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    min-width: 0;
+    overflow: hidden;
+  }
   .tr-in {
     display: block;
+    flex: 0 1 auto;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -784,6 +801,10 @@ function handleDragEnd(): void {
   }
   .tr:hover .tr-in {
     color: var(--text-primary);
+  }
+  /* Play stats give way to the playlist names first when space runs out. */
+  .tr-play-meta {
+    flex: 0 100 auto;
   }
 }
 
