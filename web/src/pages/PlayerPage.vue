@@ -1651,7 +1651,21 @@ onUnmounted(() => {
   margin-top: 0.375rem;
 }
 
+/* Mobile keeps both sides as equal-width columns so the transport stays
+   centered; only the play-mode toggle is shown, the right side is a spacer. */
 .controls-side {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.controls-side--right {
+  justify-content: flex-end;
+}
+
+.controls-side--right > * {
   display: none;
 }
 
@@ -1665,15 +1679,11 @@ onUnmounted(() => {
   .controls-row {
     justify-content: space-between;
   }
-  .controls-side {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    flex: 1 1 0;
-    min-width: 0;
+  .controls-side--right > * {
+    display: revert;
   }
-  .controls-side--right {
-    justify-content: flex-end;
+  .controls-side--right > .ctrl-btn {
+    display: flex;
   }
   .controls-center {
     gap: 1.25rem;
