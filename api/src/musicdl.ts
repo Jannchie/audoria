@@ -234,6 +234,9 @@ function toSdkTrack(songInfo: MusicDlSongInfo): TrackDetail {
   if (songInfo.protocol === 'http' || songInfo.protocol === 'hls') {
     track.protocol = songInfo.protocol
   }
+  if (songInfo.ext) {
+    track.ext = songInfo.ext
+  }
   const downloadHeaders = songInfo.default_download_headers ?? {}
   if (Object.keys(downloadHeaders).length > 0) {
     track.downloadHeaders = downloadHeaders
@@ -285,6 +288,13 @@ async function searchSourceTracks(
 
   return (result[source] ?? [])
     .filter(track => !('episodes' in track && Array.isArray(track.episodes) && track.episodes.length > 0))
+    .filter(track => !isPlaceholderValue(track.identifier) && !isPlaceholderValue(track.songName))
+}
+
+// Upstream parsers emit the literal string 'NULL' for fields they failed to read.
+function isPlaceholderValue(value: string | null | undefined): boolean {
+  const trimmed = value?.trim() ?? ''
+  return !trimmed || trimmed === 'NULL'
 }
 
 function buildQqFallbackKeywords(songInfo: MusicDlSongInfo): string[] {
@@ -421,6 +431,9 @@ export async function searchMusicDl(
 
   if (source) {
     results = await searchSingleSource(keyword, source, resolvedConfig, normalizedLimitPerSource)
+    if (results.length === 0) {
+      throw new MusicDlBridgeError(`No results from ${source}`)
+    }
   }
   else {
     const settledResults = await Promise.allSettled(
@@ -439,10 +452,19 @@ export async function searchMusicDl(
       }
       return result.value.items
     })
-  }
 
-  if (results.length === 0) {
-    throw new MusicDlBridgeError('All sources timed out or returned no results')
+    if (results.length === 0) {
+      const failures = settledResults.flatMap((result, index) => {
+        if (result.status !== 'rejected') {
+          return []
+        }
+        const reason = result.reason instanceof Error ? result.reason.message : String(result.reason)
+        return [`${resolvedConfig.sources[index]}: ${reason}`]
+      })
+      throw new MusicDlBridgeError(failures.length > 0
+        ? `No results from any source (${failures.join('; ')})`
+        : 'No results from any source')
+    }
   }
 
   return results.toSorted((left, right) => {
