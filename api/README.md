@@ -67,7 +67,7 @@ D1_DATABASE_ID=...
 D1_API_TOKEN=...
 ```
 
-When using D1, apply `api/drizzle/0000_initial.sql` before starting the app.
+When using D1, apply the SQL files in `api/drizzle/` in order (`0000_initial.sql`, `0001_play_stats.sql`, …) before starting the app; on upgrade apply only the new ones.
 
 Generate new migrations with:
 

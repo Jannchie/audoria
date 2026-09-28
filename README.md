@@ -89,9 +89,11 @@ D1_DATABASE_ID=...
 D1_API_TOKEN=...
 ```
 
-Audoria does not create D1 tables automatically. Apply `api/drizzle/0000_initial.sql`
-through the Cloudflare dashboard, API, or any D1 management workflow you prefer before
-starting the app.
+Audoria does not create D1 tables automatically. Apply the SQL files in `api/drizzle/`
+(`0000_initial.sql`, then `0001_play_stats.sql`, …) in order through the Cloudflare
+dashboard, API, or any D1 management workflow you prefer before starting the app.
+When upgrading, apply only the files you have not applied yet. (SQLite databases are
+upgraded automatically on startup.)
 
 After changing `api/src/db/schema.ts`, generate a new migration:
 
