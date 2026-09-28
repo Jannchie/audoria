@@ -4,6 +4,7 @@ import { computed, nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import PlaylistCover from '../components/PlaylistCover.vue'
+import { useAuth } from '../composables/useAuth'
 import { useConfirm } from '../composables/useConfirm'
 import { usePlayerState } from '../composables/usePlayerState'
 import { useCreatePlaylist, useDeletePlaylist, usePlaylistDetailFetcher, usePlaylistsQuery } from '../composables/usePlaylists'
@@ -13,6 +14,7 @@ type SortKey = 'updated' | 'created' | 'nameAsc' | 'nameDesc' | 'tracks'
 
 const { t } = useI18n()
 const router = useRouter()
+const { isGuest } = useAuth()
 const { data: playlists, isPending, isError, error } = usePlaylistsQuery()
 const createPlaylistMutation = useCreatePlaylist()
 const deletePlaylistMutation = useDeletePlaylist()
@@ -187,6 +189,7 @@ async function playPlaylist(playlist: Playlist, event: MouseEvent): Promise<void
         </p>
       </div>
       <button
+        v-if="!isGuest"
         type="button"
         class="playlists-new-btn"
         :disabled="isCreating"
@@ -366,7 +369,7 @@ async function playPlaylist(playlist: Playlist, event: MouseEvent): Promise<void
         {{ search ? t('library.noResultsHint') : t('playlist.emptyListHint') }}
       </p>
       <button
-        v-if="!search && !showCreate"
+        v-if="!search && !showCreate && !isGuest"
         type="button"
         class="playlist-empty-action"
         @click="toggleCreate"
@@ -408,6 +411,7 @@ async function playPlaylist(playlist: Playlist, event: MouseEvent): Promise<void
             />
           </button>
           <button
+            v-if="!isGuest"
             type="button"
             class="playlist-card-delete"
             :aria-label="t('playlist.deletePlaylist')"

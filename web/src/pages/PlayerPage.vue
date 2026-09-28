@@ -717,7 +717,7 @@ onUnmounted(() => {
           </div>
 
           <div
-            v-if="currentTrack && isTimeSynced && isLyricsToolbarOpen"
+            v-if="currentTrack && isTimeSynced && isLyricsToolbarOpen && !isGuest"
             class="lyrics-toolbar"
           >
             <div
@@ -1024,7 +1024,7 @@ onUnmounted(() => {
               />
             </button>
             <button
-              v-if="currentTrack && isTimeSynced"
+              v-if="currentTrack && isTimeSynced && !isGuest"
               type="button"
               class="ctrl-btn ctrl-btn--sm"
               :class="{ 'ctrl-btn--active': isLyricsToolbarOpen }"
@@ -1039,6 +1039,7 @@ onUnmounted(() => {
               />
             </button>
             <button
+              v-if="!isGuest"
               type="button"
               class="ctrl-btn ctrl-btn--sm"
               :aria-label="t('common.actions.editMetadata')"

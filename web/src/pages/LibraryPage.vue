@@ -110,6 +110,8 @@ const filteredTracks = computed(() => {
 })
 
 const isManualOrder = computed(() => sortKey.value === 'manual')
+// Reordering is a write, so guests only get the manual order to read.
+const canReorder = computed(() => isManualOrder.value && !isGuest.value)
 
 function openSortMenu(event: MouseEvent): void {
   event.stopPropagation()
@@ -254,7 +256,7 @@ function openBatchMenu(event: MouseEvent): void {
 // ── Drag-and-drop reorder ──
 
 function handleDragStart(trackId: string, event: DragEvent): void {
-  if (!isManualOrder.value) {
+  if (!canReorder.value) {
     return
   }
   if (event.dataTransfer) {
@@ -471,7 +473,7 @@ function handleDragEnd(): void {
           'tr--dragging': dragTrackId === track.id,
           'tr--drag-over': dragOverTrackId === track.id && dragTrackId !== track.id,
         }"
-        :draggable="isManualOrder"
+        :draggable="canReorder"
         role="button"
         tabindex="0"
         :aria-label="currentTrackId === track.id && isPlaying ? t('library.pauseTrack', { title: track.title || track.filename }) : t('library.playTrack', { title: track.title || track.filename })"

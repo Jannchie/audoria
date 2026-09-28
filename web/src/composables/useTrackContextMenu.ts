@@ -1,6 +1,7 @@
 import type { Music } from '../api/types.gen'
 import type { ContextMenuItem } from './useContextMenu'
 import { useI18n } from 'vue-i18n'
+import { useAuth } from './useAuth'
 import { useConfirm } from './useConfirm'
 import { useInputPrompt } from './useInputPrompt'
 import { buildDownloadUrl } from './useMusic'
@@ -44,6 +45,7 @@ export function useTrackContextMenu() {
   const { prompt } = useInputPrompt()
   const { confirm } = useConfirm()
   const toast = useToast()
+  const { isGuest } = useAuth()
 
   function playlistName(playlistId: string): string {
     return playlists.value?.find(playlist => playlist.id === playlistId)?.name ?? ''
@@ -178,16 +180,24 @@ export function useTrackContextMenu() {
           toast.show({ message: t('feedback.addedToQueue'), icon: 'i-tabler-playlist-add', tone: 'success' })
         },
       },
-      { id: 'divider-1', label: '', divider: true },
-      {
-        id: 'add-to-playlist',
-        label: t('common.actions.addToPlaylist'),
-        icon: 'i-tabler-playlist-add',
-        submenu: () => buildPlaylistSubmenu(tracks),
-      },
     )
 
-    if (playlistContext) {
+    // Guests can only read; the API rejects every write without a session.
+    const canEdit = !isGuest.value
+
+    if (canEdit) {
+      items.push(
+        { id: 'divider-1', label: '', divider: true },
+        {
+          id: 'add-to-playlist',
+          label: t('common.actions.addToPlaylist'),
+          icon: 'i-tabler-playlist-add',
+          submenu: () => buildPlaylistSubmenu(tracks),
+        },
+      )
+    }
+
+    if (canEdit && playlistContext) {
       const playlistId = playlistContext.playlistId
       items.push({
         id: 'remove-from-playlist',
@@ -210,7 +220,7 @@ export function useTrackContextMenu() {
       )
     }
 
-    if (singleTrack && onEditMetadata) {
+    if (canEdit && singleTrack && onEditMetadata) {
       items.push({
         id: 'edit-metadata',
         label: t('common.actions.editMetadata'),
@@ -219,7 +229,7 @@ export function useTrackContextMenu() {
       })
     }
 
-    if (onDelete) {
+    if (canEdit && onDelete) {
       items.push({
         id: 'delete',
         label: t('common.actions.deleteTrack'),

@@ -7,6 +7,7 @@ import LazyCoverImage from '../components/LazyCoverImage.vue'
 import PlaylistCover from '../components/PlaylistCover.vue'
 import SoundWave from '../components/SoundWave.vue'
 import TrackPlayMeta from '../components/TrackPlayMeta.vue'
+import { useAuth } from '../composables/useAuth'
 import { useConfirm } from '../composables/useConfirm'
 import { useContextMenu } from '../composables/useContextMenu'
 import { useListSelection } from '../composables/useListSelection'
@@ -26,6 +27,7 @@ import { formatTrackDuration } from '../utils/audio'
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
+const { isGuest } = useAuth()
 const playlistId = computed(() => {
   const value = route.params.id
   return typeof value === 'string' ? value : null
@@ -76,6 +78,8 @@ const baseTracks = computed(() => {
 
 const tracks = computed(() => sortTracks(baseTracks.value, sortKey.value))
 const isManualOrder = computed(() => sortKey.value === 'manual')
+// Reordering is a write, so guests only get the manual order to read.
+const canReorder = computed(() => isManualOrder.value && !isGuest.value)
 
 function trackCoverUrl(track: { coverUrl: string | null, coverThumbUrl: string | null }): string {
   const url = track.coverThumbUrl ?? track.coverUrl
@@ -358,7 +362,7 @@ function openSortMenu(event: MouseEvent): void {
 }
 
 function handleDragStart(trackId: string, event: DragEvent): void {
-  if (!isManualOrder.value) {
+  if (!canReorder.value) {
     event.preventDefault()
     return
   }
@@ -528,6 +532,7 @@ function handleDragEnd(): void {
                 <span>{{ t('playlist.shuffle') }}</span>
               </button>
               <button
+                v-if="!isGuest"
                 type="button"
                 class="playlist-hero-btn playlist-hero-btn--icon"
                 :aria-label="t('common.actions.moreOptions')"
@@ -636,7 +641,7 @@ function handleDragEnd(): void {
             'tr--selected': selection.isSelected(track.id),
             'tr--active': isTrackActive(track.id),
           }"
-          :draggable="isManualOrder"
+          :draggable="canReorder"
           role="button"
           tabindex="0"
           :aria-label="isTrackActive(track.id) && isPlaying ? t('library.pauseTrack', { title: track.title || track.filename }) : t('library.playTrack', { title: track.title || track.filename })"
