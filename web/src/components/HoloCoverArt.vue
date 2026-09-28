@@ -65,7 +65,10 @@ const coverStyle = computed(() => ({
 }))
 
 const foregroundMaskReady = ref(false)
+// The base image paints straight over the thumbhash background; this only
+// gates the masked foreground layer so it never shows before the base does.
 const baseImageReady = ref(false)
+const baseImageFailed = ref(false)
 
 function createDirectMaskStyle(maskUrl?: string) {
   if (!maskUrl) {
@@ -85,7 +88,13 @@ const foregroundImageStyle = computed(() => ({
 
 watch(() => props.imageUrl, () => {
   baseImageReady.value = false
+  baseImageFailed.value = false
 })
+
+function handleBaseImageError() {
+  baseImageReady.value = false
+  baseImageFailed.value = true
+}
 
 function watchMaskReady(source: () => string | undefined, state: typeof foregroundMaskReady) {
   let requestId = 0
@@ -145,16 +154,15 @@ watchMaskReady(() => props.foregroundMaskUrl, foregroundMaskReady)
         :style="{ ...coverStyle, ...placeholderStyle }"
       >
         <img
-          v-if="imageUrl"
+          v-if="imageUrl && !baseImageFailed"
           :src="imageUrl"
           :alt="alt"
           class="holo-cover__image holo-cover__image--base"
-          :class="{ 'holo-cover__image--ready': baseImageReady }"
           width="1200"
           height="1200"
           decoding="async"
           @load="baseImageReady = true"
-          @error="baseImageReady = false"
+          @error="handleBaseImageError"
         >
         <div
           v-if="imageUrl && effectEnabled"
@@ -170,7 +178,7 @@ watchMaskReady(() => props.foregroundMaskUrl, foregroundMaskReady)
           v-if="imageUrl && effectEnabled && foregroundMaskUrl && foregroundMaskReady && baseImageReady"
           :src="imageUrl"
           :alt="alt"
-          class="holo-cover__image holo-cover__image--foreground holo-cover__masked holo-cover__image--ready"
+          class="holo-cover__image holo-cover__image--foreground holo-cover__masked"
           :style="foregroundImageStyle"
           width="1200"
           height="1200"
@@ -309,15 +317,6 @@ watchMaskReady(() => props.foregroundMaskUrl, foregroundMaskReady)
 .holo-cover__image {
   display: block;
   object-fit: cover;
-  opacity: 0;
-  transition:
-    opacity 220ms ease,
-    filter 360ms ease,
-    transform 360ms ease;
-}
-
-.holo-cover__image--ready {
-  opacity: 1;
 }
 
 .holo-cover__masked {
@@ -333,13 +332,7 @@ watchMaskReady(() => props.foregroundMaskUrl, foregroundMaskReady)
 
 .holo-cover__image--base {
   z-index: 1;
-  filter: brightness(0.92) contrast(1.04) blur(10px);
-  transform: scale(1.025);
-}
-
-.holo-cover__image--base.holo-cover__image--ready {
   filter: brightness(0.92) contrast(1.04);
-  transform: scale(1);
 }
 
 .holo-cover__image--foreground {

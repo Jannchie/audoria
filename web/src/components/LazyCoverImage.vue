@@ -16,10 +16,13 @@ const props = withDefaults(defineProps<{
   loading: 'lazy',
 })
 
-const isLoaded = ref(false)
+// The thumbhash sits behind the image as a background, so the image simply
+// paints over it once decoded. Only a failed load is hidden, to keep the
+// placeholder instead of a broken-image icon.
+const hasError = ref(false)
 
 watch(() => props.src, () => {
-  isLoaded.value = false
+  hasError.value = false
 })
 </script>
 
@@ -29,6 +32,7 @@ watch(() => props.src, () => {
     :style="thumbhashPlaceholderStyle(thumbhash)"
   >
     <img
+      v-if="!hasError"
       :src="src"
       :alt="alt"
       :width="width"
@@ -36,9 +40,7 @@ watch(() => props.src, () => {
       :loading="loading"
       :decoding="decoding"
       class="lazy-cover-image__img"
-      :class="{ 'lazy-cover-image__img--loaded': isLoaded }"
-      @load="isLoaded = true"
-      @error="isLoaded = false"
+      @error="hasError = true"
     >
   </span>
 </template>
@@ -62,18 +64,5 @@ watch(() => props.src, () => {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  opacity: 0;
-  filter: blur(10px);
-  transform: scale(1.025);
-  transition:
-    opacity 220ms ease,
-    filter 360ms ease,
-    transform 360ms ease;
-}
-
-.lazy-cover-image__img--loaded {
-  opacity: 1;
-  filter: blur(0);
-  transform: scale(1);
 }
 </style>
