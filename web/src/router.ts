@@ -65,10 +65,10 @@ const router = createRouter({
       name: 'player',
       component: () => import('./pages/PlayerPage.vue'),
     },
+    // The statistics page is hidden for now; StatsPage.vue is kept to bring it back.
     {
       path: '/stats',
-      name: 'stats',
-      component: () => import('./pages/StatsPage.vue'),
+      redirect: '/library',
     },
     {
       path: '/settings',
