@@ -82,6 +82,9 @@ export async function remuxFlacToMp4(inputPath: string, outputPath: string): Pro
         'mp4',
         '-movflags',
         '+faststart',
+        // ffmpeg before 6.1 (Debian bookworm ships 5.1) gates FLAC-in-MP4 behind this flag.
+        '-strict',
+        'experimental',
         outputPath,
       ])
       let stderr = ''
