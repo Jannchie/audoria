@@ -146,7 +146,8 @@ async function processNextJob(): Promise<boolean> {
     })
 
     let storedCover: Awaited<ReturnType<typeof storeTrackCover>> | null = null
-    if (songInfo.cover_url) {
+    // A cover embedded in the downloaded file was already stored by storeTrack.
+    if (songInfo.cover_url && !track.coverStorageKey) {
       try {
         const cover = await fetchCoverAsset(songInfo.cover_url)
         if (cover) {
@@ -161,18 +162,19 @@ async function processNextJob(): Promise<boolean> {
       }
     }
 
+    // Source metadata wins; tags embedded in the file fill whatever the source left out.
     updateTrackImportedMetadata(track.id, {
-      coverStorageBackend: storedCover?.cover.backend ?? null,
-      coverStorageKey: storedCover?.cover.key ?? null,
-      coverContentType: storedCover?.cover.contentType ?? null,
-      coverThumbStorageBackend: storedCover?.thumb.backend ?? null,
-      coverThumbStorageKey: storedCover?.thumb.key ?? null,
-      coverThumbContentType: storedCover?.thumb.contentType ?? null,
-      coverThumbhash: storedCover?.thumbhash ?? null,
-      lyrics: songInfo.lyric,
-      title: songInfo.song_name,
-      artists: songInfo.singers,
-      album: songInfo.album,
+      coverStorageBackend: storedCover?.cover.backend ?? track.coverStorageBackend,
+      coverStorageKey: storedCover?.cover.key ?? track.coverStorageKey,
+      coverContentType: storedCover?.cover.contentType ?? track.coverContentType,
+      coverThumbStorageBackend: storedCover?.thumb.backend ?? track.coverThumbStorageBackend,
+      coverThumbStorageKey: storedCover?.thumb.key ?? track.coverThumbStorageKey,
+      coverThumbContentType: storedCover?.thumb.contentType ?? track.coverThumbContentType,
+      coverThumbhash: storedCover?.thumbhash ?? track.coverThumbhash,
+      lyrics: songInfo.lyric ?? track.lyrics,
+      title: songInfo.song_name ?? track.title,
+      artists: songInfo.singers ?? track.artists,
+      album: songInfo.album ?? track.album,
       source: songInfo.source,
       sourceIdentifier: toSourceIdentifier(songInfo.identifier),
       durationText: track.durationText ?? (track.durationSeconds ? songInfo.duration : null),

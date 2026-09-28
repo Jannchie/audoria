@@ -1,8 +1,10 @@
+import type { ILyricsTag } from 'music-metadata'
 import type { Buffer } from 'node:buffer'
 import { spawn } from 'node:child_process'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { parseFile, selectCover } from 'music-metadata'
 
 export function formatDurationText(seconds: number): string {
   const total = Math.max(0, Math.floor(seconds))
@@ -53,6 +55,58 @@ export async function probeDurationSecondsFromFile(filePath: string): Promise<nu
     // ffprobe missing or failed; caller must treat this as "duration unknown".
   }
   return null
+}
+
+export interface EmbeddedMetadata {
+  title: string | null
+  artists: string | null
+  album: string | null
+  lyrics: string | null
+  cover: Uint8Array | null
+}
+
+const emptyEmbeddedMetadata: EmbeddedMetadata = { title: null, artists: null, album: null, lyrics: null, cover: null }
+
+function formatLrcTimestamp(milliseconds: number): string {
+  const totalCentiseconds = Math.max(0, Math.round(milliseconds / 10))
+  const minutes = Math.floor(totalCentiseconds / 6000)
+  const seconds = Math.floor((totalCentiseconds % 6000) / 100)
+  const centiseconds = totalCentiseconds % 100
+  return `[${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${centiseconds.toString().padStart(2, '0')}]`
+}
+
+function toLyricsText(tags: ILyricsTag[] | undefined): string | null {
+  for (const tag of tags ?? []) {
+    const synced = tag.syncText.filter(line => typeof line.timestamp === 'number')
+    if (synced.length > 0) {
+      return synced.map(line => `${formatLrcTimestamp(line.timestamp!)}${line.text}`).join('\n')
+    }
+    if (tag.text?.trim()) {
+      return tag.text.trim()
+    }
+  }
+  return null
+}
+
+/**
+ * Reads the tags and front cover embedded in an audio file (ID3, Vorbis comments, MP4 atoms, ...).
+ */
+export async function readEmbeddedMetadata(filePath: string): Promise<EmbeddedMetadata> {
+  try {
+    const { common } = await parseFile(filePath, { duration: false })
+    const artists = common.artists?.length ? common.artists.join(', ') : common.artist
+    return {
+      title: common.title?.trim() || null,
+      artists: artists?.trim() || null,
+      album: common.album?.trim() || null,
+      lyrics: toLyricsText(common.lyrics),
+      cover: selectCover(common.picture)?.data ?? null,
+    }
+  }
+  catch {
+    // Unparseable or untagged file; the track is still stored without metadata.
+    return emptyEmbeddedMetadata
+  }
 }
 
 export async function probeDurationSeconds(buffer: Buffer): Promise<number | null> {

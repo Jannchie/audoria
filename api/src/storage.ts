@@ -12,7 +12,7 @@ import { rgbaToThumbHash } from 'thumbhash'
 import { config } from './config.js'
 import { generateCoverMaskPng, getCoverMaskContentType } from './coverMask.js'
 import { __db as db, tracks } from './db/index.js'
-import { formatDurationText, probeDurationSecondsFromFile } from './probeAudio.js'
+import { formatDurationText, probeDurationSecondsFromFile, readEmbeddedMetadata } from './probeAudio.js'
 
 interface ByteRange { start: number, end: number }
 
@@ -429,7 +429,10 @@ export async function storeTrack({
 
   const tempFile = await writeTrackBodyToTempFile(body, onProgress)
   try {
-    const { durationSeconds, durationText } = await probeAudioDuration(tempFile.filePath)
+    const [{ durationSeconds, durationText }, embedded] = await Promise.all([
+      probeAudioDuration(tempFile.filePath),
+      readEmbeddedMetadata(tempFile.filePath),
+    ])
 
     const storageBackend = getActiveStorageBackend()
     await getStorageDriver(storageBackend).putObject({
@@ -440,28 +443,38 @@ export async function storeTrack({
     })
     onProgress?.(tempFile.size)
 
+    let embeddedCover: StoredCover | null = null
+    if (embedded.cover) {
+      try {
+        embeddedCover = await storeTrackCover({ trackId: id, body: embedded.cover })
+      }
+      catch (error) {
+        console.warn(`Failed to store embedded cover for ${id}: ${error instanceof Error ? error.message : String(error)}`)
+      }
+    }
+
     const record: Track = {
       id,
       filename: filename || 'audio',
       storageBackend,
       storageKey,
-      coverStorageBackend: null,
-      coverStorageKey: null,
-      coverContentType: null,
-      coverThumbStorageBackend: null,
-      coverThumbStorageKey: null,
-      coverThumbContentType: null,
-      coverThumbhash: null,
-      title: null,
-      artists: null,
-      album: null,
+      coverStorageBackend: embeddedCover?.cover.backend ?? null,
+      coverStorageKey: embeddedCover?.cover.key ?? null,
+      coverContentType: embeddedCover?.cover.contentType ?? null,
+      coverThumbStorageBackend: embeddedCover?.thumb.backend ?? null,
+      coverThumbStorageKey: embeddedCover?.thumb.key ?? null,
+      coverThumbContentType: embeddedCover?.thumb.contentType ?? null,
+      coverThumbhash: embeddedCover?.thumbhash ?? null,
+      title: embedded.title,
+      artists: embedded.artists,
+      album: embedded.album,
       source: null,
       sourceIdentifier: null,
       durationText,
       durationSeconds,
       size: tempFile.size,
       contentType,
-      lyrics: null,
+      lyrics: embedded.lyrics,
       sortOrder: null,
       createdAt,
     }
