@@ -74,10 +74,11 @@ const mobileNavItems = computed(() => {
 
 const currentPath = computed(() => route.path)
 const isPlayerPage = computed(() => route.path === '/player')
+const isLoginPage = computed(() => route.path === '/login')
 const isLocked = useScrollLock(document.body)
 
 const showSafeAreaFill = computed(() =>
-  authReady.value && route.path !== '/login' && !isPlayerPage.value,
+  authReady.value && !isLoginPage.value && !isPlayerPage.value,
 )
 
 // Redirect guest users away from restricted routes once auth resolves
@@ -118,11 +119,13 @@ watchEffect(() => {
   </div>
 
   <!-- Login page (full overlay, no app shell) -->
-  <LoginPage v-else-if="route.path === '/login'" />
+  <LoginPage v-else-if="isLoginPage" />
 
-  <!-- App shell -->
+  <!-- App shell. Hidden rather than unmounted on the login page so the
+       PlayerBar's <audio> keeps playing. -->
   <div
-    v-else
+    v-if="authReady"
+    v-show="!isLoginPage"
     class="app-shell"
   >
     <!-- Desktop top bar (hidden on mobile) -->
