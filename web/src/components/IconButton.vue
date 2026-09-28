@@ -30,15 +30,15 @@ const toneClass = computed(() => {
     return 'text-[var(--text-tertiary)] cursor-not-allowed'
   }
   if (props.active) {
-    return 'text-[var(--accent)]'
+    return 'text-[var(--accent)] hover:bg-[var(--bg-surface)]'
   }
-  return 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+  return 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)]'
 })
 </script>
 
 <template>
   <button
-    class="rounded-full flex transition-colors items-center justify-center"
+    class="rounded-full flex transition-[color,background-color,transform] duration-150 ease-out items-center justify-center enabled:active:scale-94"
     :class="[toneClass, sizeClass]"
     :aria-label="ariaLabel"
     :disabled="disabled"

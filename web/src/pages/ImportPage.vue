@@ -502,6 +502,8 @@ function isImporting(id: string): boolean {
           :placeholder="t('import.searchPlaceholder')"
           type="text"
           :aria-label="t('import.searchLabel')"
+          data-shortcut-search
+          aria-keyshortcuts="/ Control+K Meta+K"
           @keydown.enter.prevent="handleSearch"
         >
         <button

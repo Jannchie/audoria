@@ -28,6 +28,7 @@ const { t } = useI18n()
 const { coverEffect, coverEffectEnabled, progressEffectEnabled } = useSettings()
 const router = useRouter()
 const isMobile = useMediaQuery('(max-width: 767px)')
+const prefersReducedMotion = usePreferredReducedMotion()
 useStableViewportHeight({ variableName: '--player-viewport-height' })
 const isDev = import.meta.env.DEV
 const filamentConfig = ref<FilamentConfig>({
@@ -122,7 +123,7 @@ const canvasProps = {
 const gradientProps = computed(() => ({
   preset: 'deepOcean' as const,
   type: 'sphere' as const,
-  animate: 'on' as const,
+  animate: (prefersReducedMotion.value === 'reduce' ? 'off' : 'on') as 'on' | 'off',
   uTime: 0,
   uSpeed: 0.15,
   uStrength: 1.8,
@@ -963,7 +964,7 @@ onUnmounted(() => {
             :visible="previewTooltipVisible"
           />
         </div>
-        <div class="progress-time">
+        <div class="progress-time time-code">
           <span>{{ formattedTime(displayedCurrentTime) }}</span>
           <span>{{ formattedTime(duration) }}</span>
         </div>
@@ -1636,9 +1637,8 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.45);
   margin-top: 0.125rem;
-  font-variant-numeric: tabular-nums;
 }
 
 .controls-row {
@@ -1667,7 +1667,8 @@ onUnmounted(() => {
     display: flex;
     align-items: center;
     gap: 0.25rem;
-    width: 172px;
+    flex: 1 1 0;
+    min-width: 0;
   }
   .controls-side--right {
     justify-content: flex-end;
@@ -1680,15 +1681,21 @@ onUnmounted(() => {
 .ctrl-btn {
   background: none;
   border: none;
+  border-radius: 999px;
   cursor: pointer;
   color: rgba(255, 255, 255, 0.45);
-  transition: color 0.15s ease;
+  transition: color 0.15s ease, background 0.15s ease, transform 0.1s ease;
   display: flex;
   align-items: center;
   justify-content: center;
+  min-width: 2.5rem;
+  min-height: 2.5rem;
   padding: 0.25rem;
 }
-.ctrl-btn:hover { color: rgba(255, 255, 255, 0.7); }
+.ctrl-btn:hover { color: rgba(255, 255, 255, 0.8); background: rgba(255, 255, 255, 0.06); }
+.ctrl-btn:active:not(:disabled) { transform: scale(0.94); }
+.ctrl-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.ctrl-btn:disabled:hover { background: none; }
 .ctrl-btn--sm { font-size: 1.125rem; }
 .ctrl-btn--md { font-size: 1.5rem; color: rgba(255, 255, 255, 0.65); }
 .ctrl-btn--md:hover {  color: var(--text-primary); }
@@ -1708,6 +1715,7 @@ onUnmounted(() => {
   color: var(--bg-base);
   transition: transform 0.1s ease;
 }
+.ctrl-btn-play:hover { transform: scale(1.04); }
 .ctrl-btn-play:active { transform: scale(0.95); }
 
 .volume-slider {

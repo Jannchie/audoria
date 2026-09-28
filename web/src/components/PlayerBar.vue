@@ -618,7 +618,7 @@ onUnmounted(() => {
               v-if="currentTrack?.artists"
               class="playerbar-artist"
             >{{ currentTrack.artists }}</span>
-            <span class="playerbar-time">{{ formattedTime(displayedCurrentTime) }} / {{ formattedTime(duration) }}</span>
+            <span class="playerbar-time time-code">{{ formattedTime(displayedCurrentTime) }} / {{ formattedTime(duration) }}</span>
           </p>
         </div>
       </button>
@@ -654,6 +654,8 @@ onUnmounted(() => {
       <div class="playerbar-controls playerbar-controls--desktop">
         <IconButton
           :aria-label="t('common.actions.previousTrack')"
+          :title="`${t('common.actions.previousTrack')} (P)`"
+          aria-keyshortcuts="P"
           icon="i-tabler-player-skip-back-filled"
           size="sm"
           @click="handlePrev"
@@ -661,6 +663,8 @@ onUnmounted(() => {
         <IconButton
           :disabled="!audioSrc"
           :aria-label="isPlaying ? t('common.actions.pause') : t('common.actions.play')"
+          :title="`${isPlaying ? t('common.actions.pause') : t('common.actions.play')} (${t('shortcuts.space')})`"
+          aria-keyshortcuts="Space K"
           :icon="isPlaying ? 'i-tabler-player-pause-filled' : 'i-tabler-player-play-filled'"
           tone="primary"
           size="lg"
@@ -668,6 +672,8 @@ onUnmounted(() => {
         />
         <IconButton
           :aria-label="t('common.actions.nextTrack')"
+          :title="`${t('common.actions.nextTrack')} (N)`"
+          aria-keyshortcuts="N"
           icon="i-tabler-player-skip-forward-filled"
           size="sm"
           @click="handleNext"
@@ -675,6 +681,7 @@ onUnmounted(() => {
         <IconButton
           :active="playMode !== 'sequence'"
           :aria-label="playModeLabel"
+          :title="playModeLabel"
           :icon="playModeIcon"
           size="sm"
           class="hidden lg:flex"
@@ -687,12 +694,18 @@ onUnmounted(() => {
         <IconButton
           :active="isQueueOpen"
           :aria-label="t('player.toggleQueue')"
+          :aria-expanded="isQueueOpen"
+          :title="`${t('player.toggleQueue')} (Q)`"
+          aria-keyshortcuts="Q"
           icon="i-tabler-playlist"
           size="sm"
           @click="toggleQueuePanel"
         />
         <IconButton
           :aria-label="muted ? t('common.actions.unmute') : t('common.actions.mute')"
+          :aria-pressed="muted"
+          :title="`${muted ? t('common.actions.unmute') : t('common.actions.mute')} (M)`"
+          aria-keyshortcuts="M"
           :icon="volumeIcon"
           size="sm"
           @click="toggleMute"

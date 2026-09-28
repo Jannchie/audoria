@@ -316,13 +316,24 @@ function handleDragEnd(): void {
     <!-- Search bar + sort -->
     <div class="search-wrapper">
       <div class="search-field">
-        <span class="i-tabler-search search-icon" />
+        <span
+          class="i-tabler-search search-icon"
+          aria-hidden="true"
+        />
         <input
           v-model="search"
           class="search-input"
           :placeholder="t('library.searchPlaceholder')"
+          :aria-label="t('library.searchPlaceholder')"
           type="search"
+          data-shortcut-search
+          aria-keyshortcuts="/ Control+K Meta+K"
         >
+        <kbd
+          v-if="!search"
+          class="kbd search-kbd"
+          aria-hidden="true"
+        >/</kbd>
         <button
           v-if="search"
           type="button"
@@ -386,6 +397,7 @@ function handleDragEnd(): void {
     <div
       v-if="isError"
       class="empty-state"
+      role="alert"
     >
       <span class="i-tabler-alert-circle text---danger/50 text-(3xl)" />
       <p class="empty-text">
@@ -395,7 +407,10 @@ function handleDragEnd(): void {
 
     <!-- Loading -->
     <template v-else-if="isPending">
-      <div class="track-list">
+      <div
+        class="track-list"
+        aria-busy="true"
+      >
         <div
           v-for="i in 8"
           :key="i"
@@ -462,8 +477,8 @@ function handleDragEnd(): void {
         :aria-label="currentTrackId === track.id && isPlaying ? t('library.pauseTrack', { title: track.title || track.filename }) : t('library.playTrack', { title: track.title || track.filename })"
         :aria-current="currentTrackId === track.id ? 'true' : undefined"
         @click="handleTrackClick(track.id, $event)"
-        @keydown.enter.prevent="activateTrack(track.id)"
-        @keydown.space.prevent="activateTrack(track.id)"
+        @keydown.enter.self.prevent="activateTrack(track.id)"
+        @keydown.space.self.prevent="activateTrack(track.id)"
         @contextmenu="handleContextMenu(track, $event)"
         @dragstart="handleDragStart(track.id, $event)"
         @dragover="handleDragOver(track.id, $event)"
@@ -528,7 +543,7 @@ function handleDragEnd(): void {
           <TrackPlayMeta :track="track" />
         </div>
 
-        <span class="tr-duration">{{ formatTrackDuration(track.durationSeconds) }}</span>
+        <span class="tr-duration time-code">{{ formatTrackDuration(track.durationSeconds) }}</span>
 
         <button
           type="button"
@@ -655,16 +670,36 @@ function handleDragEnd(): void {
   background: var(--bg-elevated);
 }
 
+.search-kbd {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  transition: opacity var(--duration-fast) ease;
+}
+
+.search-input:focus ~ .search-kbd {
+  opacity: 0;
+}
+
+/* Only hint at the shortcut where a physical keyboard is likely. */
+@media (hover: none), (pointer: coarse) {
+  .search-kbd {
+    display: none;
+  }
+}
+
 .search-clear {
   position: absolute;
-  right: 0.5rem;
+  right: 0.375rem;
   top: 50%;
   transform: translateY(-50%);
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 1.75rem;
-  height: 1.75rem;
+  width: 2rem;
+  height: 2rem;
   border: none;
   border-radius: 50%;
   background: transparent;
@@ -754,6 +789,14 @@ function handleDragEnd(): void {
 
 .tr:hover {
   background: var(--bg-surface);
+}
+
+.tr:active:not(.tr--skeleton) {
+  background: var(--bg-elevated);
+}
+
+.tr:focus-visible {
+  outline-offset: -2px;
 }
 
 /* Now-playing: coral left bar + title colored — no background fill. */
@@ -905,10 +948,8 @@ function handleDragEnd(): void {
 /* --- Duration --- */
 .tr-duration {
   justify-self: end;
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   color: var(--text-tertiary);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.02em;
 }
 
 .tr--active .tr-duration {
@@ -948,6 +989,12 @@ function handleDragEnd(): void {
 @media (hover: none) {
   .tr-action { opacity: 1 }
   .tr-cover-overlay { opacity: 0 }
+  /* Larger hit area without changing the grid column. */
+  .tr-action {
+    width: 40px;
+    height: 40px;
+    margin: -6px;
+  }
 }
 
 /* ---- Selection toolbar ---- */
@@ -984,6 +1031,17 @@ function handleDragEnd(): void {
 
 .selection-action:hover {
   background: var(--bg-elevated);
+}
+
+.selection-toolbar {
+  animation: selection-toolbar-in var(--duration-base) var(--ease-out);
+}
+
+@keyframes selection-toolbar-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
 }
 
 /* ── Explore link in empty search state ── */
