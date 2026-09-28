@@ -20,6 +20,7 @@ declare module 'vue' {
     IconButton: typeof import('./components/IconButton.vue')['default']
     InputPromptDialog: typeof import('./components/InputPromptDialog.vue')['default']
     LazyCoverImage: typeof import('./components/LazyCoverImage.vue')['default']
+    ListeningHistoryChart: typeof import('./components/ListeningHistoryChart.vue')['default']
     MetadataEditDialog: typeof import('./components/MetadataEditDialog.vue')['default']
     ParallaxCard: typeof import('./components/ParallaxCard.vue')['default']
     PlayerBar: typeof import('./components/PlayerBar.vue')['default']
@@ -33,5 +34,6 @@ declare module 'vue' {
     ShortcutHelpDialog: typeof import('./components/ShortcutHelpDialog.vue')['default']
     SoundWave: typeof import('./components/SoundWave.vue')['default']
     ToastHost: typeof import('./components/ToastHost.vue')['default']
+    TrackPlayMeta: typeof import('./components/TrackPlayMeta.vue')['default']
   }
 }

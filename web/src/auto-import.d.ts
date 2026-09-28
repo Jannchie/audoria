@@ -110,6 +110,7 @@ declare global {
   const shiftLrcTimestamps: typeof import('./composables/useLyrics').shiftLrcTimestamps
   const shortcutRegistry: typeof import('./composables/useKeyboardShortcuts').shortcutRegistry
   const sortTracks: typeof import('./composables/useTrackSort').sortTracks
+  const statsQueryKey: typeof import('./composables/useListeningStats').statsQueryKey
   const stripReadingNotation: typeof import('./composables/useLyrics').stripReadingNotation
   const syncRef: typeof import('@vueuse/core').syncRef
   const syncRefs: typeof import('@vueuse/core').syncRefs
@@ -228,6 +229,7 @@ declare global {
   const useKeyboardShortcuts: typeof import('./composables/useKeyboardShortcuts').useKeyboardShortcuts
   const useLastChanged: typeof import('@vueuse/core').useLastChanged
   const useListSelection: typeof import('./composables/useListSelection').useListSelection
+  const useListeningStatsQuery: typeof import('./composables/useListeningStats').useListeningStatsQuery
   const useLocalStorage: typeof import('@vueuse/core').useLocalStorage
   const useLyrics: typeof import('./composables/useLyrics').useLyrics
   const useMagicKeys: typeof import('@vueuse/core').useMagicKeys
@@ -256,6 +258,7 @@ declare global {
   const useParseMusicUrl: typeof import('./composables/useMusic').useParseMusicUrl
   const usePerformanceObserver: typeof import('@vueuse/core').usePerformanceObserver
   const usePermission: typeof import('@vueuse/core').usePermission
+  const usePlayTracker: typeof import('./composables/usePlayTracker').usePlayTracker
   const usePlaybackControls: typeof import('./composables/usePlaybackControls').usePlaybackControls
   const usePlayerState: typeof import('./composables/usePlayerState').usePlayerState
   const usePlaylistDetailQuery: typeof import('./composables/usePlaylists').usePlaylistDetailQuery
