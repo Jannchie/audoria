@@ -153,9 +153,33 @@ describe('useplayerstate', () => {
     ].join('\n'))
 
     expect(lines).toEqual([
-      { time: 7.88, text: '外を見るともう明るいよね', translations: ['望向窗外发现天色已经亮了'] },
-      { time: 16.39, text: '眠れなかったけどさ頭冴えてる', translations: [] },
+      { time: 7.88, text: '外を見るともう明るいよね', source: '外を見るともう明るいよね', translations: ['望向窗外发现天色已经亮了'] },
+      { time: 16.39, text: '眠れなかったけどさ頭冴えてる', source: '眠れなかったけどさ頭冴えてる', translations: [] },
     ])
+  })
+
+  it('hides hand-written reading notation from displayed lyrics', async () => {
+    const { parseLrc } = await import('../composables/useLyrics')
+
+    const [line] = parseLrc('[00:01.00]運命(さだめ)を本気（マジ）で信じた (Live)')
+
+    expect(line.text).toBe('運命を本気で信じた (Live)')
+    expect(line.source).toBe('運命(さだめ)を本気（マジ）で信じた (Live)')
+  })
+
+  it('writes a corrected reading back into every matching lyric line', async () => {
+    const { applyReadingCorrection } = await import('../composables/useFurigana')
+    const lyrics = '[ti:x]\n[00:01.00]運命(さだめ)の今\n[00:01.00]命运的现在\n[00:30.00]運命(さだめ)の今'
+    const segments = [
+      { text: '運命', ruby: 'さだめ', explicit: true },
+      { text: 'の' },
+      { text: '今', ruby: 'こん' },
+    ]
+
+    expect(applyReadingCorrection(lyrics, '運命(さだめ)の今', segments, 2, 'いま'))
+      .toBe('[ti:x]\n[00:01.00]運命(さだめ)の今(いま)\n[00:01.00]命运的现在\n[00:30.00]運命(さだめ)の今(いま)')
+    expect(applyReadingCorrection(lyrics, '運命(さだめ)の今', segments, 0, ''))
+      .toBe('[ti:x]\n[00:01.00]運命の今\n[00:01.00]命运的现在\n[00:30.00]運命の今')
   })
 
   it('expands lines prefixed with several timestamps', async () => {

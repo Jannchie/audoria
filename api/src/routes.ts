@@ -36,6 +36,7 @@ import {
   updateTrackCover,
   updateTrackEditableMetadata,
 } from './db/index.js'
+import { annotateLyricsFurigana } from './furigana.js'
 import { MusicDlBridgeError, MusicDlUnavailableError, resolveMusicDlSongInfo, resolveMusicUrl, searchMusicDl } from './musicdl.js'
 import { musicDlSources, musicDlUrlSources } from './musicSources.js'
 import {
@@ -1730,6 +1731,57 @@ api.openapi(coverMaskRoute, async (c) => {
     }
     throw error
   }
+})
+
+const RubySegmentSchema = z.object({
+  text: z.string(),
+  ruby: z.string().optional(),
+  explicit: z.boolean().optional().openapi({ description: 'The reading is written into the lyrics as 漢字(よみ)' }),
+}).openapi('RubySegment')
+
+const LyricsFuriganaSchema = z.object({
+  lines: z.record(z.string(), z.array(RubySegmentSchema)).openapi({
+    description: 'Furigana segments keyed by lyric line text (timestamps stripped)',
+    example: { 外を見る: [{ text: '外', ruby: 'そと' }, { text: 'を' }, { text: '見', ruby: 'み' }, { text: 'る' }] },
+  }),
+}).openapi('LyricsFurigana')
+
+const lyricsFuriganaRoute = createRoute({
+  method: 'get',
+  path: '/music/{id}/lyrics/furigana',
+  summary: 'Annotate the Japanese lines of a track\'s lyrics with furigana',
+  request: {
+    params: z.object({
+      id: z.string().min(1),
+    }),
+  },
+  responses: {
+    200: {
+      description: 'Furigana for each Japanese lyric line',
+      content: {
+        'application/json': {
+          schema: LyricsFuriganaSchema,
+        },
+      },
+    },
+    404: {
+      description: 'Not found',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+})
+
+api.openapi(lyricsFuriganaRoute, async (c) => {
+  const { id } = c.req.valid('param')
+  const record = await getTrackById(id)
+  if (!record) {
+    return c.json({ message: 'Music not found' }, 404)
+  }
+  return c.json({ lines: record.lyrics ? await annotateLyricsFurigana(record.lyrics) : {} }, 200)
 })
 
 api.openapi(downloadRoute, async (c) => {

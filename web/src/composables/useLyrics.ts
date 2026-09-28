@@ -3,9 +3,19 @@ import { usePlayerState } from './usePlayerState'
 
 export interface LyricLine {
   time: number
+  /** Display text, with `漢字(よみ)` reading notation removed. */
   text: string
+  /** The line as written in the lyrics, reading notation included; keys furigana lookups and edits. */
+  source: string
   /** Lines sharing this timestamp after the first, e.g. a translation under the original. */
   translations: string[]
+}
+
+// Hand-written furigana inside lyrics: 運命(さだめ). Must match the API's notation in furigana.ts.
+const READING_NOTATION_RE = /([\p{Script=Han}〆ヶ]+)[(（][\p{Script=Hiragana}\p{Script=Katakana}ー]+[)）]/gu
+
+export function stripReadingNotation(text: string): string {
+  return text.replaceAll(READING_NOTATION_RE, '$1')
 }
 
 const LRC_TIMESTAMP_RE = /\[(\d{1,3}):(\d{2})(?:\.(\d{1,3}))?\]/g
@@ -63,17 +73,18 @@ export function parseLrc(raw: string): LyricLine[] {
   for (const entry of entries) {
     const previous = lines.at(-1)
     if (!previous || Math.abs(previous.time - entry.time) >= 0.001) {
-      lines.push({ time: entry.time, text: entry.text, translations: [] })
+      lines.push({ time: entry.time, text: stripReadingNotation(entry.text), source: entry.text, translations: [] })
       continue
     }
-    if (!entry.text || entry.text === previous.text || previous.translations.includes(entry.text)) {
+    if (!entry.text || entry.text === previous.source || previous.translations.includes(entry.text)) {
       continue
     }
-    if (previous.text) {
+    if (previous.source) {
       previous.translations.push(entry.text)
     }
     else {
-      previous.text = entry.text
+      previous.text = stripReadingNotation(entry.text)
+      previous.source = entry.text
     }
   }
   return lines
@@ -131,7 +142,7 @@ export function useLyrics(lyricsRaw: () => string | null | undefined) {
     if (isTimeSynced.value && parsed.value) {
       return parsed.value.flatMap(l => [l.text, ...l.translations]).filter(Boolean).join('\n')
     }
-    return raw.trim()
+    return stripReadingNotation(raw.trim())
   })
 
   // Level 2: compensate lyrics highlight for iOS seek imprecision

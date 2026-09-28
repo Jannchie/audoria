@@ -8,6 +8,7 @@ export {}
 declare global {
   const EffectScope: typeof import('vue').EffectScope
   const GUEST_RESTRICTED_PATHS: typeof import('./composables/useAuth').GUEST_RESTRICTED_PATHS
+  const applyReadingCorrection: typeof import('./composables/useFurigana').applyReadingCorrection
   const asyncComputed: typeof import('@vueuse/core').asyncComputed
   const authStatus: typeof import('./composables/useAuth').authStatus
   const autoResetRef: typeof import('@vueuse/core').autoResetRef
@@ -108,6 +109,7 @@ declare global {
   const shallowRef: typeof import('vue').shallowRef
   const shiftLrcTimestamps: typeof import('./composables/useLyrics').shiftLrcTimestamps
   const sortTracks: typeof import('./composables/useTrackSort').sortTracks
+  const stripReadingNotation: typeof import('./composables/useLyrics').stripReadingNotation
   const syncRef: typeof import('@vueuse/core').syncRef
   const syncRefs: typeof import('@vueuse/core').syncRefs
   const templateRef: typeof import('@vueuse/core').templateRef
@@ -204,6 +206,7 @@ declare global {
   const useFocusWithin: typeof import('@vueuse/core').useFocusWithin
   const useFps: typeof import('@vueuse/core').useFps
   const useFullscreen: typeof import('@vueuse/core').useFullscreen
+  const useFurigana: typeof import('./composables/useFurigana').useFurigana
   const useGamepad: typeof import('@vueuse/core').useGamepad
   const useGeolocation: typeof import('@vueuse/core').useGeolocation
   const useHelloWorld: typeof import('./composables/useHelloWorld').useHelloWorld

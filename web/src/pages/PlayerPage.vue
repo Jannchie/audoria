@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { FilamentConfig } from '../components/ShaderProgressBar.vue'
+import type { RubySegment } from '../composables/useFurigana'
 import { computed, defineAsyncComponent, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -7,7 +8,9 @@ import HoloCoverArt from '../components/HoloCoverArt.vue'
 import MetadataEditDialog from '../components/MetadataEditDialog.vue'
 import ProgressPreviewTooltip from '../components/ProgressPreviewTooltip.vue'
 import ShaderProgressControls from '../components/ShaderProgressControls.vue'
+import { useAuth } from '../composables/useAuth'
 import { useCoverPalette } from '../composables/useCoverPalette'
+import { applyReadingCorrection, useFurigana } from '../composables/useFurigana'
 import { findLyricLineAtTime, shiftLrcTimestamps, useLyrics } from '../composables/useLyrics'
 import { resolveApiUrl, useMusicQuery, useUpdateMusic } from '../composables/useMusic'
 import { usePlayerState } from '../composables/usePlayerState'
@@ -169,6 +172,82 @@ const isSavingLyrics = computed(() => updateLyricsMutation.isPending.value)
 const { parsed, isTimeSynced, plainText, currentLineIndex } = useLyrics(() => currentLyrics.value)
 
 const hasLyrics = computed(() => Boolean(currentLyrics.value?.trim()))
+
+const { isGuest } = useAuth()
+const {
+  enabled: isFuriganaEnabled,
+  hasJapanese,
+  segmentsByLine: furiganaByLine,
+} = useFurigana(() => currentTrack.value?.id, () => currentLyrics.value)
+const isFuriganaEditing = ref(false)
+const editingReading = ref<{ line: string, index: number } | null>(null)
+const editingReadingValue = ref('')
+const KANJI_RE = /\p{Script=Han}/u
+
+function isRubyEditable(segment: RubySegment): boolean {
+  return isFuriganaEditing.value && KANJI_RE.test(segment.text)
+}
+
+function isEditingReading(line: string, index: number): boolean {
+  return editingReading.value?.line === line && editingReading.value.index === index
+}
+
+function toggleFurigana(): void {
+  isFuriganaEnabled.value = !isFuriganaEnabled.value
+  if (!isFuriganaEnabled.value) {
+    isFuriganaEditing.value = false
+    editingReading.value = null
+  }
+}
+
+async function handleRubyClick(event: MouseEvent, line: string, index: number, segment: RubySegment): Promise<void> {
+  if (!isRubyEditable(segment)) {
+    return
+  }
+  // In edit mode a click on a word edits its reading instead of seeking to the line.
+  event.stopPropagation()
+  editingReading.value = { line, index }
+  editingReadingValue.value = segment.ruby ?? ''
+  await nextTick()
+  const input = document.querySelector<HTMLInputElement>('.lyric-ruby-input')
+  input?.focus()
+  input?.select()
+}
+
+function cancelReadingEdit(): void {
+  editingReading.value = null
+}
+
+function handleReadingEnter(event: KeyboardEvent): void {
+  // Enter also confirms an IME candidate while composing kana; only a plain Enter saves.
+  if (event.isComposing) {
+    return
+  }
+  event.preventDefault()
+  saveReadingEdit().catch(() => {})
+}
+
+async function saveReadingEdit(): Promise<void> {
+  const target = editingReading.value
+  const track = currentTrack.value
+  const rawLyrics = currentLyrics.value
+  const segments = target ? furiganaByLine.value[target.line] : undefined
+  editingReading.value = null
+  if (!target || !track || !rawLyrics || !segments || isSavingLyrics.value) {
+    return
+  }
+  const nextLyrics = applyReadingCorrection(rawLyrics, target.line, segments, target.index, editingReadingValue.value)
+  if (nextLyrics === rawLyrics) {
+    return
+  }
+  lyricError.value = ''
+  try {
+    await updateLyricsMutation.mutateAsync({ id: track.id, patch: { lyrics: nextLyrics } })
+  }
+  catch (error) {
+    lyricError.value = error instanceof Error ? error.message : t('player.lyrics.saveFailed')
+  }
+}
 
 const progress = computed(() => {
   if (isScrubbing.value && scrubPreviewTime.value !== null && duration.value) {
@@ -542,6 +621,8 @@ watch(currentLineIndex, async (idx, prev) => {
 watch([resolvedCurrentTrackId, isTimeSynced], () => {
   lyricError.value = ''
   isLyricsToolbarOpen.value = false
+  isFuriganaEditing.value = false
+  editingReading.value = null
 })
 
 onUnmounted(() => {
@@ -687,6 +768,39 @@ onUnmounted(() => {
                 />
               </span>
             </div>
+            <div
+              v-if="hasJapanese"
+              class="lyrics-furigana-control"
+            >
+              <button
+                type="button"
+                class="lyrics-tool-btn"
+                :class="{ 'lyrics-tool-btn--active': isFuriganaEnabled }"
+                :aria-pressed="isFuriganaEnabled"
+                @click="toggleFurigana"
+              >
+                <span
+                  class="i-tabler-language-hiragana"
+                  aria-hidden="true"
+                />
+                {{ t('player.lyrics.furigana') }}
+              </button>
+              <button
+                v-if="isFuriganaEnabled && !isGuest"
+                type="button"
+                class="lyrics-tool-btn"
+                :class="{ 'lyrics-tool-btn--active': isFuriganaEditing }"
+                :aria-pressed="isFuriganaEditing"
+                :title="t('player.lyrics.editFuriganaHint')"
+                @click="isFuriganaEditing = !isFuriganaEditing"
+              >
+                <span
+                  class="i-tabler-pencil"
+                  aria-hidden="true"
+                />
+                {{ t('player.lyrics.editFurigana') }}
+              </button>
+            </div>
           </div>
 
           <p
@@ -705,10 +819,11 @@ onUnmounted(() => {
               class="lyrics-scroll inner-scroll"
             >
               <div class="lyrics-pad">
-                <button
+                <div
                   v-for="(line, i) in parsed"
                   :key="i"
-                  type="button"
+                  role="button"
+                  tabindex="0"
                   :data-lyric-index="i"
                   class="lyric-line"
                   :class="[
@@ -721,14 +836,49 @@ onUnmounted(() => {
                   :aria-label="t('player.playFromTime', { time: formattedTime(line.time) })"
                   :aria-current="i === currentLineIndex ? 'true' : undefined"
                   @click="handleLyricClick(line)"
+                  @keydown.enter.self.prevent="handleLyricClick(line)"
+                  @keydown.space.self.prevent="handleLyricClick(line)"
                 >
-                  <span class="lyric-text">{{ line.text || '···' }}</span>
+                  <span
+                    v-if="furiganaByLine[line.source]"
+                    class="lyric-text"
+                  >
+                    <template
+                      v-for="(segment, j) in furiganaByLine[line.source]"
+                      :key="j"
+                    >
+                      <ruby
+                        v-if="segment.ruby || isRubyEditable(segment)"
+                        class="lyric-ruby"
+                        :class="{
+                          'lyric-ruby--editable': isRubyEditable(segment),
+                          'lyric-ruby--explicit': isFuriganaEditing && segment.explicit,
+                        }"
+                        @click="handleRubyClick($event, line.source, j, segment)"
+                      >{{ segment.text }}<rt><input
+                        v-if="isEditingReading(line.source, j)"
+                        v-model="editingReadingValue"
+                        class="lyric-ruby-input"
+                        :aria-label="t('player.lyrics.readingFor', { text: segment.text })"
+                        @click.stop
+                        @keydown.stop
+                        @keydown.enter="handleReadingEnter"
+                        @keydown.esc.prevent="cancelReadingEdit"
+                        @blur="cancelReadingEdit"
+                      ><template v-else>{{ segment.ruby }}</template></rt></ruby>
+                      <template v-else>{{ segment.text }}</template>
+                    </template>
+                  </span>
+                  <span
+                    v-else
+                    class="lyric-text"
+                  >{{ line.text || '···' }}</span>
                   <span
                     v-for="(translation, j) in line.translations"
                     :key="j"
                     class="lyric-translation"
                   >{{ translation }}</span>
-                </button>
+                </div>
               </div>
             </div>
 
@@ -1183,6 +1333,17 @@ onUnmounted(() => {
   padding: 0;
 }
 
+.lyrics-tool-btn--active {
+  border-color: rgba(255, 255, 255, 0.32);
+  background: rgba(255, 255, 255, 0.16);
+  color: white;
+}
+
+.lyrics-furigana-control {
+  display: inline-flex;
+  gap: 0.35rem;
+}
+
 .lyrics-offset-field {
   display: inline-flex;
   align-items: center;
@@ -1350,6 +1511,34 @@ onUnmounted(() => {
   font-weight: 400;
   line-height: 1.5;
   opacity: 0.7;
+}
+.lyric-ruby rt {
+  font-size: 0.5em;
+  font-weight: 400;
+  opacity: 0.75;
+}
+.lyric-ruby--editable {
+  cursor: text;
+  border-radius: 0.2em;
+  transition: background 0.15s ease;
+}
+.lyric-ruby--editable:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+/* Readings set by hand stay fully opaque so they read as confirmed. */
+.lyric-ruby--explicit rt {
+  opacity: 1;
+}
+.lyric-ruby-input {
+  width: 5em;
+  padding: 0 0.2em;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 0.25em;
+  background: rgba(0, 0, 0, 0.45);
+  color: white;
+  font: inherit;
+  text-align: center;
+  outline: none;
 }
 
 .lyrics-plain {

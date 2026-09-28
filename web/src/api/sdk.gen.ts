@@ -2,7 +2,7 @@
 
 import { type Client, formDataBodySerializer, type Options as Options2, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { DeleteMusicByIdCoverData, DeleteMusicByIdCoverErrors, DeleteMusicByIdCoverResponses, DeleteMusicByIdData, DeleteMusicByIdErrors, DeleteMusicByIdResponses, DeletePlaylistsByIdData, DeletePlaylistsByIdErrors, DeletePlaylistsByIdResponses, DeletePlaylistsByIdTracksByTrackIdData, DeletePlaylistsByIdTracksByTrackIdErrors, DeletePlaylistsByIdTracksByTrackIdResponses, GetMusicByIdCoverData, GetMusicByIdCoverErrors, GetMusicByIdCoverResponses, GetMusicByIdCoverThumbData, GetMusicByIdCoverThumbErrors, GetMusicByIdCoverThumbResponses, GetMusicByIdDownloadData, GetMusicByIdDownloadErrors, GetMusicByIdDownloadResponses, GetMusicData, GetMusicImportsByIdData, GetMusicImportsByIdErrors, GetMusicImportsByIdResponses, GetMusicResponses, GetPlaylistsByIdData, GetPlaylistsByIdErrors, GetPlaylistsByIdResponses, GetPlaylistsData, GetPlaylistsResponses, PatchMusicByIdData, PatchMusicByIdErrors, PatchMusicByIdResponses, PatchPlaylistsByIdData, PatchPlaylistsByIdErrors, PatchPlaylistsByIdResponses, PatchPlaylistsByIdTracksReorderData, PatchPlaylistsByIdTracksReorderErrors, PatchPlaylistsByIdTracksReorderResponses, PostMusicByIdCoverData, PostMusicByIdCoverErrors, PostMusicByIdCoverResponses, PostMusicData, PostMusicErrors, PostMusicImportsData, PostMusicImportsErrors, PostMusicImportsParseUrlData, PostMusicImportsParseUrlErrors, PostMusicImportsParseUrlResponses, PostMusicImportsResponses, PostMusicImportsSearchData, PostMusicImportsSearchErrors, PostMusicImportsSearchResponses, PostMusicResponses, PostPlaylistsByIdTracksData, PostPlaylistsByIdTracksErrors, PostPlaylistsByIdTracksResponses, PostPlaylistsData, PostPlaylistsResponses } from './types.gen';
+import type { DeleteMusicByIdCoverData, DeleteMusicByIdCoverErrors, DeleteMusicByIdCoverResponses, DeleteMusicByIdData, DeleteMusicByIdErrors, DeleteMusicByIdResponses, DeletePlaylistsByIdData, DeletePlaylistsByIdErrors, DeletePlaylistsByIdResponses, DeletePlaylistsByIdTracksByTrackIdData, DeletePlaylistsByIdTracksByTrackIdErrors, DeletePlaylistsByIdTracksByTrackIdResponses, GetAppConfigData, GetAppConfigResponses, GetMusicByIdCoverData, GetMusicByIdCoverErrors, GetMusicByIdCoverMaskData, GetMusicByIdCoverMaskErrors, GetMusicByIdCoverMaskResponses, GetMusicByIdCoverResponses, GetMusicByIdCoverThumbData, GetMusicByIdCoverThumbErrors, GetMusicByIdCoverThumbResponses, GetMusicByIdDownloadData, GetMusicByIdDownloadErrors, GetMusicByIdDownloadResponses, GetMusicByIdLyricsFuriganaData, GetMusicByIdLyricsFuriganaErrors, GetMusicByIdLyricsFuriganaResponses, GetMusicData, GetMusicImportsByIdData, GetMusicImportsByIdErrors, GetMusicImportsByIdResponses, GetMusicResponses, GetPlaylistsByIdData, GetPlaylistsByIdErrors, GetPlaylistsByIdResponses, GetPlaylistsData, GetPlaylistsResponses, PatchAppConfigData, PatchAppConfigErrors, PatchAppConfigResponses, PatchMusicByIdData, PatchMusicByIdErrors, PatchMusicByIdResponses, PatchMusicReorderData, PatchMusicReorderErrors, PatchMusicReorderResponses, PatchPlaylistsByIdData, PatchPlaylistsByIdErrors, PatchPlaylistsByIdResponses, PatchPlaylistsByIdTracksReorderData, PatchPlaylistsByIdTracksReorderErrors, PatchPlaylistsByIdTracksReorderResponses, PostMusicByIdCoverData, PostMusicByIdCoverErrors, PostMusicByIdCoverResponses, PostMusicData, PostMusicErrors, PostMusicImportsData, PostMusicImportsErrors, PostMusicImportsParseUrlData, PostMusicImportsParseUrlErrors, PostMusicImportsParseUrlResponses, PostMusicImportsResponses, PostMusicImportsSearchData, PostMusicImportsSearchErrors, PostMusicImportsSearchResponses, PostMusicResponses, PostPlaylistsByIdTracksData, PostPlaylistsByIdTracksErrors, PostPlaylistsByIdTracksResponses, PostPlaylistsData, PostPlaylistsResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -174,6 +174,16 @@ export const postMusicByIdCover = <ThrowOnError extends boolean = false>(options
 export const getMusicByIdCoverThumb = <ThrowOnError extends boolean = false>(options: Options<GetMusicByIdCoverThumbData, ThrowOnError>) => (options.client ?? client).get<GetMusicByIdCoverThumbResponses, GetMusicByIdCoverThumbErrors, ThrowOnError>({ url: '/music/{id}/cover/thumb', ...options });
 
 /**
+ * Get a generated foreground mask for a track cover
+ */
+export const getMusicByIdCoverMask = <ThrowOnError extends boolean = false>(options: Options<GetMusicByIdCoverMaskData, ThrowOnError>) => (options.client ?? client).get<GetMusicByIdCoverMaskResponses, GetMusicByIdCoverMaskErrors, ThrowOnError>({ url: '/music/{id}/cover/mask', ...options });
+
+/**
+ * Annotate the Japanese lines of a track's lyrics with furigana
+ */
+export const getMusicByIdLyricsFurigana = <ThrowOnError extends boolean = false>(options: Options<GetMusicByIdLyricsFuriganaData, ThrowOnError>) => (options.client ?? client).get<GetMusicByIdLyricsFuriganaResponses, GetMusicByIdLyricsFuriganaErrors, ThrowOnError>({ url: '/music/{id}/lyrics/furigana', ...options });
+
+/**
  * Download a music file by id
  */
 export const getMusicByIdDownload = <ThrowOnError extends boolean = false>(options: Options<GetMusicByIdDownloadData, ThrowOnError>) => (options.client ?? client).get<GetMusicByIdDownloadResponses, GetMusicByIdDownloadErrors, ThrowOnError>({ url: '/music/{id}/download', ...options });
@@ -192,5 +202,34 @@ export const patchMusicById = <ThrowOnError extends boolean = false>(options: Op
     headers: {
         'Content-Type': 'application/json',
         ...options.headers
+    }
+});
+
+/**
+ * Reorder tracks in the library (manual sort order)
+ */
+export const patchMusicReorder = <ThrowOnError extends boolean = false>(options?: Options<PatchMusicReorderData, ThrowOnError>) => (options?.client ?? client).patch<PatchMusicReorderResponses, PatchMusicReorderErrors, ThrowOnError>({
+    url: '/music/reorder',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers
+    }
+});
+
+/**
+ * Get non-sensitive runtime configuration
+ */
+export const getAppConfig = <ThrowOnError extends boolean = false>(options?: Options<GetAppConfigData, ThrowOnError>) => (options?.client ?? client).get<GetAppConfigResponses, unknown, ThrowOnError>({ url: '/app/config', ...options });
+
+/**
+ * Update project environment overrides
+ */
+export const patchAppConfig = <ThrowOnError extends boolean = false>(options?: Options<PatchAppConfigData, ThrowOnError>) => (options?.client ?? client).patch<PatchAppConfigResponses, PatchAppConfigErrors, ThrowOnError>({
+    url: '/app/config',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers
     }
 });
