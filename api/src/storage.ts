@@ -9,9 +9,10 @@ import { Readable } from 'node:stream'
 import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import sharp from 'sharp'
 import { rgbaToThumbHash } from 'thumbhash'
+import { AUDIO_SNIFF_BYTES, sniffAudioFormat, withAudioExtension } from './audioFormat.js'
 import { config } from './config.js'
 import { generateCoverMaskPng, getCoverMaskContentType } from './coverMask.js'
-import { __db as db, tracks } from './db/index.js'
+import { __db as db, listTracks, tracks, updateTrackFileFormat } from './db/index.js'
 import { formatDurationText, probeDurationSecondsFromFile, readEmbeddedMetadata } from './probeAudio.js'
 
 interface ByteRange { start: number, end: number }
@@ -331,6 +332,18 @@ async function writeTrackBodyToTempFile(
   }
 }
 
+async function readFileHead(filePath: string, length: number): Promise<Uint8Array> {
+  const handle = await open(filePath, 'r')
+  try {
+    const buffer = Buffer.alloc(length)
+    const { bytesRead } = await handle.read(buffer, 0, length, 0)
+    return buffer.subarray(0, bytesRead)
+  }
+  finally {
+    await handle.close()
+  }
+}
+
 function getTrackObjectRef(record: Track): ObjectRef {
   return {
     backend: record.storageBackend as StorageBackend,
@@ -424,11 +437,17 @@ export async function storeTrack({
   onProgress?: (transferredBytes: number) => void
 }): Promise<Track> {
   const id = randomUUID()
-  const storageKey = `music/${id}-${filename || 'audio'}`
   const createdAt = Date.now()
 
   const tempFile = await writeTrackBodyToTempFile(body, onProgress)
   try {
+    const format = sniffAudioFormat(await readFileHead(tempFile.filePath, AUDIO_SNIFF_BYTES))
+    if (format) {
+      filename = withAudioExtension(filename || 'audio', format.ext)
+      contentType = format.contentType
+    }
+    const storageKey = `music/${id}-${filename || 'audio'}`
+
     const [{ durationSeconds, durationText }, embedded] = await Promise.all([
       probeAudioDuration(tempFile.filePath),
       readEmbeddedMetadata(tempFile.filePath),
@@ -623,6 +642,34 @@ export async function deleteTrackCoverExcept(record: Track, keepRefs: ObjectRef[
   const coverRefs = listCoverObjectRefs(record)
     .filter(ref => !keepKeys.has(`${ref.backend}:${ref.key}`))
   await Promise.all(coverRefs.map(ref => getStorageDriver(ref.backend).deleteObject(ref.key)))
+}
+
+/**
+ * Re-derives each stored track's content type and extension from its leading
+ * bytes, fixing records imported before uploads were sniffed. Returns how many
+ * records changed. Only reads a few bytes per track, so it is cheap to rerun.
+ */
+export async function repairTrackFormats(): Promise<number> {
+  let repaired = 0
+  for (const record of await listTracks()) {
+    try {
+      const object = await getStoredTrack(record, { start: 0, end: Math.min(record.size, AUDIO_SNIFF_BYTES) - 1 })
+      const format = sniffAudioFormat(await readReadableToBuffer(object.body))
+      if (!format) {
+        continue
+      }
+      const filename = withAudioExtension(record.filename, format.ext)
+      if (format.contentType === record.contentType && filename === record.filename) {
+        continue
+      }
+      await updateTrackFileFormat(record.id, { filename, contentType: format.contentType })
+      repaired += 1
+    }
+    catch (error) {
+      console.warn(`Failed to check format of ${record.id}: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+  return repaired
 }
 
 export async function readStoredTrackBuffer(record: Track): Promise<Buffer> {

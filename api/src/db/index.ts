@@ -107,6 +107,19 @@ export async function updateTrackEditableMetadata(id: string, metadata: {
   )
 }
 
+export async function updateTrackFileFormat(id: string, format: {
+  filename: string
+  contentType: string
+}): Promise<void> {
+  await queryRun(db.update(schema.tracks)
+    .set({
+      filename: format.filename,
+      contentType: format.contentType,
+    })
+    .where(eq(schema.tracks.id, id)),
+  )
+}
+
 export async function updateTrackCover(id: string, cover: {
   backend: string | null
   key: string | null

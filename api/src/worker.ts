@@ -13,7 +13,7 @@ import {
 } from './db/index.js'
 import { initRuntimeDb } from './db/runtime.js'
 import { MusicDlBridgeError, MusicDlUnavailableError, openMusicDlStream } from './musicdl.js'
-import { storeTrack, storeTrackCover } from './storage.js'
+import { repairTrackFormats, storeTrack, storeTrackCover } from './storage.js'
 
 const coverFetchTimeoutMs = 15_000
 const maxCoverAssetBytes = 20 * 1024 * 1024
@@ -198,6 +198,17 @@ async function processNextJob(): Promise<boolean> {
 async function main(): Promise<void> {
   requeueRunningMusicImportJobs()
   console.warn('Import worker is running')
+
+  // Runs alongside the job loop; a failure here must not stop imports.
+  repairTrackFormats()
+    .then((repaired) => {
+      if (repaired > 0) {
+        console.warn(`Corrected the format of ${repaired} track(s) from their file headers`)
+      }
+    })
+    .catch((error) => {
+      console.warn(`Track format check failed: ${toErrorMessage(error)}`)
+    })
 
   while (true) {
     const processed = await processNextJob()
