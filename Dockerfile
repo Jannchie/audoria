@@ -24,6 +24,7 @@ FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
 
 ARG TARGETARCH
+# curl stays installed: deployments health-check the container with it.
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ffmpeg ca-certificates curl \
   && case "$TARGETARCH" in \
@@ -33,8 +34,6 @@ RUN apt-get update \
      esac \
   && curl -L "https://github.com/yt-dlp/yt-dlp/releases/latest/download/${ytdlp_asset}" -o /usr/local/bin/yt-dlp \
   && chmod +x /usr/local/bin/yt-dlp \
-  && apt-get purge -y curl \
-  && apt-get autoremove -y \
   && rm -rf /var/lib/apt/lists/*
 
 ENV YTDLP_PATH=/usr/local/bin/yt-dlp
