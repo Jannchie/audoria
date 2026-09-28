@@ -261,6 +261,7 @@ declare global {
   const usePlayTracker: typeof import('./composables/usePlayTracker').usePlayTracker
   const usePlaybackControls: typeof import('./composables/usePlaybackControls').usePlaybackControls
   const usePlayerState: typeof import('./composables/usePlayerState').usePlayerState
+  const usePlaylistDetailFetcher: typeof import('./composables/usePlaylists').usePlaylistDetailFetcher
   const usePlaylistDetailQuery: typeof import('./composables/usePlaylists').usePlaylistDetailQuery
   const usePlaylistsQuery: typeof import('./composables/usePlaylists').usePlaylistsQuery
   const usePointer: typeof import('@vueuse/core').usePointer

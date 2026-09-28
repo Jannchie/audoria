@@ -6,7 +6,8 @@ import LazyCoverImage from './LazyCoverImage.vue'
 const props = withDefaults(defineProps<{
   thumbhashes?: Array<string | null>
   urls: string[]
-  size?: 'sm' | 'md' | 'lg'
+  /** `fill` takes the width of its container, e.g. a grid card. */
+  size?: 'sm' | 'md' | 'lg' | 'fill'
   rounded?: boolean
 }>(), {
   size: 'md',
@@ -123,6 +124,11 @@ const gridCovers = computed(() => {
   border-radius: 1rem;
 }
 
+.playlist-cover--fill {
+  width: 100%;
+  height: auto;
+}
+
 .playlist-cover-img {
   width: 100%;
   height: 100%;
@@ -135,8 +141,6 @@ const gridCovers = computed(() => {
   display: grid;
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
-  gap: 1px;
-  background: var(--bg-base);
 }
 
 .playlist-cover-tile {
@@ -158,7 +162,8 @@ const gridCovers = computed(() => {
   font-size: 1.75rem;
 }
 
-.playlist-cover--lg .playlist-cover-placeholder {
+.playlist-cover--lg .playlist-cover-placeholder,
+.playlist-cover--fill .playlist-cover-placeholder {
   font-size: 3.5rem;
 }
 </style>

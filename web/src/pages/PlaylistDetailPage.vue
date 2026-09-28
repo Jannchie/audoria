@@ -538,6 +538,19 @@ function handleDragEnd(): void {
                   aria-hidden="true"
                 />
               </button>
+              <button
+                v-if="tracks.length > 0"
+                type="button"
+                class="sort-button"
+                :aria-label="t('library.sort.label')"
+                @click="openSortMenu($event)"
+              >
+                <span
+                  class="i-tabler-arrows-sort"
+                  aria-hidden="true"
+                />
+                <span class="sort-button-text">{{ t(`playlist.trackSort.${sortKey}`) }}</span>
+              </button>
             </template>
           </div>
           <p
@@ -581,24 +594,6 @@ function handleDragEnd(): void {
       </div>
 
       <div
-        v-if="tracks.length > 0"
-        class="playlist-tracks-toolbar"
-      >
-        <button
-          type="button"
-          class="sort-button"
-          :aria-label="t('library.sort.label')"
-          @click="openSortMenu($event)"
-        >
-          <span
-            class="i-tabler-arrows-sort"
-            aria-hidden="true"
-          />
-          <span class="sort-button-text">{{ t(`playlist.trackSort.${sortKey}`) }}</span>
-        </button>
-      </div>
-
-      <div
         v-if="tracks.length === 0"
         class="playlist-detail-empty"
       >
@@ -622,6 +617,15 @@ function handleDragEnd(): void {
         v-else
         class="track-list"
       >
+        <div
+          class="tr-head"
+          aria-hidden="true"
+        >
+          <span class="tr-head-index">#</span>
+          <span class="tr-head-title">{{ t('metadata.fields.title') }}</span>
+          <span>{{ t('metadata.fields.album') }}</span>
+          <span class="tr-head-duration i-tabler-clock" />
+        </div>
         <div
           v-for="(track, index) in tracks"
           :key="track.id"
@@ -764,17 +768,19 @@ function handleDragEnd(): void {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 1rem;
-  padding: 1rem;
-  border-radius: 1rem;
-  background: linear-gradient(180deg, var(--bg-surface), transparent);
+  gap: 1.25rem;
+  padding: 0.5rem 0 1rem;
+}
+
+.playlist-hero > :deep(.playlist-cover) {
+  box-shadow: 0 0 0 1px var(--border), 0 16px 40px rgba(0, 0, 0, 0.45);
 }
 
 @media (min-width: 720px) {
   .playlist-hero {
     flex-direction: row;
     align-items: flex-end;
-    gap: 1.5rem;
+    gap: 2rem;
   }
 }
 
@@ -788,7 +794,7 @@ function handleDragEnd(): void {
 
 .playlist-hero-kicker {
   margin: 0;
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 500;
   letter-spacing: 0.15em;
   text-transform: uppercase;
@@ -797,7 +803,7 @@ function handleDragEnd(): void {
 
 .playlist-hero-name {
   margin: 0;
-  font-size: clamp(1.5rem, 4vw, 2.5rem);
+  font-size: clamp(1.75rem, 4.5vw, 3rem);
   font-weight: 600;
   color: var(--text-primary);
   line-height: 1.1;
@@ -820,9 +826,10 @@ function handleDragEnd(): void {
 
 .playlist-hero-description {
   margin: 0;
-  font-size: 0.875rem;
+  max-width: 40rem;
+  font-size: 0.9375rem;
   color: var(--text-secondary);
-  line-height: 1.4;
+  line-height: 1.5;
 }
 
 .playlist-hero-description-input {
@@ -841,7 +848,7 @@ function handleDragEnd(): void {
   display: flex;
   align-items: center;
   gap: 0.375rem;
-  font-size: 0.75rem;
+  font-size: 0.875rem;
   color: var(--text-tertiary);
   margin-top: 0.25rem;
 }
@@ -849,8 +856,14 @@ function handleDragEnd(): void {
 .playlist-hero-actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 0.5rem;
-  margin-top: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+/* Sorting belongs to the track list, so it sits at the far end of the action row. */
+.playlist-hero-actions .sort-button {
+  margin-left: auto;
 }
 
 .playlist-hero-btn {
@@ -864,7 +877,7 @@ function handleDragEnd(): void {
   border-radius: 999px;
   background: var(--bg-base);
   color: var(--text-primary);
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-weight: 400;
   cursor: pointer;
   transition: background 0.15s ease, transform 0.1s ease, border-color 0.15s ease;
@@ -1022,19 +1035,11 @@ function handleDragEnd(): void {
   margin-top: 0.25rem;
 }
 
-.playlist-tracks-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  padding: 0.25rem 0;
-}
-
 .sort-button {
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
-  height: 2.25rem;
+  height: 2.5rem;
   padding: 0 0.875rem;
   border: none;
   border-radius: 999px;
@@ -1057,6 +1062,37 @@ function handleDragEnd(): void {
 @media (min-width: 640px) {
   .sort-button-text {
     display: inline;
+  }
+}
+
+/* Column labels, desktop only; columns mirror .tr so labels line up with the rows. */
+.tr-head {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .tr-head {
+    display: grid;
+    grid-template-columns: 22px 40px minmax(0, 1.1fr) minmax(0, 1fr) 44px 28px;
+    align-items: center;
+    gap: 12px;
+    height: 36px;
+    padding: 0 12px 0 6px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
+    color: var(--text-tertiary);
+  }
+  .tr-head-index {
+    text-align: center;
+  }
+  .tr-head-title {
+    grid-column: span 2;
+  }
+  .tr-head-duration {
+    justify-self: end;
+    font-size: 0.875rem;
   }
 }
 
@@ -1099,7 +1135,7 @@ function handleDragEnd(): void {
     gap: 6px;
     min-width: 0;
     color: var(--text-tertiary);
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
     line-height: 1.3;
     overflow: hidden;
   }
@@ -1142,13 +1178,13 @@ function handleDragEnd(): void {
   justify-content: center;
   width: 22px;
   color: var(--text-tertiary);
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   font-variant-numeric: tabular-nums;
   user-select: none;
 }
 
 .tr-index {
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   color: var(--text-tertiary);
 }
 .tr--active .tr-index {
@@ -1211,7 +1247,7 @@ function handleDragEnd(): void {
 .tr-title {
   margin: 0;
   font-family: var(--font-display);
-  font-size: 0.875rem;
+  font-size: 0.9375rem;
   font-weight: 400;
   letter-spacing: -0.005em;
   line-height: 1.3;
@@ -1227,7 +1263,7 @@ function handleDragEnd(): void {
   align-items: center;
   gap: 6px;
   min-width: 0;
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   line-height: 1.3;
   color: var(--text-tertiary);
   white-space: nowrap;
@@ -1251,7 +1287,7 @@ function handleDragEnd(): void {
 /* --- Duration --- */
 .tr-duration {
   justify-self: end;
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   color: var(--text-tertiary);
 }
 .tr--active .tr-duration {

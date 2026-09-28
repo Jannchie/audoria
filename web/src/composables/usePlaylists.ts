@@ -100,6 +100,16 @@ export function usePlaylistsQuery() {
   })
 }
 
+const playlistDetailStaleTime = 5000
+
+async function fetchPlaylistDetail(id: string): Promise<PlaylistDetail> {
+  const response = await getPlaylistsById({
+    path: { id },
+    throwOnError: true,
+  })
+  return response.data
+}
+
 export function usePlaylistDetailQuery(playlistId: MaybeRefOrGetter<string | null | undefined>) {
   return useQuery({
     queryKey: computed(() => playlistDetailQueryKey(toValue(playlistId) ?? '')),
@@ -109,13 +119,22 @@ export function usePlaylistDetailQuery(playlistId: MaybeRefOrGetter<string | nul
       if (!id) {
         throw new Error('Missing playlist id')
       }
-      const response = await getPlaylistsById({
-        path: { id },
-        throwOnError: true,
-      })
-      return response.data
+      return await fetchPlaylistDetail(id)
     },
-    staleTime: 5000,
+    staleTime: playlistDetailStaleTime,
+  })
+}
+
+/**
+ * Loads a playlist's tracks on demand (e.g. to play it from the list) through the same cache
+ * the detail page reads.
+ */
+export function usePlaylistDetailFetcher() {
+  const queryClient = useQueryClient()
+  return (id: string): Promise<PlaylistDetail> => queryClient.fetchQuery({
+    queryKey: playlistDetailQueryKey(id),
+    queryFn: () => fetchPlaylistDetail(id),
+    staleTime: playlistDetailStaleTime,
   })
 }
 

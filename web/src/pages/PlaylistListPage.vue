@@ -5,7 +5,8 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import PlaylistCover from '../components/PlaylistCover.vue'
 import { useConfirm } from '../composables/useConfirm'
-import { useCreatePlaylist, useDeletePlaylist, usePlaylistsQuery } from '../composables/usePlaylists'
+import { usePlayerState } from '../composables/usePlayerState'
+import { useCreatePlaylist, useDeletePlaylist, usePlaylistDetailFetcher, usePlaylistsQuery } from '../composables/usePlaylists'
 import { useToast } from '../composables/useToast'
 
 type SortKey = 'updated' | 'created' | 'nameAsc' | 'nameDesc' | 'tracks'
@@ -139,6 +140,36 @@ async function handleDelete(playlist: Playlist, event: MouseEvent): Promise<void
 function openPlaylist(id: string): void {
   router.push(`/playlists/${id}`)
 }
+
+const { selectTrack, setPlaying } = usePlayerState()
+const fetchPlaylistDetail = usePlaylistDetailFetcher()
+const startingPlaylistId = ref<string | null>(null)
+
+async function playPlaylist(playlist: Playlist, event: MouseEvent): Promise<void> {
+  event.stopPropagation()
+  if (startingPlaylistId.value) {
+    return
+  }
+  startingPlaylistId.value = playlist.id
+  try {
+    const detail = await fetchPlaylistDetail(playlist.id)
+    const first = detail.tracks[0]
+    if (!first) {
+      return
+    }
+    selectTrack(first.id, {
+      contextTracks: detail.tracks,
+      context: { type: 'playlist', playlistId: playlist.id },
+    })
+    setPlaying(true)
+  }
+  catch {
+    toast.show({ message: t('feedback.failed'), icon: 'i-tabler-alert-circle', tone: 'danger' })
+  }
+  finally {
+    startingPlaylistId.value = null
+  }
+}
 </script>
 
 <template>
@@ -152,7 +183,7 @@ function openPlaylist(id: string): void {
           v-if="playlists?.length"
           class="playlists-subtitle"
         >
-          {{ playlists.length }}
+          {{ t('playlist.playlistCount', { n: playlists.length }) }}
         </p>
       </div>
       <button
@@ -308,7 +339,7 @@ function openPlaylist(id: string): void {
       aria-busy="true"
     >
       <div
-        v-for="index in 4"
+        v-for="index in 5"
         :key="index"
         class="playlist-card playlist-card--skeleton"
       >
@@ -356,44 +387,65 @@ function openPlaylist(id: string): void {
         :key="playlist.id"
         class="playlist-card"
       >
-        <button
-          type="button"
-          class="playlist-card-main"
-          @click="openPlaylist(playlist.id)"
-        >
+        <div class="playlist-card-art">
           <PlaylistCover
             :urls="playlist.previewCoverUrls"
             :thumbhashes="playlist.previewCoverThumbhashes"
-            size="md"
+            size="fill"
+            :rounded="false"
           />
-          <div class="playlist-card-body">
+          <button
+            v-if="playlist.trackCount > 0"
+            type="button"
+            class="playlist-card-play"
+            :aria-label="`${t('playlist.playAll')} ${playlist.name}`"
+            :disabled="startingPlaylistId === playlist.id"
+            @click="playPlaylist(playlist, $event)"
+          >
+            <span
+              :class="startingPlaylistId === playlist.id ? 'i-tabler-loader-2 animate-spin' : 'i-tabler-player-play-filled'"
+              aria-hidden="true"
+            />
+          </button>
+          <button
+            type="button"
+            class="playlist-card-delete"
+            :aria-label="t('playlist.deletePlaylist')"
+            :title="t('playlist.deletePlaylist')"
+            @click="handleDelete(playlist, $event)"
+          >
+            <span
+              class="i-tabler-trash"
+              aria-hidden="true"
+            />
+          </button>
+        </div>
+        <div class="playlist-card-body">
+          <button
+            type="button"
+            class="playlist-card-main"
+            @click="openPlaylist(playlist.id)"
+          >
             <h2 class="playlist-card-title">
               {{ playlist.name }}
             </h2>
-            <p
-              v-if="playlist.description"
-              class="playlist-card-description"
-            >
-              {{ playlist.description }}
-            </p>
-            <div class="playlist-card-meta">
-              <span>{{ t('playlist.trackCount', { n: playlist.trackCount }) }}</span>
-              <span class="playlist-card-meta-dot">·</span>
-              <span>{{ formatDuration(playlist.totalDurationSeconds) }}</span>
-            </div>
-          </div>
-        </button>
-        <button
-          type="button"
-          class="playlist-card-delete"
-          :aria-label="t('playlist.deletePlaylist')"
-          @click="handleDelete(playlist, $event)"
-        >
-          <span
-            class="i-tabler-trash"
-            aria-hidden="true"
-          />
-        </button>
+          </button>
+          <p
+            v-if="playlist.description"
+            class="playlist-card-description"
+          >
+            {{ playlist.description }}
+          </p>
+          <p class="playlist-card-meta">
+            <span>{{ t('playlist.trackCount', { n: playlist.trackCount }) }}</span>
+            <span
+              v-if="playlist.trackCount > 0"
+              class="playlist-card-meta-dot"
+              aria-hidden="true"
+            >·</span>
+            <span v-if="playlist.trackCount > 0">{{ formatDuration(playlist.totalDurationSeconds) }}</span>
+          </p>
+        </div>
       </article>
     </div>
   </section>
@@ -425,14 +477,9 @@ function openPlaylist(id: string): void {
 }
 
 .playlists-subtitle {
-  display: inline-block;
-  margin: 0.5rem 0 0;
-  padding: 0.125rem 0.625rem;
-  font-size: 0.75rem;
-  font-weight: 400;
+  margin: 0.375rem 0 0;
+  font-size: 0.875rem;
   color: var(--text-tertiary);
-  background: var(--bg-surface);
-  border-radius: 999px;
 }
 
 /* ── New playlist button ── */
@@ -653,12 +700,13 @@ function openPlaylist(id: string): void {
 /* ── Grid ── */
 .playlist-grid {
   display: grid;
-  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+  gap: 1.5rem 1rem;
 }
 
 @media (min-width: 768px) {
   .playlist-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
   }
 }
 
@@ -666,64 +714,42 @@ function openPlaylist(id: string): void {
 .playlist-card {
   position: relative;
   display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem;
-  border: 1px solid var(--border);
-  border-radius: 0.875rem;
-  background: var(--bg-surface);
-  cursor: pointer;
-}
-
-.playlist-card:not(.playlist-card--skeleton) {
-  transition: background var(--duration-fast) ease, border-color var(--duration-fast) ease;
-}
-
-.playlist-card:not(.playlist-card--skeleton):hover {
-  background: var(--bg-elevated);
-  border-color: var(--border-strong);
-}
-
-.playlist-card:has(.playlist-card-main:focus-visible) {
-  border-color: var(--accent);
-}
-
-.playlist-card-main:focus-visible {
-  outline: none;
-}
-
-.playlist-card--skeleton {
-  min-height: 5.75rem;
-  cursor: default;
-}
-
-.playlist-skel-cover {
-  flex-shrink: 0;
-  width: 3.5rem;
-  height: 3.5rem;
-  border-radius: var(--radius-md);
-}
-
-.playlist-skel-line {
-  height: 0.6875rem;
-  border-radius: 0.25rem;
-}
-
-.playlist-skel-line--title {
-  width: 60%;
-}
-
-.playlist-skel-line--meta {
-  width: 35%;
-  margin-top: 0.375rem;
-}
-
-.playlist-card-main {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
+  flex-direction: column;
+  gap: 0.75rem;
   min-width: 0;
-  flex: 1;
+}
+
+.playlist-card-art {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  box-shadow: 0 0 0 1px var(--border);
+  transition: box-shadow var(--duration-base) var(--ease-out), transform var(--duration-base) var(--ease-out);
+}
+
+.playlist-card:not(.playlist-card--skeleton):hover .playlist-card-art {
+  transform: translateY(-2px);
+  box-shadow: 0 0 0 1px var(--border-strong), 0 10px 24px rgba(0, 0, 0, 0.35);
+}
+
+.playlist-card:has(.playlist-card-main:focus-visible) .playlist-card-art {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.playlist-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0 0.125rem;
+}
+
+/* The title button stretches over the whole card so the card opens on click;
+   play and delete sit above it. */
+.playlist-card-main {
+  position: static;
+  min-width: 0;
   padding: 0;
   border: none;
   background: none;
@@ -732,12 +758,15 @@ function openPlaylist(id: string): void {
   color: inherit;
 }
 
-.playlist-card-body {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  min-width: 0;
-  flex: 1;
+.playlist-card-main::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-lg);
+}
+
+.playlist-card-main:focus-visible {
+  outline: none;
 }
 
 .playlist-card-title {
@@ -749,69 +778,125 @@ function openPlaylist(id: string): void {
   overflow: hidden;
   text-overflow: ellipsis;
   font-family: var(--font-display, inherit);
-  letter-spacing: -0.01em;
 }
 
 .playlist-card-description {
   margin: 0;
   font-size: 0.8125rem;
   color: var(--text-secondary);
-  line-height: 1.5;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
+  white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .playlist-card-meta {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 0.25rem;
-  margin-top: 0.125rem;
-  font-size: 0.75rem;
-  font-weight: 400;
+  gap: 0.3rem;
+  margin: 0;
+  font-size: 0.8125rem;
   color: var(--text-tertiary);
 }
 
 .playlist-card-meta-dot {
-  color: var(--text-tertiary);
-  opacity: 0.4;
+  opacity: 0.6;
 }
 
-/* ── Delete button ── */
+/* ── Cover actions ── */
+.playlist-card-play,
 .playlist-card-delete {
+  position: absolute;
+  z-index: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
-  width: 2.25rem;
-  height: 2.25rem;
   border: none;
   border-radius: 999px;
-  background: none;
-  color: var(--text-tertiary);
-  font-size: 1rem;
-  transition: background 0.15s ease, color 0.15s ease;
   cursor: pointer;
+  transition: opacity var(--duration-base) var(--ease-out), transform var(--duration-base) var(--ease-out), background var(--duration-fast) ease, color var(--duration-fast) ease;
+}
+
+.playlist-card-play {
+  right: 0.625rem;
+  bottom: 0.625rem;
+  width: 2.75rem;
+  height: 2.75rem;
+  background: var(--accent);
+  color: white;
+  font-size: 1.125rem;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+}
+
+.playlist-card-play:hover:not(:disabled) {
+  background: var(--accent-hover);
+  transform: scale(1.06);
+}
+
+.playlist-card-delete {
+  top: 0.5rem;
+  right: 0.5rem;
+  width: 2rem;
+  height: 2rem;
+  background: rgba(0, 0, 0, 0.5);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.9375rem;
 }
 
 .playlist-card-delete:hover,
 .playlist-card-delete:focus-visible {
-  background: color-mix(in srgb, var(--danger) 12%, transparent);
-  color: var(--danger);
+  background: var(--danger);
+  color: white;
 }
 
-/* Only reveal the destructive action on hover/focus where hover exists. */
+/* With a pointer, cover actions appear on hover/focus; touch keeps play visible. */
 @media (hover: hover) {
+  .playlist-card-play {
+    opacity: 0;
+    transform: translateY(0.375rem);
+  }
   .playlist-card-delete {
     opacity: 0;
-    transition: opacity var(--duration-fast) ease, background var(--duration-fast) ease, color var(--duration-fast) ease;
+  }
+  .playlist-card:hover .playlist-card-play,
+  .playlist-card:focus-within .playlist-card-play {
+    opacity: 1;
+    transform: none;
   }
   .playlist-card:hover .playlist-card-delete,
   .playlist-card:focus-within .playlist-card-delete {
     opacity: 1;
   }
+}
+
+@media (hover: none) {
+  .playlist-card-delete {
+    display: none;
+  }
+}
+
+/* ── Skeleton ── */
+.playlist-card--skeleton {
+  cursor: default;
+}
+
+.playlist-skel-cover {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: var(--radius-lg);
+}
+
+.playlist-skel-line {
+  height: 0.75rem;
+  border-radius: 0.25rem;
+}
+
+.playlist-skel-line--title {
+  width: 70%;
+}
+
+.playlist-skel-line--meta {
+  width: 40%;
+  margin-top: 0.375rem;
 }
 
 /* ── Empty state ── */
