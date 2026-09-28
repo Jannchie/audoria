@@ -1,6 +1,9 @@
 import { computed, watch } from 'vue'
 import { resolveApiUrl, useMusicQuery } from './useMusic'
+import { usePlaybackControls } from './usePlaybackControls'
 import { usePlayerState } from './usePlayerState'
+
+const mediaSeekStep = 10
 
 export function useMediaSession() {
   if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) {
@@ -14,11 +17,8 @@ export function useMediaSession() {
     currentTime,
     duration,
     setPlaying,
-    seekTo,
-    selectTrack,
-    getNextTrackId,
-    getPreviousTrackId,
   } = usePlayerState()
+  const controls = usePlaybackControls()
 
   const currentTrack = computed(() => {
     const items = tracks.value ?? []
@@ -76,22 +76,27 @@ export function useMediaSession() {
     setPlaying(false)
   })
   navigator.mediaSession.setActionHandler('previoustrack', () => {
-    const prevId = getPreviousTrackId(tracks.value ?? [])
-    if (prevId) {
-      selectTrack(prevId, { contextTracks: tracks.value ?? [], history: 'skip' })
-      setPlaying(true)
-    }
+    controls.previous()
   })
   navigator.mediaSession.setActionHandler('nexttrack', () => {
-    const nextId = getNextTrackId(tracks.value ?? [])
-    if (nextId) {
-      selectTrack(nextId, { contextTracks: tracks.value ?? [], consumeUpNext: true })
-      setPlaying(true)
-    }
+    controls.next()
   })
+  // requestSeek (via controls) moves the <audio> element; seekTo alone only
+  // updated the stored position.
   navigator.mediaSession.setActionHandler('seekto', (details) => {
     if (details.seekTime != null) {
-      seekTo(details.seekTime)
+      controls.seekTo(details.seekTime)
     }
   })
+  try {
+    navigator.mediaSession.setActionHandler('seekbackward', (details) => {
+      controls.seekBy(-(details.seekOffset ?? mediaSeekStep))
+    })
+    navigator.mediaSession.setActionHandler('seekforward', (details) => {
+      controls.seekBy(details.seekOffset ?? mediaSeekStep)
+    })
+  }
+  catch {
+    // Older browsers throw for unsupported actions.
+  }
 }

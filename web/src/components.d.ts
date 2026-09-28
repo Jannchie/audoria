@@ -13,6 +13,7 @@ declare module 'vue' {
   export interface GlobalComponents {
     AddToPlaylistDialog: typeof import('./components/AddToPlaylistDialog.vue')['default']
     AudoriaLogo: typeof import('./components/AudoriaLogo.vue')['default']
+    ConfirmDialog: typeof import('./components/ConfirmDialog.vue')['default']
     ContextMenu: typeof import('./components/ContextMenu.vue')['default']
     HelloWorld: typeof import('./components/HelloWorld.vue')['default']
     HoloCoverArt: typeof import('./components/HoloCoverArt.vue')['default']
@@ -29,6 +30,8 @@ declare module 'vue' {
     RouterView: typeof import('vue-router')['RouterView']
     ShaderProgressBar: typeof import('./components/ShaderProgressBar.vue')['default']
     ShaderProgressControls: typeof import('./components/ShaderProgressControls.vue')['default']
+    ShortcutHelpDialog: typeof import('./components/ShortcutHelpDialog.vue')['default']
     SoundWave: typeof import('./components/SoundWave.vue')['default']
+    ToastHost: typeof import('./components/ToastHost.vue')['default']
   }
 }

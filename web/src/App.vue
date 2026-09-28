@@ -3,12 +3,15 @@ import { computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import AudoriaLogo from './components/AudoriaLogo.vue'
+import ConfirmDialog from './components/ConfirmDialog.vue'
 import ContextMenu from './components/ContextMenu.vue'
 import InputPromptDialog from './components/InputPromptDialog.vue'
 import PlayerBar from './components/PlayerBar.vue'
 import QueueDrawer from './components/QueueDrawer.vue'
+import ShortcutHelpDialog from './components/ShortcutHelpDialog.vue'
+import ToastHost from './components/ToastHost.vue'
 import { useKeyboardDetect } from './composables/useKeyboardDetect'
-import { useKeyboardShortcuts } from './composables/useKeyboardShortcuts'
+import { useKeyboardShortcuts, useShortcutHelp } from './composables/useKeyboardShortcuts'
 import LoginPage from './pages/LoginPage.vue'
 
 const { t } = useI18n()
@@ -22,11 +25,13 @@ onMounted(() => {
 
 useKeyboardShortcuts()
 useMediaSession()
+const { open: openShortcutHelp } = useShortcutHelp()
 const { isKeyboardOpen } = useKeyboardDetect()
 
 const authReady = computed(() => status.value !== 'loading')
 
-const allNavItems = [
+// Labels are computed so they follow runtime locale changes.
+const allNavItems = computed(() => [
   { name: t('nav.library'), path: '/library', icon: 'i-tabler-vinyl' },
   { name: t('nav.playlists'), path: '/playlists', icon: 'i-tabler-playlist' },
   { name: t('nav.explore'), path: '/import', icon: 'i-tabler-compass' },
@@ -35,39 +40,39 @@ const allNavItems = [
   { name: t('nav.player'), path: '/player', icon: 'i-tabler-wave-sine' },
   { name: t('nav.stats'), path: '/stats', icon: 'i-tabler-chart-bar' },
   { name: t('nav.settings'), path: '/settings', icon: 'i-tabler-settings' },
-]
+])
 
 const restrictedPaths: Set<string> = new Set(GUEST_RESTRICTED_PATHS)
 
-const loginNavItem = { name: t('nav.login'), path: '/login', icon: 'i-tabler-login' }
+const loginNavItem = computed(() => ({ name: t('nav.login'), path: '/login', icon: 'i-tabler-login' }))
 
 const navItems = computed(() => {
   if (isGuest.value) {
     return [
-      ...allNavItems.filter(item => !restrictedPaths.has(item.path)),
-      loginNavItem,
+      ...allNavItems.value.filter(item => !restrictedPaths.has(item.path)),
+      loginNavItem.value,
     ]
   }
-  return allNavItems
+  return allNavItems.value
 })
 
 // Mobile tabs
-const allMobileNavItems = [
+const allMobileNavItems = computed(() => [
   { name: t('nav.library'), path: '/library', icon: 'i-tabler-vinyl' },
   { name: t('nav.playlists'), path: '/playlists', icon: 'i-tabler-playlist' },
   { name: t('nav.explore'), path: '/import', icon: 'i-tabler-compass' },
   { name: t('nav.stats'), path: '/stats', icon: 'i-tabler-chart-bar' },
   { name: t('nav.settings'), path: '/settings', icon: 'i-tabler-settings' },
-]
+])
 
 const mobileNavItems = computed(() => {
   if (isGuest.value) {
     return [
-      ...allMobileNavItems.filter(item => !restrictedPaths.has(item.path)),
-      loginNavItem,
+      ...allMobileNavItems.value.filter(item => !restrictedPaths.has(item.path)),
+      loginNavItem.value,
     ]
   }
-  return allMobileNavItems
+  return allMobileNavItems.value
 })
 
 const currentPath = computed(() => route.path)
@@ -154,6 +159,19 @@ watchEffect(() => {
             />
             <span>{{ item.name }}</span>
           </RouterLink>
+          <button
+            type="button"
+            class="desktop-nav-item desktop-nav-shortcuts"
+            :aria-label="t('shortcuts.open')"
+            :title="`${t('shortcuts.open')} (?)`"
+            aria-keyshortcuts="?"
+            @click="openShortcutHelp"
+          >
+            <span
+              class="i-tabler-keyboard"
+              aria-hidden="true"
+            />
+          </button>
         </nav>
       </div>
     </header>
@@ -208,6 +226,15 @@ watchEffect(() => {
 
     <!-- Global input prompt dialog -->
     <InputPromptDialog />
+
+    <!-- Global confirmation dialog -->
+    <ConfirmDialog />
+
+    <!-- Keyboard shortcut reference ("?") -->
+    <ShortcutHelpDialog />
+
+    <!-- Transient feedback -->
+    <ToastHost />
   </div>
 </template>
 
@@ -309,8 +336,21 @@ watchEffect(() => {
   border-radius: 999px;
   font-size: 0.8125rem;
   color: var(--text-tertiary);
-  transition: all 0.15s ease;
+  transition: color var(--duration-fast) ease, background var(--duration-fast) ease;
   text-decoration: none;
+}
+
+.desktop-nav-item:active {
+  background: var(--bg-elevated);
+}
+
+.desktop-nav-shortcuts {
+  margin-left: 0.25rem;
+  padding: 0.5rem 0.625rem;
+  border: none;
+  background: none;
+  font-size: 1rem;
+  cursor: pointer;
 }
 
 .desktop-nav-item:hover {

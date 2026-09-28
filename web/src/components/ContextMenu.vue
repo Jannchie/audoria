@@ -12,6 +12,9 @@ const hoverPath = ref<number[]>([])
 const dynamicSubmenus = shallowRef<Map<string, ContextMenuItem[]>>(new Map())
 const submenuLoading = ref<string | null>(null)
 const submenuPosition = ref({ left: 0, top: 0 })
+// Keyboard focus inside the open submenu (null = focus is on the root menu).
+const subActiveIndex = ref<number | null>(null)
+let restoreFocusTarget: HTMLElement | null = null
 
 const items = computed<ContextMenuItem[]>(() => trigger.value?.items ?? [])
 
@@ -111,6 +114,7 @@ async function loadDynamicSubmenu(item: ContextMenuItem): Promise<void> {
 }
 
 function hoverRoot(index: number, item: ContextMenuItem): void {
+  subActiveIndex.value = null
   if (item.disabled || item.divider) {
     hoverPath.value = [index]
     return
@@ -128,11 +132,111 @@ async function invoke(item: ContextMenuItem): Promise<void> {
   if (item.disabled || item.divider || item.submenu) {
     return
   }
-  try {
-    await item.onSelect?.()
+  // Close first so follow-up UI (confirm / prompt dialogs) isn't stacked
+  // on top of a stale menu.
+  close()
+  await item.onSelect?.()
+}
+
+function isSelectable(item: ContextMenuItem | undefined): boolean {
+  return Boolean(item && !item.divider && !item.disabled)
+}
+
+function stepIndex(list: ContextMenuItem[], from: number | null | undefined, direction: 1 | -1): number | null {
+  if (list.length === 0) {
+    return null
   }
-  finally {
-    close()
+  let index = from ?? (direction === 1 ? -1 : list.length)
+  for (let step = 0; step < list.length; step++) {
+    index = (index + direction + list.length) % list.length
+    if (isSelectable(list[index])) {
+      return index
+    }
+  }
+  return null
+}
+
+async function enterSubmenu(): Promise<void> {
+  const rootIndex = hoverPath.value[0]
+  const item = rootIndex === undefined ? null : items.value[rootIndex]
+  if (!item?.submenu) {
+    return
+  }
+  hoverRoot(rootIndex!, item)
+  if (typeof item.submenu === 'function') {
+    await loadDynamicSubmenu(item)
+  }
+  subActiveIndex.value = stepIndex(hoveredRootSubmenu.value ?? [], null, 1)
+}
+
+function handleMenuNavigation(event: KeyboardEvent): boolean {
+  const inSubmenu = subActiveIndex.value !== null
+  const subItems = hoveredRootSubmenu.value ?? []
+  switch (event.key) {
+    case 'ArrowDown':
+    case 'ArrowUp': {
+      const direction = event.key === 'ArrowDown' ? 1 : -1
+      if (inSubmenu) {
+        subActiveIndex.value = stepIndex(subItems, subActiveIndex.value, direction) ?? subActiveIndex.value
+      }
+      else {
+        const next = stepIndex(items.value, hoverPath.value[0], direction)
+        if (next !== null) {
+          hoverRoot(next, items.value[next])
+        }
+      }
+      return true
+    }
+    case 'Home':
+    case 'End': {
+      const direction = event.key === 'Home' ? 1 : -1
+      if (inSubmenu) {
+        subActiveIndex.value = stepIndex(subItems, null, direction)
+      }
+      else {
+        const next = stepIndex(items.value, null, direction)
+        if (next !== null) {
+          hoverRoot(next, items.value[next])
+        }
+      }
+      return true
+    }
+    case 'ArrowRight': {
+      if (!inSubmenu) {
+        void enterSubmenu()
+      }
+      return true
+    }
+    case 'ArrowLeft': {
+      subActiveIndex.value = null
+      return true
+    }
+    case 'Enter':
+    case ' ': {
+      if (inSubmenu) {
+        const sub = subItems[subActiveIndex.value!]
+        if (sub) {
+          void invoke(sub)
+        }
+        return true
+      }
+      const rootIndex = hoverPath.value[0]
+      const item = rootIndex === undefined ? undefined : items.value[rootIndex]
+      if (item?.submenu) {
+        void enterSubmenu()
+      }
+      else if (item) {
+        void invoke(item)
+      }
+      return true
+    }
+    case 'Tab': {
+      close()
+      return false
+    }
+    default: {
+      return false
+    }
   }
 }
 
@@ -153,23 +257,41 @@ function handleOutsidePointer(event: PointerEvent): void {
 }
 
 function handleKey(event: KeyboardEvent): void {
-  if (!visible.value) {
+  if (!visible.value || event.defaultPrevented) {
     return
   }
   if (event.key === 'Escape') {
     event.preventDefault()
+    if (subActiveIndex.value !== null) {
+      subActiveIndex.value = null
+      return
+    }
     close()
+    return
+  }
+  if (handleMenuNavigation(event)) {
+    event.preventDefault()
   }
 }
 
 watch(visible, async (isVisible) => {
   if (!isVisible) {
     hoverPath.value = []
+    subActiveIndex.value = null
     dynamicSubmenus.value = new Map()
     submenuLoading.value = null
+    const target = restoreFocusTarget
+    restoreFocusTarget = null
+    const active = document.activeElement
+    const focusInMenu = !active || active === document.body || Boolean(rootRef.value?.contains(active))
+    if (target?.isConnected && focusInMenu) {
+      target.focus({ preventScroll: true })
+    }
     return
   }
+  restoreFocusTarget = document.activeElement instanceof HTMLElement ? document.activeElement : null
   await positionMenu()
+  rootRef.value?.focus({ preventScroll: true })
 })
 
 watch(hoveredRootSubmenu, async (submenu) => {
@@ -197,6 +319,8 @@ useEventListener('resize', close)
           ref="rootRef"
           class="ctx-menu"
           role="menu"
+          tabindex="-1"
+          :aria-activedescendant="hoverPath[0] !== undefined && subActiveIndex === null ? `ctx-menu-item-${hoverPath[0]}` : undefined"
           :style="{ left: `${position.left}px`, top: `${position.top}px` }"
         >
           <template
@@ -210,12 +334,14 @@ useEventListener('resize', close)
             />
             <li
               v-else
+              :id="`ctx-menu-item-${index}`"
               class="ctx-menu-item"
               :class="{
                 'ctx-menu-item--disabled': item.disabled,
                 'ctx-menu-item--danger': item.danger,
                 'ctx-menu-item--has-sub': !!item.submenu,
                 'ctx-menu-item--active': hoverPath[0] === index,
+                'ctx-menu-item--parent': hoverPath[0] === index && subActiveIndex !== null,
               }"
               :data-menu-index="index"
               role="menuitem"
@@ -262,7 +388,7 @@ useEventListener('resize', close)
           </li>
           <template v-else-if="hoveredRootSubmenu && hoveredRootSubmenu.length > 0">
             <template
-              v-for="sub in hoveredRootSubmenu"
+              v-for="(sub, subIndex) in hoveredRootSubmenu"
               :key="sub.id"
             >
               <li
@@ -276,6 +402,7 @@ useEventListener('resize', close)
                 :class="{
                   'ctx-menu-item--disabled': sub.disabled,
                   'ctx-menu-item--danger': sub.danger,
+                  'ctx-menu-item--active': subActiveIndex === subIndex,
                 }"
                 role="menuitem"
                 :aria-disabled="sub.disabled"
@@ -334,6 +461,11 @@ useEventListener('resize', close)
   -webkit-backdrop-filter: blur(14px) saturate(1.4);
 }
 
+.ctx-menu:focus,
+.ctx-menu:focus-visible {
+  outline: none;
+}
+
 .ctx-menu--submenu {
   min-width: 12rem;
 }
@@ -354,6 +486,10 @@ useEventListener('resize', close)
 .ctx-menu-item:hover,
 .ctx-menu-item--active {
   background: var(--bg-surface);
+}
+
+.ctx-menu-item--parent {
+  background: color-mix(in srgb, var(--bg-surface) 60%, transparent);
 }
 
 .ctx-menu-item--disabled {

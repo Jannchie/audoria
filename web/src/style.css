@@ -1,27 +1,48 @@
 @font-face {
-  font-family: 'Berkeley Mono Latin';
-  src: url('https://cdn.jannchie.com/fonts/BerkeleyMono-Regular.woff2') format('woff2');
+  font-family: 'Berkeley Mono';
+  src: url('https://cdn.jannchie.com/fonts/variants/BerkeleyMono-Regular.woff2') format('woff2');
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  unicode-range:
-    U+0000-00FF,
-    U+0100-017F,
-    U+0180-024F,
-    U+0250-02AF,
-    U+02B0-02FF,
-    U+0300-036F,
-    U+1E00-1EFF,
-    U+2000-206F,
-    U+20A0-20CF,
-    U+2100-214F;
+  /* Latin only — CJK glyphs fall through to the monospace fallbacks below. */
+  unicode-range: U+0000-02FF, U+0300-036F, U+1E00-1EFF, U+2000-206F, U+20A0-20CF, U+2100-214F, U+2190-21FF, U+2300-23FF;
+}
+
+@font-face {
+  font-family: 'Berkeley Mono';
+  src: url('https://cdn.jannchie.com/fonts/variants/BerkeleyMono-Oblique.woff2') format('woff2');
+  font-style: oblique;
+  font-weight: 400;
+  font-display: swap;
+  /* Latin only — CJK glyphs fall through to the monospace fallbacks below. */
+  unicode-range: U+0000-02FF, U+0300-036F, U+1E00-1EFF, U+2000-206F, U+20A0-20CF, U+2100-214F, U+2190-21FF, U+2300-23FF;
+}
+
+@font-face {
+  font-family: 'Berkeley Mono';
+  src: url('https://cdn.jannchie.com/fonts/variants/BerkeleyMono-Bold.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  /* Latin only — CJK glyphs fall through to the monospace fallbacks below. */
+  unicode-range: U+0000-02FF, U+0300-036F, U+1E00-1EFF, U+2000-206F, U+20A0-20CF, U+2100-214F, U+2190-21FF, U+2300-23FF;
+}
+
+@font-face {
+  font-family: 'Berkeley Mono';
+  src: url('https://cdn.jannchie.com/fonts/variants/BerkeleyMono-Bold-Oblique.woff2') format('woff2');
+  font-style: oblique;
+  font-weight: 700;
+  font-display: swap;
+  /* Latin only — CJK glyphs fall through to the monospace fallbacks below. */
+  unicode-range: U+0000-02FF, U+0300-036F, U+1E00-1EFF, U+2000-206F, U+20A0-20CF, U+2100-214F, U+2190-21FF, U+2300-23FF;
 }
 
 :root {
   color-scheme: dark;
   --font-sans: 'HarmonyOS Sans SC', 'HarmonyOS Sans', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', 'DM Sans', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   --font-display: 'HarmonyOS Sans SC', 'HarmonyOS Sans', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', 'DM Sans', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: 'Berkeley Mono Latin', 'SFMono-Regular', ui-monospace, monospace;
+  --font-mono: 'Berkeley Mono', 'Sarasa Mono SC', 'Noto Sans Mono CJK SC', 'Source Han Mono SC', 'SFMono-Regular', ui-monospace, Menlo, Consolas, monospace;
   font-family: var(--font-sans);
   /* HarmonyOS Sans / PingFang read heavy on the dark background at 400;
      body copy uses the light cut, emphasis steps up to 400–500. */
@@ -44,6 +65,16 @@
   --accent-soft: rgba(232, 87, 74, 0.1);
 
   --border: rgba(255, 255, 255, 0.06);
+  --border-strong: rgba(255, 255, 255, 0.1);
+
+  /* Shape & motion scale. Restrained on purpose: short, ease-out, no bounce. */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 1rem;
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --shadow-overlay: 0 16px 48px rgba(0, 0, 0, 0.36), 0 2px 8px rgba(0, 0, 0, 0.2);
 
   --danger: #ef4444;
   --danger-soft: rgba(239, 68, 68, 0.08);
@@ -62,6 +93,20 @@
   outline: 2px solid var(--accent);
   outline-offset: 2px;
   border-radius: inherit;
+}
+
+/* Inputs show focus through their own border/background. */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline-offset: 0;
+}
+
+button,
+[role='button'],
+a {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 * {
@@ -186,4 +231,48 @@ input[type="search"]::-webkit-search-cancel-button {
   font-size: 0.75rem;
   color: var(--text-tertiary);
   margin-top: 0.375rem;
+}
+
+/* Keyboard key cap */
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 0.375rem;
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 400;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* Tabular time codes (durations, positions) */
+.time-code {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Loading spinners convey state; keep them turning. */
+  .animate-spin {
+    animation-duration: 1s !important;
+    animation-iteration-count: infinite !important;
+  }
 }

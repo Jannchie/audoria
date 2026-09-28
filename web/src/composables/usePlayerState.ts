@@ -294,6 +294,14 @@ export function usePlayerState() {
     persistState()
   }
 
+  const setPlayMode = (mode: PlayMode) => {
+    if (playMode.value === mode) {
+      return
+    }
+    playMode.value = mode
+    persistState()
+  }
+
   const updateProgress = (time: number, total: number) => {
     currentTime.value = normalizeTime(time)
     duration.value = normalizeTime(total)
@@ -551,6 +559,7 @@ export function usePlayerState() {
     seekTarget,
     seekTo,
     selectTrack,
+    setPlayMode,
     setPlaying,
     setVolume,
     syncTrackContext,

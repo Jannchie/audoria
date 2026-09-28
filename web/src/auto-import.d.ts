@@ -108,6 +108,7 @@ declare global {
   const shallowReadonly: typeof import('vue').shallowReadonly
   const shallowRef: typeof import('vue').shallowRef
   const shiftLrcTimestamps: typeof import('./composables/useLyrics').shiftLrcTimestamps
+  const shortcutRegistry: typeof import('./composables/useKeyboardShortcuts').shortcutRegistry
   const sortTracks: typeof import('./composables/useTrackSort').sortTracks
   const stripReadingNotation: typeof import('./composables/useLyrics').stripReadingNotation
   const syncRef: typeof import('@vueuse/core').syncRef
@@ -161,6 +162,7 @@ declare global {
   const useClipboardItems: typeof import('@vueuse/core').useClipboardItems
   const useCloned: typeof import('@vueuse/core').useCloned
   const useColorMode: typeof import('@vueuse/core').useColorMode
+  const useConfirm: typeof import('./composables/useConfirm').useConfirm
   const useConfirmDialog: typeof import('@vueuse/core').useConfirmDialog
   const useContextMenu: typeof import('./composables/useContextMenu').useContextMenu
   const useCountdown: typeof import('@vueuse/core').useCountdown
@@ -185,6 +187,7 @@ declare global {
   const useDeviceOrientation: typeof import('@vueuse/core').useDeviceOrientation
   const useDevicePixelRatio: typeof import('@vueuse/core').useDevicePixelRatio
   const useDevicesList: typeof import('@vueuse/core').useDevicesList
+  const useDialogFocus: typeof import('./composables/useDialogFocus').useDialogFocus
   const useDisplayMedia: typeof import('@vueuse/core').useDisplayMedia
   const useDocumentVisibility: typeof import('@vueuse/core').useDocumentVisibility
   const useDraggable: typeof import('@vueuse/core').useDraggable
@@ -253,6 +256,7 @@ declare global {
   const useParseMusicUrl: typeof import('./composables/useMusic').useParseMusicUrl
   const usePerformanceObserver: typeof import('@vueuse/core').usePerformanceObserver
   const usePermission: typeof import('@vueuse/core').usePermission
+  const usePlaybackControls: typeof import('./composables/usePlaybackControls').usePlaybackControls
   const usePlayerState: typeof import('./composables/usePlayerState').usePlayerState
   const usePlaylistDetailQuery: typeof import('./composables/usePlaylists').usePlaylistDetailQuery
   const usePlaylistsQuery: typeof import('./composables/usePlaylists').usePlaylistsQuery
@@ -283,6 +287,7 @@ declare global {
   const useSessionStorage: typeof import('@vueuse/core').useSessionStorage
   const useSettings: typeof import('./composables/useSettings').useSettings
   const useShare: typeof import('@vueuse/core').useShare
+  const useShortcutHelp: typeof import('./composables/useKeyboardShortcuts').useShortcutHelp
   const useSlots: typeof import('vue').useSlots
   const useSorted: typeof import('@vueuse/core').useSorted
   const useSpeechRecognition: typeof import('@vueuse/core').useSpeechRecognition
@@ -311,6 +316,7 @@ declare global {
   const useTitle: typeof import('@vueuse/core').useTitle
   const useToNumber: typeof import('@vueuse/core').useToNumber
   const useToString: typeof import('@vueuse/core').useToString
+  const useToast: typeof import('./composables/useToast').useToast
   const useToggle: typeof import('@vueuse/core').useToggle
   const useTrackContextMenu: typeof import('./composables/useTrackContextMenu').useTrackContextMenu
   const useTransition: typeof import('@vueuse/core').useTransition
@@ -365,6 +371,9 @@ declare global {
   export type { UseCardParallaxOptions, UseCardParallaxReturn } from './composables/useCardParallax'
   import('./composables/useCardParallax')
   // @ts-ignore
+  export type { ConfirmOptions } from './composables/useConfirm'
+  import('./composables/useConfirm')
+  // @ts-ignore
   export type { ContextMenuItem, ContextMenuTrigger } from './composables/useContextMenu'
   import('./composables/useContextMenu')
   // @ts-ignore
@@ -379,6 +388,9 @@ declare global {
   // @ts-ignore
   export type { PlayMode, PlaybackContextType, TrackLike, PlaybackContextInput } from './composables/usePlayerState'
   import('./composables/usePlayerState')
+  // @ts-ignore
+  export type { ToastTone, ToastOptions, Toast } from './composables/useToast'
+  import('./composables/useToast')
   // @ts-ignore
   export type { TrackContextOptions } from './composables/useTrackContextMenu'
   import('./composables/useTrackContextMenu')
