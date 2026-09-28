@@ -6,6 +6,7 @@ import { useRoute, useRouter } from 'vue-router'
 import LazyCoverImage from '../components/LazyCoverImage.vue'
 import PlaylistCover from '../components/PlaylistCover.vue'
 import SoundWave from '../components/SoundWave.vue'
+import TrackPlayMeta from '../components/TrackPlayMeta.vue'
 import { useContextMenu } from '../composables/useContextMenu'
 import { useListSelection } from '../composables/useListSelection'
 import { resolveApiUrl } from '../composables/useMusic'
@@ -53,7 +54,7 @@ const dragTrackId = ref<string | null>(null)
 const dragOverTrackId = ref<string | null>(null)
 const pendingOrder = ref<string[] | null>(null)
 const sortKey = ref<TrackSortKey>('manual')
-const playlistSortKeys: TrackSortKey[] = ['manual', 'addedDesc', 'nameAsc', 'nameDesc', 'artistAsc', 'durationDesc', 'durationAsc']
+const playlistSortKeys: TrackSortKey[] = ['manual', 'addedDesc', 'nameAsc', 'nameDesc', 'artistAsc', 'durationDesc', 'durationAsc', 'playsDesc', 'lastPlayedDesc']
 
 const playlist = computed(() => playlistQuery.data.value ?? null)
 const baseTracks = computed(() => {
@@ -634,6 +635,7 @@ function handleDragEnd(): void {
               v-if="track.album"
               class="tr-album"
             >{{ track.album }}</span>
+            <TrackPlayMeta :track="track" />
           </div>
 
           <span class="tr-duration">{{ formatTrackDuration(track.durationSeconds) }}</span>

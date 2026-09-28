@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router'
 import { findLyricLineAtTime, useLyrics } from '../composables/useLyrics'
 import { buildDownloadUrl, resolveApiUrl, useMusicQuery } from '../composables/useMusic'
 import { usePlayerState } from '../composables/usePlayerState'
+import { usePlayTracker } from '../composables/usePlayTracker'
 import { useQueuePanel } from '../composables/useQueuePanel'
 import { getSourceDisplay } from '../utils/source'
 import IconButton from './IconButton.vue'
@@ -71,6 +72,8 @@ const currentTrack = computed(() => {
 })
 
 const resolvedCurrentTrackId = computed(() => currentTrack.value?.id ?? null)
+
+usePlayTracker(audioRef, () => resolvedCurrentTrackId.value)
 
 const audioSrc = computed(() => {
   if (!currentTrack.value) {

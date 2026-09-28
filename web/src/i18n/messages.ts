@@ -15,6 +15,45 @@ export const messages = {
       player: 'Player',
       settings: 'Settings',
       login: 'Log in',
+      stats: 'Stats',
+    },
+    stats: {
+      title: 'Listening stats',
+      periodSummary: 'Last {days} days: {plays} plays · {time}',
+      range: {
+        label: 'Time range',
+        days: '{n} days',
+      },
+      guestNote: 'Guest listening is not recorded. Log in to track your plays.',
+      loadFailed: 'Could not load statistics',
+      empty: 'No listening history yet. Plays are counted once you have listened to half a track (at least 30s, at most 4 min).',
+      totals: {
+        listened: 'Total listening time',
+        plays: 'Plays',
+        tracks: 'Tracks played',
+        skips: 'Skips',
+      },
+      history: {
+        title: 'Listening time per day',
+        hint: 'Hover a bar to see that day',
+      },
+      top: {
+        title: 'Top tracks',
+        empty: 'Nothing played in this period',
+      },
+      recent: {
+        title: 'Recently played',
+      },
+      track: {
+        plays: '{n} play | {n} plays',
+        lastPlayed: 'last played {time}',
+        listened: 'listened {time}',
+      },
+      time: {
+        hoursMinutes: '{h} h {m} min',
+        minutes: '{m} min',
+        seconds: '{s} s',
+      },
     },
     common: {
       unknown: 'Unknown',
@@ -207,6 +246,8 @@ export const messages = {
         artistAsc: 'Artist (A–Z)',
         durationDesc: 'Longest first',
         durationAsc: 'Shortest first',
+        playsDesc: 'Most played',
+        lastPlayedDesc: 'Recently played',
       },
     },
     playlist: {
@@ -233,6 +274,8 @@ export const messages = {
         artistAsc: 'Artist (A–Z)',
         durationDesc: 'Longest first',
         durationAsc: 'Shortest first',
+        playsDesc: 'Most played',
+        lastPlayedDesc: 'Recently played',
       },
     },
     upload: {
@@ -403,6 +446,45 @@ export const messages = {
       player: 'プレイヤー',
       settings: '設定',
       login: 'ログイン',
+      stats: '統計',
+    },
+    stats: {
+      title: '再生統計',
+      periodSummary: '過去 {days} 日：{plays} 回再生 · {time}',
+      range: {
+        label: '期間',
+        days: '{n} 日',
+      },
+      guestNote: 'ゲストの再生は記録されません。ログインすると再生履歴が記録されます。',
+      loadFailed: '統計を読み込めませんでした',
+      empty: 'まだ再生履歴がありません。曲の半分（30 秒以上、最大 4 分）を聴くと 1 回としてカウントされます。',
+      totals: {
+        listened: '総再生時間',
+        plays: '再生回数',
+        tracks: '再生した曲',
+        skips: 'スキップ',
+      },
+      history: {
+        title: '日別の再生時間',
+        hint: 'バーにカーソルを合わせると詳細を表示',
+      },
+      top: {
+        title: 'よく聴く曲',
+        empty: 'この期間に再生した曲はありません',
+      },
+      recent: {
+        title: '最近再生した曲',
+      },
+      track: {
+        plays: '{n} 回',
+        lastPlayed: '最終再生 {time}',
+        listened: '再生時間 {time}',
+      },
+      time: {
+        hoursMinutes: '{h} 時間 {m} 分',
+        minutes: '{m} 分',
+        seconds: '{s} 秒',
+      },
     },
     common: {
       unknown: '不明',
@@ -595,6 +677,8 @@ export const messages = {
         artistAsc: 'アーティスト（A-Z）',
         durationDesc: '長い順',
         durationAsc: '短い順',
+        playsDesc: '再生回数順',
+        lastPlayedDesc: '最近再生',
       },
     },
     playlist: {
@@ -621,6 +705,8 @@ export const messages = {
         artistAsc: 'アーティスト（A-Z）',
         durationDesc: '長い順',
         durationAsc: '短い順',
+        playsDesc: '再生回数順',
+        lastPlayedDesc: '最近再生',
       },
     },
     upload: {
@@ -791,6 +877,45 @@ export const messages = {
       player: '播放器',
       settings: '设置',
       login: '登录',
+      stats: '统计',
+    },
+    stats: {
+      title: '收听统计',
+      periodSummary: '近 {days} 天：播放 {plays} 次 · {time}',
+      range: {
+        label: '时间范围',
+        days: '{n} 天',
+      },
+      guestNote: '游客的收听不会被记录，登录后即可统计播放。',
+      loadFailed: '统计加载失败',
+      empty: '还没有收听记录。听完一首歌的一半（至少 30 秒，最多 4 分钟）即计为一次播放。',
+      totals: {
+        listened: '总收听时长',
+        plays: '播放次数',
+        tracks: '听过的曲目',
+        skips: '跳过次数',
+      },
+      history: {
+        title: '每日收听时长',
+        hint: '悬停柱子查看当天详情',
+      },
+      top: {
+        title: '最常播放',
+        empty: '这段时间没有播放记录',
+      },
+      recent: {
+        title: '最近播放',
+      },
+      track: {
+        plays: '{n} 次',
+        lastPlayed: '上次播放 {time}',
+        listened: '已收听 {time}',
+      },
+      time: {
+        hoursMinutes: '{h} 小时 {m} 分钟',
+        minutes: '{m} 分钟',
+        seconds: '{s} 秒',
+      },
     },
     common: {
       unknown: '未知',
@@ -983,6 +1108,8 @@ export const messages = {
         artistAsc: '艺术家（A-Z）',
         durationDesc: '时长降序',
         durationAsc: '时长升序',
+        playsDesc: '播放最多',
+        lastPlayedDesc: '最近播放',
       },
     },
     playlist: {
@@ -1009,6 +1136,8 @@ export const messages = {
         artistAsc: '艺术家（A-Z）',
         durationDesc: '时长降序',
         durationAsc: '时长升序',
+        playsDesc: '播放最多',
+        lastPlayedDesc: '最近播放',
       },
     },
     upload: {

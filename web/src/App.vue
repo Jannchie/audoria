@@ -33,6 +33,7 @@ const allNavItems = [
   { name: t('nav.parse'), path: '/parse', icon: 'i-tabler-link' },
   { name: t('nav.upload'), path: '/upload', icon: 'i-tabler-upload' },
   { name: t('nav.player'), path: '/player', icon: 'i-tabler-wave-sine' },
+  { name: t('nav.stats'), path: '/stats', icon: 'i-tabler-chart-bar' },
   { name: t('nav.settings'), path: '/settings', icon: 'i-tabler-settings' },
 ]
 
@@ -55,6 +56,7 @@ const allMobileNavItems = [
   { name: t('nav.library'), path: '/library', icon: 'i-tabler-vinyl' },
   { name: t('nav.playlists'), path: '/playlists', icon: 'i-tabler-playlist' },
   { name: t('nav.explore'), path: '/import', icon: 'i-tabler-compass' },
+  { name: t('nav.stats'), path: '/stats', icon: 'i-tabler-chart-bar' },
   { name: t('nav.settings'), path: '/settings', icon: 'i-tabler-settings' },
 ]
 

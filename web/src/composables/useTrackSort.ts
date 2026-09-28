@@ -8,6 +8,8 @@ export type TrackSortKey
     | 'artistAsc'
     | 'durationDesc'
     | 'durationAsc'
+    | 'playsDesc'
+    | 'lastPlayedDesc'
 
 export function sortTracks(tracks: Music[], key: TrackSortKey): Music[] {
   if (key === 'manual') {
@@ -19,6 +21,11 @@ export function sortTracks(tracks: Music[], key: TrackSortKey): Music[] {
   const durationOf = (track: Music): number => track.durationSeconds ?? 0
   const addedOf = (track: Music): number => {
     const t = new Date(track.createdAt).getTime()
+    return Number.isFinite(t) ? t : 0
+  }
+  const playsOf = (track: Music): number => track.playCount ?? 0
+  const lastPlayedOf = (track: Music): number => {
+    const t = track.lastPlayedAt ? new Date(track.lastPlayedAt).getTime() : 0
     return Number.isFinite(t) ? t : 0
   }
   switch (key) {
@@ -40,6 +47,14 @@ export function sortTracks(tracks: Music[], key: TrackSortKey): Music[] {
     }
     case 'durationAsc': {
       copy.sort((a, b) => durationOf(a) - durationOf(b))
+      break
+    }
+    case 'playsDesc': {
+      copy.sort((a, b) => playsOf(b) - playsOf(a) || (b.listenedSeconds ?? 0) - (a.listenedSeconds ?? 0))
+      break
+    }
+    case 'lastPlayedDesc': {
+      copy.sort((a, b) => lastPlayedOf(b) - lastPlayedOf(a))
       break
     }
     case 'addedDesc': {

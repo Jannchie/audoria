@@ -6,6 +6,7 @@ import { useI18n } from 'vue-i18n'
 import LazyCoverImage from '../components/LazyCoverImage.vue'
 import MetadataEditDialog from '../components/MetadataEditDialog.vue'
 import SoundWave from '../components/SoundWave.vue'
+import TrackPlayMeta from '../components/TrackPlayMeta.vue'
 import { useAuth } from '../composables/useAuth'
 import { useContextMenu } from '../composables/useContextMenu'
 import { useListSelection } from '../composables/useListSelection'
@@ -35,7 +36,7 @@ const { currentTrackId, isPlaying, selectTrack, setPlaying } = usePlayerState()
 const { buildItems } = useTrackContextMenu()
 const { openFromEvent, openFromAnchor } = useContextMenu()
 
-const librarySortKeys: TrackSortKey[] = ['manual', 'addedDesc', 'nameAsc', 'nameDesc', 'artistAsc', 'durationDesc', 'durationAsc']
+const librarySortKeys: TrackSortKey[] = ['manual', 'addedDesc', 'nameAsc', 'nameDesc', 'artistAsc', 'durationDesc', 'durationAsc', 'playsDesc', 'lastPlayedDesc']
 
 const search = ref(globalThis.sessionStorage.getItem(librarySearchStateKey) ?? '')
 
@@ -524,6 +525,7 @@ function handleDragEnd(): void {
             class="tr-in"
             :title="t('library.inPlaylists', { names: playlistBadgesFor(track).join(', ') })"
           >{{ playlistSummaryFor(track) }}</span>
+          <TrackPlayMeta :track="track" />
         </div>
 
         <span class="tr-duration">{{ formatTrackDuration(track.durationSeconds) }}</span>
