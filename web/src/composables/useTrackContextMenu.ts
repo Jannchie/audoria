@@ -3,6 +3,7 @@ import type { ContextMenuItem } from './useContextMenu'
 import { useI18n } from 'vue-i18n'
 import { useConfirm } from './useConfirm'
 import { useInputPrompt } from './useInputPrompt'
+import { buildDownloadUrl } from './useMusic'
 import { usePlayerState } from './usePlayerState'
 import { useAddTrackToPlaylist, useCreatePlaylist, usePlaylistsQuery, useRemoveTrackFromPlaylist } from './usePlaylists'
 import { useToast } from './useToast'
@@ -12,6 +13,18 @@ export interface TrackContextOptions {
   playlistContext?: { playlistId: string }
   onEditMetadata?: (track: Music) => void
   onDelete?: (tracks: Music[]) => void | Promise<void>
+}
+
+// The download endpoint answers with `Content-Disposition: attachment`, so
+// navigating to it saves the original file without leaving the page.
+function downloadTrack(track: Music): void {
+  const link = document.createElement('a')
+  link.href = buildDownloadUrl(track.id)
+  link.download = track.filename
+  link.rel = 'noopener'
+  document.body.append(link)
+  link.click()
+  link.remove()
 }
 
 export function useTrackContextMenu() {
@@ -185,16 +198,25 @@ export function useTrackContextMenu() {
       })
     }
 
-    if (singleTrack && onEditMetadata) {
+    if (singleTrack) {
       items.push(
         { id: 'divider-2', label: '', divider: true },
         {
-          id: 'edit-metadata',
-          label: t('common.actions.editMetadata'),
-          icon: 'i-tabler-edit',
-          onSelect: () => onEditMetadata(singleTrack),
+          id: 'download',
+          label: t('common.actions.download'),
+          icon: 'i-tabler-download',
+          onSelect: () => downloadTrack(singleTrack),
         },
       )
+    }
+
+    if (singleTrack && onEditMetadata) {
+      items.push({
+        id: 'edit-metadata',
+        label: t('common.actions.editMetadata'),
+        icon: 'i-tabler-edit',
+        onSelect: () => onEditMetadata(singleTrack),
+      })
     }
 
     if (onDelete) {
