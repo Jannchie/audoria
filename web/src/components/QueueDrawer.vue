@@ -2,6 +2,7 @@
 import type { Music } from '../api/types.gen'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useDialogFocus } from '../composables/useDialogFocus'
 import { resolveApiUrl, useMusicQuery } from '../composables/useMusic'
 import { usePlayerState } from '../composables/usePlayerState'
 import { useQueuePanel } from '../composables/useQueuePanel'
@@ -23,6 +24,10 @@ const {
   setPlaying,
   upNextQueue,
 } = usePlayerState()
+
+const drawerRef = ref<HTMLElement | null>(null)
+// Non-modal: playback shortcuts keep working while the queue is open.
+useDialogFocus(isOpen, drawerRef, { trap: false, initialFocus: () => drawerRef.value })
 
 const dragIndex = ref<number | null>(null)
 const dragOverIndex = ref<number | null>(null)
@@ -164,9 +169,11 @@ watch(isOpen, (open) => {
         @click.self="close"
       >
         <aside
+          ref="drawerRef"
           class="queue-drawer"
           role="dialog"
-          aria-label="Playback queue"
+          :aria-label="t('player.queue.label')"
+          tabindex="-1"
           @click.stop
         >
           <header class="queue-header">
@@ -283,7 +290,7 @@ watch(isOpen, (open) => {
                     </div>
                     <div class="queue-meta">
                       <p class="queue-track-title">
-                        {{ item.track ? (item.track.title || item.track.filename) : 'Unknown track' }}
+                        {{ item.track ? (item.track.title || item.track.filename) : t('player.queue.unknownTrack') }}
                       </p>
                       <p class="queue-track-sub">
                         {{ item.track?.artists || '—' }}
@@ -347,7 +354,7 @@ watch(isOpen, (open) => {
                     </div>
                     <span
                       v-if="track.durationSeconds"
-                      class="queue-duration"
+                      class="queue-duration time-code"
                     >{{ formatTrackDuration(track.durationSeconds) }}</span>
                   </button>
                 </li>
@@ -388,6 +395,7 @@ watch(isOpen, (open) => {
   background: var(--bg-primary);
   border-left: 1px solid var(--border);
   box-shadow: -18px 0 48px rgba(0, 0, 0, 0.26);
+  outline: none;
 }
 
 .queue-header {
@@ -410,12 +418,14 @@ watch(isOpen, (open) => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2rem;
-  height: 2rem;
+  width: 2.25rem;
+  height: 2.25rem;
   border: none;
   border-radius: 999px;
   background: none;
   color: var(--text-tertiary);
+  cursor: pointer;
+  transition: color var(--duration-fast) ease, background var(--duration-fast) ease;
 }
 
 .queue-close:hover {
@@ -461,6 +471,8 @@ watch(isOpen, (open) => {
   color: var(--text-tertiary);
   font-size: 0.75rem;
   border-radius: 0.375rem;
+  cursor: pointer;
+  transition: color var(--duration-fast) ease, background var(--duration-fast) ease;
 }
 
 .queue-section-action:hover {
@@ -525,6 +537,12 @@ watch(isOpen, (open) => {
   background: none;
   color: inherit;
   text-align: left;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.queue-play-trigger:focus-visible {
+  outline-offset: 4px;
 }
 
 .queue-cover {
@@ -576,25 +594,36 @@ watch(isOpen, (open) => {
   flex-shrink: 0;
   font-size: 0.6875rem;
   color: var(--text-tertiary);
-  tabular-nums: 1;
 }
 
 .queue-remove {
   display: inline-flex;
+  flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  width: 1.75rem;
-  height: 1.75rem;
+  width: 2rem;
+  height: 2rem;
   border: none;
   background: none;
   color: var(--text-tertiary);
   border-radius: 999px;
+  cursor: pointer;
   opacity: 0;
   transition: opacity 0.12s ease, color 0.12s ease, background 0.12s ease;
 }
 
-.queue-row:hover .queue-remove {
+.queue-row:hover .queue-remove,
+.queue-row:focus-within .queue-remove {
   opacity: 1;
+}
+
+/* Touch devices have no hover — keep the action reachable. */
+@media (hover: none) {
+  .queue-remove {
+    width: 2.5rem;
+    height: 2.5rem;
+    opacity: 1;
+  }
 }
 
 .queue-remove:hover {

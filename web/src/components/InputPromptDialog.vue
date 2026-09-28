@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useDialogFocus } from '../composables/useDialogFocus'
 import { useInputPrompt } from '../composables/useInputPrompt'
 
 const { t } = useI18n()
@@ -8,9 +9,11 @@ const { active, cancel, confirm } = useInputPrompt()
 
 const value = ref('')
 const inputRef = ref<HTMLInputElement | null>(null)
+const panelRef = ref<HTMLElement | null>(null)
 
 const isOpen = computed(() => active.value !== null)
 const options = computed(() => active.value)
+const { onKeydown } = useDialogFocus(isOpen, panelRef, { initialFocus: () => inputRef.value })
 
 watch(isOpen, async (open) => {
   if (!open) {
@@ -42,7 +45,9 @@ function handleKey(event: KeyboardEvent): void {
   if (event.key === 'Escape') {
     event.preventDefault()
     cancel()
+    return
   }
+  onKeydown(event)
 }
 </script>
 
@@ -54,14 +59,19 @@ function handleKey(event: KeyboardEvent): void {
         class="input-prompt-backdrop"
         role="dialog"
         aria-modal="true"
+        aria-labelledby="input-prompt-title"
         @mousedown="handleBackdropClick"
         @keydown="handleKey"
       >
         <div
+          ref="panelRef"
           class="input-prompt-panel"
           @mousedown.stop
         >
-          <h3 class="input-prompt-title">
+          <h3
+            id="input-prompt-title"
+            class="input-prompt-title"
+          >
             {{ options.title }}
           </h3>
           <input
@@ -71,8 +81,8 @@ function handleKey(event: KeyboardEvent): void {
             type="text"
             :maxlength="options.maxLength ?? 120"
             :placeholder="options.placeholder ?? ''"
+            :aria-label="options.title"
             @keydown.enter="submit"
-            @keydown.escape="cancel"
           >
           <div class="input-prompt-actions">
             <button
@@ -117,9 +127,9 @@ function handleKey(event: KeyboardEvent): void {
   width: min(100%, 22rem);
   padding: 1.25rem;
   border: 1px solid var(--border);
-  border-radius: 1rem;
-  background: var(--bg-base);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  border-radius: var(--radius-lg);
+  background: var(--bg-primary);
+  box-shadow: var(--shadow-overlay);
 }
 
 .input-prompt-title {
@@ -138,6 +148,7 @@ function handleKey(event: KeyboardEvent): void {
   color: var(--text-primary);
   font-size: 0.875rem;
   outline: none;
+  transition: border-color var(--duration-fast) ease;
 }
 
 .input-prompt-input:focus {
@@ -152,14 +163,20 @@ function handleKey(event: KeyboardEvent): void {
 }
 
 .input-prompt-btn {
-  min-height: 2.25rem;
-  padding: 0 1rem;
-  border: 1px solid var(--border);
+  min-height: 2.5rem;
+  padding: 0 1.125rem;
+  border: 1px solid var(--border-strong);
   border-radius: 999px;
   background: transparent;
   color: var(--text-secondary);
   font-size: 0.8125rem;
   cursor: pointer;
+  transition: background var(--duration-fast) ease, color var(--duration-fast) ease;
+}
+
+.input-prompt-btn:hover {
+  background: var(--bg-surface);
+  color: var(--text-primary);
 }
 
 .input-prompt-btn--primary {
@@ -167,6 +184,11 @@ function handleKey(event: KeyboardEvent): void {
   background: var(--accent);
   color: white;
   font-weight: 500;
+}
+
+.input-prompt-btn--primary:hover {
+  background: var(--accent-hover);
+  color: white;
 }
 
 .input-prompt-fade-enter-active,

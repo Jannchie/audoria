@@ -2,6 +2,7 @@
 import type { Music } from '../api/types.gen'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useDialogFocus } from '../composables/useDialogFocus'
 import { isLrcFormat } from '../composables/useLyrics'
 import { resolveApiUrl, useDeleteCover, useUpdateCover, useUpdateMusic } from '../composables/useMusic'
 import { getSourceDisplay } from '../utils/source'
@@ -28,6 +29,11 @@ const album = ref('')
 const source = ref('')
 const lyrics = ref('')
 const error = ref('')
+
+const panelRef = ref<HTMLElement | null>(null)
+const isOpen = computed(() => props.open && props.track !== null)
+// Focus the panel rather than the first field so mobile keyboards stay closed.
+const { onKeydown: trapFocus } = useDialogFocus(isOpen, panelRef, { initialFocus: () => panelRef.value })
 
 const pendingCoverFile = ref<File | null>(null)
 const pendingCoverPreview = ref<string | null>(null)
@@ -148,6 +154,21 @@ function handleBackdropClick(event: MouseEvent): void {
   }
 }
 
+function handleKeydown(event: KeyboardEvent): void {
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    handleClose()
+    return
+  }
+  // Ctrl/Cmd + Enter saves from any field, including the lyrics textarea.
+  if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && !event.isComposing) {
+    event.preventDefault()
+    void handleSave()
+    return
+  }
+  trapFocus(event)
+}
+
 async function handleSave(): Promise<void> {
   if (!props.track || isSaving.value) {
     return
@@ -194,8 +215,11 @@ function applySourcePreset(value: string): void {
         @mousedown="handleBackdropClick"
       >
         <div
+          ref="panelRef"
           class="metadata-panel"
+          tabindex="-1"
           @mousedown.stop
+          @keydown="handleKeydown"
         >
           <header class="metadata-header">
             <h2
@@ -405,6 +429,7 @@ function applySourcePreset(value: string): void {
                 type="button"
                 class="metadata-btn metadata-btn--primary"
                 :disabled="isSaving"
+                aria-keyshortcuts="Control+Enter Meta+Enter"
                 @click="handleSave"
               >
                 <span
@@ -442,9 +467,10 @@ function applySourcePreset(value: string): void {
   flex-direction: column;
   background: var(--bg-primary);
   border: 1px solid var(--border);
-  border-radius: 1rem;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-overlay);
   overflow: hidden;
+  outline: none;
 }
 
 .metadata-header {
