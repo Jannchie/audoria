@@ -292,7 +292,7 @@ function play(track: Music): void {
 .stats-title {
   margin: 0;
   font-size: 2rem;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--text-primary);
   font-family: var(--font-display, inherit);
   letter-spacing: -0.025em;
@@ -320,7 +320,7 @@ function play(track: Music): void {
   background: transparent;
   color: var(--text-tertiary);
   font-size: 0.8125rem;
-  font-weight: 500;
+  font-weight: 400;
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
 }
@@ -386,7 +386,7 @@ function play(track: Music): void {
 
 .stats-tile-value {
   font-size: 1.375rem;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
@@ -406,7 +406,7 @@ function play(track: Music): void {
 .stats-card-title {
   margin: 0;
   font-size: 0.9375rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-primary);
 }
 
@@ -465,7 +465,7 @@ function play(track: Music): void {
 
 .stats-rank {
   font-size: 0.8125rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-tertiary);
   text-align: center;
   font-variant-numeric: tabular-nums;
@@ -503,7 +503,7 @@ function play(track: Music): void {
 .stats-row-title {
   overflow: hidden;
   font-size: 0.875rem;
-  font-weight: 500;
+  font-weight: 400;
   color: var(--text-primary);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -520,7 +520,7 @@ function play(track: Music): void {
 
 .stats-row-count {
   font-size: 0.8125rem;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
