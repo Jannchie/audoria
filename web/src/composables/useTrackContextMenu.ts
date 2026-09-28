@@ -1,9 +1,11 @@
 import type { Music } from '../api/types.gen'
 import type { ContextMenuItem } from './useContextMenu'
 import { useI18n } from 'vue-i18n'
+import { useConfirm } from './useConfirm'
 import { useInputPrompt } from './useInputPrompt'
 import { usePlayerState } from './usePlayerState'
 import { useAddTrackToPlaylist, useCreatePlaylist, usePlaylistsQuery, useRemoveTrackFromPlaylist } from './usePlaylists'
+import { useToast } from './useToast'
 
 export interface TrackContextOptions {
   tracks: Music[]
@@ -27,8 +29,14 @@ export function useTrackContextMenu() {
   const createPlaylistMutation = useCreatePlaylist()
   const removeMutation = useRemoveTrackFromPlaylist()
   const { prompt } = useInputPrompt()
+  const { confirm } = useConfirm()
+  const toast = useToast()
 
-  async function addTracksToPlaylist(playlistId: string, tracks: Music[]): Promise<void> {
+  function playlistName(playlistId: string): string {
+    return playlists.value?.find(playlist => playlist.id === playlistId)?.name ?? ''
+  }
+
+  async function addTracksToPlaylist(playlistId: string, tracks: Music[], name = playlistName(playlistId)): Promise<void> {
     for (const track of tracks) {
       try {
         await addTrackMutation.mutateAsync({ playlistId, trackId: track.id })
@@ -37,6 +45,7 @@ export function useTrackContextMenu() {
         // Track already in playlist — skip silently.
       }
     }
+    toast.show({ message: t('feedback.addedToPlaylist', { name }), icon: 'i-tabler-playlist-add', tone: 'success' })
   }
 
   async function removeTracksFromPlaylist(playlistId: string, tracks: Music[]): Promise<void> {
@@ -48,6 +57,7 @@ export function useTrackContextMenu() {
         // Ignore — track may no longer be in the playlist.
       }
     }
+    toast.show({ message: t('feedback.removedFromPlaylist', { name: playlistName(playlistId) }), icon: 'i-tabler-playlist-off' })
   }
 
   async function createPlaylistWithTracks(tracks: Music[]): Promise<void> {
@@ -61,10 +71,10 @@ export function useTrackContextMenu() {
     }
     try {
       const playlist = await createPlaylistMutation.mutateAsync({ name })
-      await addTracksToPlaylist(playlist.id, tracks)
+      await addTracksToPlaylist(playlist.id, tracks, playlist.name)
     }
     catch {
-      // Errors are surfaced via mutation state.
+      toast.show({ message: t('feedback.failed'), icon: 'i-tabler-alert-circle', tone: 'danger' })
     }
   }
 
@@ -141,13 +151,19 @@ export function useTrackContextMenu() {
         id: 'play-next',
         label: t('common.actions.playNext'),
         icon: 'i-tabler-corner-down-right',
-        onSelect: () => enqueueNext(ids),
+        onSelect: () => {
+          enqueueNext(ids)
+          toast.show({ message: t('feedback.playNext'), icon: 'i-tabler-corner-down-right', tone: 'success' })
+        },
       },
       {
         id: 'add-to-queue',
         label: t('common.actions.addToQueue'),
         icon: 'i-tabler-playlist-add',
-        onSelect: () => enqueueLast(ids),
+        onSelect: () => {
+          enqueueLast(ids)
+          toast.show({ message: t('feedback.addedToQueue'), icon: 'i-tabler-playlist-add', tone: 'success' })
+        },
       },
       { id: 'divider-1', label: '', divider: true },
       {
@@ -165,16 +181,7 @@ export function useTrackContextMenu() {
         label: t('common.actions.removeFromPlaylist'),
         icon: 'i-tabler-playlist-off',
         danger: true,
-        onSelect: async () => {
-          for (const track of tracks) {
-            try {
-              await removeMutation.mutateAsync({ playlistId, trackId: track.id })
-            }
-            catch {
-              // ignore
-            }
-          }
-        },
+        onSelect: () => removeTracksFromPlaylist(playlistId, tracks),
       })
     }
 
@@ -197,7 +204,24 @@ export function useTrackContextMenu() {
         icon: 'i-tabler-trash',
         danger: true,
         onSelect: async () => {
-          await onDelete(tracks)
+          const confirmed = await confirm({
+            title: singleTrack
+              ? t('confirm.deleteTrackTitle', { title: singleTrack.title || singleTrack.filename })
+              : t('confirm.deleteTracksTitle', { n: tracks.length }),
+            message: t('confirm.deleteTrackMessage'),
+            confirmLabel: t('confirm.delete'),
+            danger: true,
+          })
+          if (!confirmed) {
+            return
+          }
+          try {
+            await onDelete(tracks)
+            toast.show({ message: t('feedback.tracksDeleted'), icon: 'i-tabler-trash' })
+          }
+          catch {
+            toast.show({ message: t('feedback.failed'), icon: 'i-tabler-alert-circle', tone: 'danger' })
+          }
         },
       })
     }

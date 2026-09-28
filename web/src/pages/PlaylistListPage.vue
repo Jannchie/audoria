@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import type { Playlist } from '../api/types.gen'
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import PlaylistCover from '../components/PlaylistCover.vue'
+import { useConfirm } from '../composables/useConfirm'
 import { useCreatePlaylist, useDeletePlaylist, usePlaylistsQuery } from '../composables/usePlaylists'
+import { useToast } from '../composables/useToast'
 
 type SortKey = 'updated' | 'created' | 'nameAsc' | 'nameDesc' | 'tracks'
 
@@ -13,6 +15,9 @@ const router = useRouter()
 const { data: playlists, isPending, isError, error } = usePlaylistsQuery()
 const createPlaylistMutation = useCreatePlaylist()
 const deletePlaylistMutation = useDeletePlaylist()
+const { confirm } = useConfirm()
+const toast = useToast()
+const nameInput = ref<HTMLInputElement | null>(null)
 
 const search = ref('')
 const sort = ref<SortKey>('updated')
@@ -73,17 +78,20 @@ function resetCreateForm(): void {
   formError.value = ''
 }
 
-function toggleCreate(): void {
+async function toggleCreate(): Promise<void> {
   showCreate.value = !showCreate.value
   if (!showCreate.value) {
     resetCreateForm()
+    return
   }
+  await nextTick()
+  nameInput.value?.focus()
 }
 
 async function handleCreate(): Promise<void> {
   const trimmedName = name.value.trim()
   if (!trimmedName) {
-    formError.value = 'Playlist name is required.'
+    formError.value = t('playlist.nameRequired')
     return
   }
 
@@ -99,7 +107,7 @@ async function handleCreate(): Promise<void> {
     router.push(`/playlists/${playlist.id}`)
   }
   catch (error_) {
-    formError.value = error_ instanceof Error ? error_.message : 'Failed to create playlist.'
+    formError.value = error_ instanceof Error ? error_.message : t('playlist.createFailed')
   }
 }
 
@@ -109,7 +117,23 @@ async function handleDelete(playlist: Playlist, event: MouseEvent): Promise<void
     return
   }
 
-  await deletePlaylistMutation.mutateAsync(playlist.id)
+  const confirmed = await confirm({
+    title: t('confirm.deletePlaylistTitle', { name: playlist.name }),
+    message: t('confirm.deletePlaylistMessage'),
+    confirmLabel: t('confirm.delete'),
+    danger: true,
+  })
+  if (!confirmed) {
+    return
+  }
+
+  try {
+    await deletePlaylistMutation.mutateAsync(playlist.id)
+    toast.show({ message: t('feedback.playlistDeleted'), icon: 'i-tabler-trash' })
+  }
+  catch {
+    toast.show({ message: t('feedback.failed'), icon: 'i-tabler-alert-circle', tone: 'danger' })
+  }
 }
 
 function openPlaylist(id: string): void {
@@ -135,6 +159,7 @@ function openPlaylist(id: string): void {
         type="button"
         class="playlists-new-btn"
         :disabled="isCreating"
+        :aria-expanded="showCreate"
         @click="toggleCreate"
       >
         <span
@@ -151,12 +176,16 @@ function openPlaylist(id: string): void {
     >
       <div class="playlist-create-fields">
         <input
+          ref="nameInput"
           v-model="name"
           class="playlist-input"
           type="text"
           maxlength="120"
           :disabled="isCreating"
           :placeholder="t('playlist.newPlaylist')"
+          :aria-label="t('playlist.newPlaylist')"
+          @keydown.enter.prevent="handleCreate"
+          @keydown.esc.stop.prevent="toggleCreate"
         >
         <textarea
           v-model="description"
@@ -164,7 +193,8 @@ function openPlaylist(id: string): void {
           rows="2"
           maxlength="2000"
           :disabled="isCreating"
-          :placeholder="t('metadata.placeholders.title')"
+          :placeholder="t('playlist.descriptionPlaceholder')"
+          :aria-label="t('playlist.descriptionPlaceholder')"
         />
       </div>
       <div class="playlist-create-actions">
@@ -198,6 +228,7 @@ function openPlaylist(id: string): void {
       <p
         v-if="formError"
         class="playlist-error"
+        role="alert"
       >
         {{ formError }}
       </p>
@@ -213,7 +244,10 @@ function openPlaylist(id: string): void {
           v-model="search"
           class="playlists-search-input"
           :placeholder="t('playlist.searchPlaceholder')"
+          :aria-label="t('playlist.searchPlaceholder')"
           type="search"
+          data-shortcut-search
+          aria-keyshortcuts="/ Control+K Meta+K"
         >
         <button
           v-if="search"
@@ -229,7 +263,10 @@ function openPlaylist(id: string): void {
         </button>
       </div>
       <label class="playlists-sort">
-        <span class="i-tabler-sort-descending" />
+        <span
+          class="i-tabler-sort-descending"
+          aria-hidden="true"
+        />
         <select
           v-model="sort"
           class="playlists-sort-select"
@@ -249,25 +286,66 @@ function openPlaylist(id: string): void {
     <div
       v-if="isError"
       class="playlist-empty"
+      role="alert"
     >
-      {{ (error as Error)?.message ?? 'Failed to load playlists.' }}
+      <span
+        class="i-tabler-alert-circle playlist-empty-icon playlist-empty-icon--danger"
+        aria-hidden="true"
+      />
+      <p class="playlist-empty-title">
+        {{ t('playlist.listLoadFailed') }}
+      </p>
+      <p
+        v-if="(error as Error)?.message"
+        class="playlist-empty-hint"
+      >
+        {{ (error as Error).message }}
+      </p>
     </div>
     <div
       v-else-if="isPending"
       class="playlist-grid"
+      aria-busy="true"
     >
       <div
         v-for="index in 4"
         :key="index"
         class="playlist-card playlist-card--skeleton"
-      />
+      >
+        <div class="skeleton playlist-skel-cover" />
+        <div class="playlist-card-body">
+          <div class="skeleton playlist-skel-line playlist-skel-line--title" />
+          <div class="skeleton playlist-skel-line playlist-skel-line--meta" />
+        </div>
+      </div>
     </div>
     <div
       v-else-if="filteredPlaylists.length === 0"
       class="playlist-empty"
     >
-      <span v-if="search">{{ t('library.noResultsTitle') }}</span>
-      <span v-else>{{ t('playlist.newPlaylist') }}</span>
+      <span
+        class="playlist-empty-icon"
+        :class="search ? 'i-tabler-search-off' : 'i-tabler-playlist'"
+        aria-hidden="true"
+      />
+      <p class="playlist-empty-title">
+        {{ search ? t('library.noResultsTitle') : t('playlist.emptyListTitle') }}
+      </p>
+      <p class="playlist-empty-hint">
+        {{ search ? t('library.noResultsHint') : t('playlist.emptyListHint') }}
+      </p>
+      <button
+        v-if="!search && !showCreate"
+        type="button"
+        class="playlist-empty-action"
+        @click="toggleCreate"
+      >
+        <span
+          class="i-tabler-plus"
+          aria-hidden="true"
+        />
+        <span>{{ t('playlist.newPlaylist') }}</span>
+      </button>
     </div>
     <div
       v-else
@@ -597,9 +675,47 @@ function openPlaylist(id: string): void {
   cursor: pointer;
 }
 
+.playlist-card:not(.playlist-card--skeleton) {
+  transition: background var(--duration-fast) ease, border-color var(--duration-fast) ease;
+}
+
+.playlist-card:not(.playlist-card--skeleton):hover {
+  background: var(--bg-elevated);
+  border-color: var(--border-strong);
+}
+
+.playlist-card:has(.playlist-card-main:focus-visible) {
+  border-color: var(--accent);
+}
+
+.playlist-card-main:focus-visible {
+  outline: none;
+}
+
 .playlist-card--skeleton {
   min-height: 5.75rem;
   cursor: default;
+}
+
+.playlist-skel-cover {
+  flex-shrink: 0;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: var(--radius-md);
+}
+
+.playlist-skel-line {
+  height: 0.6875rem;
+  border-radius: 0.25rem;
+}
+
+.playlist-skel-line--title {
+  width: 60%;
+}
+
+.playlist-skel-line--meta {
+  width: 35%;
+  margin-top: 0.375rem;
 }
 
 .playlist-card-main {
@@ -680,9 +796,22 @@ function openPlaylist(id: string): void {
   cursor: pointer;
 }
 
-.playlist-card-delete:hover {
+.playlist-card-delete:hover,
+.playlist-card-delete:focus-visible {
   background: color-mix(in srgb, var(--danger) 12%, transparent);
   color: var(--danger);
+}
+
+/* Only reveal the destructive action on hover/focus where hover exists. */
+@media (hover: hover) {
+  .playlist-card-delete {
+    opacity: 0;
+    transition: opacity var(--duration-fast) ease, background var(--duration-fast) ease, color var(--duration-fast) ease;
+  }
+  .playlist-card:hover .playlist-card-delete,
+  .playlist-card:focus-within .playlist-card-delete {
+    opacity: 1;
+  }
 }
 
 /* ── Empty state ── */
@@ -691,12 +820,56 @@ function openPlaylist(id: string): void {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
+  gap: 0.375rem;
   padding: 4rem 1rem;
-  border: none;
-  border-radius: 0.875rem;
-  background: var(--bg-surface);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
   font-size: 0.875rem;
   color: var(--text-secondary);
+  text-align: center;
+}
+
+.playlist-empty-icon {
+  margin-bottom: 0.5rem;
+  font-size: 2rem;
+  color: var(--text-tertiary);
+}
+
+.playlist-empty-icon--danger {
+  color: color-mix(in srgb, var(--danger) 60%, transparent);
+}
+
+.playlist-empty-title {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  font-family: var(--font-display);
+}
+
+.playlist-empty-hint {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--text-tertiary);
+}
+
+.playlist-empty-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding: 0.5rem 1.125rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: background var(--duration-fast) ease, color var(--duration-fast) ease;
+}
+
+.playlist-empty-action:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
 }
 </style>

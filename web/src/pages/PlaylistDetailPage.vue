@@ -7,6 +7,7 @@ import LazyCoverImage from '../components/LazyCoverImage.vue'
 import PlaylistCover from '../components/PlaylistCover.vue'
 import SoundWave from '../components/SoundWave.vue'
 import TrackPlayMeta from '../components/TrackPlayMeta.vue'
+import { useConfirm } from '../composables/useConfirm'
 import { useContextMenu } from '../composables/useContextMenu'
 import { useListSelection } from '../composables/useListSelection'
 import { resolveApiUrl } from '../composables/useMusic'
@@ -17,6 +18,7 @@ import {
   useReorderPlaylistTracks,
   useUpdatePlaylist,
 } from '../composables/usePlaylists'
+import { useToast } from '../composables/useToast'
 import { useTrackContextMenu } from '../composables/useTrackContextMenu'
 import { sortTracks } from '../composables/useTrackSort'
 import { formatTrackDuration } from '../utils/audio'
@@ -36,13 +38,16 @@ const reorderMutation = useReorderPlaylistTracks()
 const {
   currentTrackId,
   isPlaying,
-  playMode,
   playbackContext,
-  cyclePlayMode,
   selectTrack,
+  setPlayMode,
   setPlaying,
   syncTrackContext,
 } = usePlayerState()
+const { confirm } = useConfirm()
+const toast = useToast()
+const skeletonTitleWidths = [72, 56, 80, 48, 68, 60]
+const skeletonMetaWidths = [38, 30, 44, 26, 40, 34]
 const { buildItems } = useTrackContextMenu()
 const { openFromEvent, openFromAnchor } = useContextMenu()
 
@@ -155,13 +160,7 @@ function shuffleAll(): void {
   if (ids.length === 0 || !playlistId.value) {
     return
   }
-  for (let safety = 0; safety < 8; safety += 1) {
-    const mode: string = playMode.value
-    if (mode === 'shuffle') {
-      break
-    }
-    cyclePlayMode()
-  }
+  setPlayMode('shuffle')
   const startId = ids[Math.floor(Math.random() * ids.length)]
   selectTrack(startId, {
     contextTracks: tracks.value,
@@ -177,7 +176,7 @@ async function savePlaylist(): Promise<void> {
 
   const trimmedName = name.value.trim()
   if (!trimmedName) {
-    formError.value = 'Playlist name is required.'
+    formError.value = t('playlist.nameRequired')
     return
   }
 
@@ -195,7 +194,7 @@ async function savePlaylist(): Promise<void> {
     isEditing.value = false
   }
   catch (error_) {
-    formError.value = error_ instanceof Error ? error_.message : 'Failed to update playlist.'
+    formError.value = error_ instanceof Error ? error_.message : t('playlist.updateFailed')
   }
 }
 
@@ -258,7 +257,24 @@ async function handleDeletePlaylist(): Promise<void> {
     return
   }
 
-  await deletePlaylistMutation.mutateAsync(playlistId.value)
+  const confirmed = await confirm({
+    title: t('confirm.deletePlaylistTitle', { name: playlist.value?.name ?? '' }),
+    message: t('confirm.deletePlaylistMessage'),
+    confirmLabel: t('confirm.delete'),
+    danger: true,
+  })
+  if (!confirmed) {
+    return
+  }
+
+  try {
+    await deletePlaylistMutation.mutateAsync(playlistId.value)
+  }
+  catch {
+    toast.show({ message: t('feedback.failed'), icon: 'i-tabler-alert-circle', tone: 'danger' })
+    return
+  }
+  toast.show({ message: t('feedback.playlistDeleted'), icon: 'i-tabler-trash' })
 
   if (isCurrentPlaylistContext.value) {
     selectTrack(null, {
@@ -401,9 +417,22 @@ function handleDragEnd(): void {
   <section class="playlist-detail-page">
     <div
       v-if="playlistQuery.isError.value"
-      class="playlist-detail-empty"
+      class="empty-state"
+      role="alert"
     >
-      {{ (playlistQuery.error.value as Error)?.message ?? 'Failed to load playlist.' }}
+      <span
+        class="i-tabler-alert-circle empty-state-icon"
+        aria-hidden="true"
+      />
+      <p class="empty-title">
+        {{ t('playlist.loadFailed') }}
+      </p>
+      <p
+        v-if="(playlistQuery.error.value as Error)?.message"
+        class="empty-hint"
+      >
+        {{ (playlistQuery.error.value as Error).message }}
+      </p>
     </div>
 
     <template v-else-if="playlist">
@@ -459,7 +488,10 @@ function handleDragEnd(): void {
                 :disabled="updatePlaylistMutation.isPending.value"
                 @click="savePlaylist"
               >
-                <span class="i-tabler-check" />
+                <span
+                  class="i-tabler-check"
+                  aria-hidden="true"
+                />
                 <span>{{ t('common.actions.save') }}</span>
               </button>
               <button
@@ -477,7 +509,10 @@ function handleDragEnd(): void {
                 :disabled="tracks.length === 0"
                 @click="playAll"
               >
-                <span class="i-tabler-player-play-filled" />
+                <span
+                  class="i-tabler-player-play-filled"
+                  aria-hidden="true"
+                />
                 <span>{{ t('playlist.playAll') }}</span>
               </button>
               <button
@@ -486,7 +521,10 @@ function handleDragEnd(): void {
                 :disabled="tracks.length === 0"
                 @click="shuffleAll"
               >
-                <span class="i-tabler-arrows-shuffle" />
+                <span
+                  class="i-tabler-arrows-shuffle"
+                  aria-hidden="true"
+                />
                 <span>{{ t('playlist.shuffle') }}</span>
               </button>
               <button
@@ -495,7 +533,10 @@ function handleDragEnd(): void {
                 :aria-label="t('common.actions.moreOptions')"
                 @click="openHeaderMenu($event)"
               >
-                <span class="i-tabler-dots" />
+                <span
+                  class="i-tabler-dots"
+                  aria-hidden="true"
+                />
               </button>
             </template>
           </div>
@@ -561,7 +602,21 @@ function handleDragEnd(): void {
         v-if="tracks.length === 0"
         class="playlist-detail-empty"
       >
-        {{ t('playlist.empty') }}
+        <span
+          class="i-tabler-playlist playlist-detail-empty-icon"
+          aria-hidden="true"
+        />
+        <p>{{ t('playlist.empty') }}</p>
+        <RouterLink
+          class="playlist-detail-empty-link"
+          to="/library"
+        >
+          <span
+            class="i-tabler-vinyl"
+            aria-hidden="true"
+          />
+          <span>{{ t('playlist.addTracks') }}</span>
+        </RouterLink>
       </div>
       <div
         v-else
@@ -578,7 +633,13 @@ function handleDragEnd(): void {
             'tr--active': isTrackActive(track.id),
           }"
           :draggable="isManualOrder"
+          role="button"
+          tabindex="0"
+          :aria-label="isTrackActive(track.id) && isPlaying ? t('library.pauseTrack', { title: track.title || track.filename }) : t('library.playTrack', { title: track.title || track.filename })"
+          :aria-current="isTrackActive(track.id) ? 'true' : undefined"
           @click="playTrack(track.id, $event)"
+          @keydown.enter.self.prevent="playTrack(track.id)"
+          @keydown.space.self.prevent="playTrack(track.id)"
           @contextmenu="handleTrackContextMenu(track.id, $event)"
           @dragstart="handleDragStart(track.id, $event)"
           @dragover="handleDragOver(track.id, $event)"
@@ -638,7 +699,7 @@ function handleDragEnd(): void {
             <TrackPlayMeta :track="track" />
           </div>
 
-          <span class="tr-duration">{{ formatTrackDuration(track.durationSeconds) }}</span>
+          <span class="tr-duration time-code">{{ formatTrackDuration(track.durationSeconds) }}</span>
 
           <button
             type="button"
@@ -657,9 +718,37 @@ function handleDragEnd(): void {
 
     <div
       v-else-if="playlistQuery.isPending.value"
-      class="playlist-detail-empty"
+      class="playlist-detail-loading"
+      aria-busy="true"
     >
-      Loading playlist...
+      <div class="playlist-hero">
+        <div class="skeleton playlist-hero-cover-skeleton" />
+        <div class="playlist-hero-body">
+          <div class="skeleton playlist-skel-line playlist-skel-line--kicker" />
+          <div class="skeleton playlist-skel-line playlist-skel-line--title" />
+          <div class="skeleton playlist-skel-line playlist-skel-line--meta" />
+        </div>
+      </div>
+      <div class="track-list">
+        <div
+          v-for="i in 6"
+          :key="i"
+          class="tr tr--pl tr--skeleton"
+        >
+          <span class="tr-lead" />
+          <div class="skeleton tr-cover-skeleton" />
+          <div class="tr-primary">
+            <div
+              class="skeleton tr-skel-line"
+              :style="{ width: `${skeletonTitleWidths[i % skeletonTitleWidths.length]}%` }"
+            />
+            <div
+              class="skeleton tr-skel-line tr-skel-line--sub"
+              :style="{ width: `${skeletonMetaWidths[i % skeletonMetaWidths.length]}%` }"
+            />
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 </template>
@@ -819,12 +908,111 @@ function handleDragEnd(): void {
 }
 
 .playlist-detail-empty {
-  padding: 2rem 1rem;
-  border: 1px dashed var(--border);
-  border-radius: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 2.5rem 1rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
   text-align: center;
   color: var(--text-secondary);
   font-size: 0.875rem;
+}
+
+.playlist-detail-empty p {
+  margin: 0;
+  max-width: 24rem;
+  line-height: 1.5;
+}
+
+.playlist-detail-empty-icon {
+  font-size: 1.75rem;
+  color: var(--text-tertiary);
+}
+
+.playlist-detail-empty-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1.125rem;
+  border-radius: 999px;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  text-decoration: none;
+  transition: background var(--duration-fast) ease, color var(--duration-fast) ease;
+}
+
+.playlist-detail-empty-link:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.empty-state-icon {
+  font-size: 1.875rem;
+  color: color-mix(in srgb, var(--danger) 60%, transparent);
+}
+
+.playlist-detail-loading {
+  display: grid;
+  gap: 1rem;
+}
+
+.playlist-hero-cover-skeleton {
+  flex-shrink: 0;
+  width: 8rem;
+  height: 8rem;
+  border-radius: var(--radius-lg);
+}
+
+.playlist-skel-line {
+  height: 0.75rem;
+  border-radius: 0.25rem;
+}
+
+.playlist-skel-line--kicker {
+  width: 4rem;
+}
+
+.playlist-skel-line--title {
+  width: min(18rem, 70%);
+  height: 1.75rem;
+  border-radius: 0.375rem;
+}
+
+.playlist-skel-line--meta {
+  width: 7rem;
+}
+
+.tr--skeleton {
+  cursor: default;
+}
+
+.tr--skeleton:hover {
+  background: transparent;
+}
+
+.tr-cover-skeleton {
+  width: 44px;
+  height: 44px;
+  border-radius: 5px;
+}
+
+@media (min-width: 768px) {
+  .tr-cover-skeleton {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+.tr-skel-line {
+  height: 11px;
+  border-radius: 3px;
+}
+
+.tr-skel-line--sub {
+  margin-top: 6px;
 }
 
 .track-list {
@@ -1063,10 +1251,8 @@ function handleDragEnd(): void {
 /* --- Duration --- */
 .tr-duration {
   justify-self: end;
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   color: var(--text-tertiary);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.02em;
 }
 .tr--active .tr-duration {
   color: var(--accent);
@@ -1105,6 +1291,12 @@ function handleDragEnd(): void {
   .tr-action { opacity: 1 }
   .tr-cover-overlay { opacity: 0 }
   .tr-index { opacity: 1 !important }
+  /* Larger hit area without changing the grid column. */
+  .tr-action {
+    width: 40px;
+    height: 40px;
+    margin: -6px;
+  }
 }
 
 .playlist-selection-toolbar {
