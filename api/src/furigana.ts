@@ -68,7 +68,35 @@ function alignReading(surface: string, reading: string): RubySegment[] {
   return runs.map((run, index) => KANJI_RE.test(run) ? { text: run, ruby: match[index + 1] } : { text: run })
 }
 
+// Jukujikun: whole-word readings the tokenizer splits into per-kanji numerals/on'yomi (二人 → に+にん).
+const WORD_READINGS: Record<string, string> = {
+  一人: 'ひとり',
+  二人: 'ふたり',
+  今日: 'きょう',
+  明日: 'あした',
+  昨日: 'きのう',
+  大人: 'おとな',
+  今年: 'ことし',
+  今朝: 'けさ',
+  一日: 'いちにち',
+}
+const WORD_READINGS_RE = new RegExp(Object.keys(WORD_READINGS).join('|'), 'g')
+
 function annotateWords(text: string, tokenizer: Tokenizer<IpadicFeatures>): RubySegment[] {
+  const segments: RubySegment[] = []
+  let cursor = 0
+  for (const match of text.matchAll(WORD_READINGS_RE)) {
+    segments.push(...annotateTokens(text.slice(cursor, match.index), tokenizer), { text: match[0], ruby: WORD_READINGS[match[0]] })
+    cursor = match.index + match[0].length
+  }
+  segments.push(...annotateTokens(text.slice(cursor), tokenizer))
+  return segments
+}
+
+function annotateTokens(text: string, tokenizer: Tokenizer<IpadicFeatures>): RubySegment[] {
+  if (!text) {
+    return []
+  }
   return tokenizer.tokenize(text).flatMap((token) => {
     const surface = token.surface_form
     if (!KANJI_RE.test(surface)) {

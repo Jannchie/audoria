@@ -44,7 +44,8 @@ export function applyReadingCorrection(
 }
 
 export function useFurigana(trackId: () => string | null | undefined, lyrics: () => string | null | undefined) {
-  const enabled = useLocalStorage('audoria:lyrics-furigana', false)
+  // On by default: Japanese lyrics get readings unless the listener turns them off.
+  const enabled = useLocalStorage('audoria:lyrics-furigana', true)
 
   const hasJapanese = computed(() => KANA_RE.test(lyrics() ?? ''))
 

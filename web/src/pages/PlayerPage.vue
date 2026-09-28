@@ -775,24 +775,10 @@ onUnmounted(() => {
               </span>
             </div>
             <div
-              v-if="hasJapanese"
+              v-if="hasJapanese && isFuriganaEnabled && !isGuest"
               class="lyrics-furigana-control"
             >
               <button
-                type="button"
-                class="lyrics-tool-btn"
-                :class="{ 'lyrics-tool-btn--active': isFuriganaEnabled }"
-                :aria-pressed="isFuriganaEnabled"
-                @click="toggleFurigana"
-              >
-                <span
-                  class="i-tabler-language-hiragana"
-                  aria-hidden="true"
-                />
-                {{ t('player.lyrics.furigana') }}
-              </button>
-              <button
-                v-if="isFuriganaEnabled && !isGuest"
                 type="button"
                 class="lyrics-tool-btn"
                 :class="{ 'lyrics-tool-btn--active': isFuriganaEditing }"
@@ -1022,6 +1008,21 @@ onUnmounted(() => {
           </div>
 
           <div class="controls-side controls-side--right">
+            <button
+              v-if="currentTrack && isTimeSynced && hasJapanese"
+              type="button"
+              class="ctrl-btn ctrl-btn--sm"
+              :class="{ 'ctrl-btn--active': isFuriganaEnabled }"
+              :aria-label="t('player.lyrics.furigana')"
+              :aria-pressed="isFuriganaEnabled"
+              :title="t('player.lyrics.furigana')"
+              @click="toggleFurigana"
+            >
+              <span
+                class="i-tabler-language-hiragana"
+                aria-hidden="true"
+              />
+            </button>
             <button
               v-if="currentTrack && isTimeSynced"
               type="button"
@@ -1497,16 +1498,16 @@ onUnmounted(() => {
 }
 .lyric-line--active {
   color: var(--text-primary);
-  font-size: 1.125rem;
+  font-size: 1.3125rem;
   font-weight: 500;
 }
 .lyric-line--past {
-  color: rgba(255, 255, 255, 0.4);
-  font-size: 0.9375rem;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 1.0625rem;
 }
 .lyric-line--future {
-  color: rgba(255, 255, 255, 0.4);
-  font-size: 0.9375rem;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 1.0625rem;
 }
 .lyric-line:hover {
   color: rgba(255, 255, 255, 0.65);
@@ -1555,7 +1556,7 @@ onUnmounted(() => {
 }
 
 .lyrics-plain {
-  font-size: 0.9375rem;
+  font-size: 1.0625rem;
   font-weight: 300;
   color: rgba(255, 255, 255, 0.4);
   line-height: 2;
