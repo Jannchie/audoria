@@ -722,7 +722,12 @@ onUnmounted(() => {
                   :aria-current="i === currentLineIndex ? 'true' : undefined"
                   @click="handleLyricClick(line)"
                 >
-                  {{ line.text || '···' }}
+                  <span class="lyric-text">{{ line.text || '···' }}</span>
+                  <span
+                    v-for="(translation, j) in line.translations"
+                    :key="j"
+                    class="lyric-translation"
+                  >{{ translation }}</span>
                 </button>
               </div>
             </div>
@@ -1335,6 +1340,16 @@ onUnmounted(() => {
 }
 .lyric-line:hover {
   color: rgba(255, 255, 255, 0.65);
+}
+.lyric-text,
+.lyric-translation {
+  display: block;
+}
+.lyric-translation {
+  font-size: 0.8em;
+  font-weight: 400;
+  line-height: 1.5;
+  opacity: 0.7;
 }
 
 .lyrics-plain {

@@ -140,6 +140,31 @@ describe('useplayerstate', () => {
       .toBe('[00:10.250][00:12.750]Echo')
   })
 
+  it('folds lines sharing a timestamp into translations', async () => {
+    const { parseLrc } = await import('../composables/useLyrics')
+
+    const lines = parseLrc([
+      '[ti:机さする]',
+      '[00:07.88]外を見るともう明るいよね',
+      '[00:07.88]望向窗外发现天色已经亮了',
+      '[00:16.39]眠れなかったけどさ頭冴えてる',
+      '[00:16.39]',
+      '[00:16.39]眠れなかったけどさ頭冴えてる',
+    ].join('\n'))
+
+    expect(lines).toEqual([
+      { time: 7.88, text: '外を見るともう明るいよね', translations: ['望向窗外发现天色已经亮了'] },
+      { time: 16.39, text: '眠れなかったけどさ頭冴えてる', translations: [] },
+    ])
+  })
+
+  it('expands lines prefixed with several timestamps', async () => {
+    const { parseLrc } = await import('../composables/useLyrics')
+
+    expect(parseLrc('[00:30.00][00:10.00]Chorus\n[00:20.00]Verse').map(line => [line.time, line.text]))
+      .toEqual([[10, 'Chorus'], [20, 'Verse'], [30, 'Chorus']])
+  })
+
   it('resolves the current lyric line from lrc timestamps', async () => {
     const { usePlayerState } = await loadPlayerState()
     const { useLyrics } = await import('../composables/useLyrics')

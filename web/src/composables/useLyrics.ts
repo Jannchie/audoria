@@ -4,10 +4,12 @@ import { usePlayerState } from './usePlayerState'
 export interface LyricLine {
   time: number
   text: string
+  /** Lines sharing this timestamp after the first, e.g. a translation under the original. */
+  translations: string[]
 }
 
-const LRC_LINE_RE = /^\[(\d{1,3}):(\d{2})(?:\.(\d{1,3}))?\]\s?(.*)$/
 const LRC_TIMESTAMP_RE = /\[(\d{1,3}):(\d{2})(?:\.(\d{1,3}))?\]/g
+const LRC_LEADING_TIMESTAMPS_RE = /^(?:\[\d{1,3}:\d{2}(?:\.\d{1,3})?\])+/
 
 function formatLrcTimestamp(totalMs: number): string {
   const clampedMs = Math.max(0, Math.round(totalMs))
@@ -29,22 +31,51 @@ export function shiftLrcTimestamps(raw: string, offsetMs: number): string {
   })
 }
 
+function parseLrcTimestamp(minutesRaw: string, secondsRaw: string, msRaw?: string): number {
+  const minutes = Number.parseInt(minutesRaw, 10)
+  const seconds = Number.parseInt(secondsRaw, 10)
+  const ms = msRaw ? Number.parseInt(msRaw.padEnd(3, '0'), 10) : 0
+  return minutes * 60 + seconds + ms / 1000
+}
+
+/**
+ * Parses LRC into one entry per timestamp. Lines repeating a timestamp (how multi-language
+ * lyrics carry translations) fold into the first line's `translations`, and a line prefixed
+ * with several timestamps (`[00:10][00:30]chorus`) is expanded to each of them.
+ */
 export function parseLrc(raw: string): LyricLine[] {
-  const lines: LyricLine[] = []
+  const entries: Array<{ time: number, text: string }> = []
   for (const line of raw.split('\n')) {
     const trimmed = line.trim()
-    const match = LRC_LINE_RE.exec(trimmed)
-    if (!match) {
+    const prefix = LRC_LEADING_TIMESTAMPS_RE.exec(trimmed)?.[0]
+    if (!prefix) {
       continue
     }
-    const minutes = Number.parseInt(match[1], 10)
-    const seconds = Number.parseInt(match[2], 10)
-    const ms = match[3] ? Number.parseInt(match[3].padEnd(3, '0'), 10) : 0
-    const time = minutes * 60 + seconds + ms / 1000
-    const text = match[4]
-    lines.push({ time, text })
+    const text = trimmed.slice(prefix.length).trim()
+    for (const match of prefix.matchAll(LRC_TIMESTAMP_RE)) {
+      entries.push({ time: parseLrcTimestamp(match[1], match[2], match[3]), text })
+    }
   }
-  lines.sort((a, b) => a.time - b.time)
+  // Stable sort keeps file order within a timestamp, so the original stays ahead of its translations.
+  entries.sort((a, b) => a.time - b.time)
+
+  const lines: LyricLine[] = []
+  for (const entry of entries) {
+    const previous = lines.at(-1)
+    if (!previous || Math.abs(previous.time - entry.time) >= 0.001) {
+      lines.push({ time: entry.time, text: entry.text, translations: [] })
+      continue
+    }
+    if (!entry.text || entry.text === previous.text || previous.translations.includes(entry.text)) {
+      continue
+    }
+    if (previous.text) {
+      previous.translations.push(entry.text)
+    }
+    else {
+      previous.text = entry.text
+    }
+  }
   return lines
 }
 
@@ -52,7 +83,7 @@ export function isLrcFormat(raw: string): boolean {
   const lines = raw.split('\n')
   let timestampCount = 0
   for (const line of lines.slice(0, 20)) {
-    if (LRC_LINE_RE.test(line.trim())) {
+    if (LRC_LEADING_TIMESTAMPS_RE.test(line.trim())) {
       timestampCount++
     }
   }
@@ -98,7 +129,7 @@ export function useLyrics(lyricsRaw: () => string | null | undefined) {
       return ''
     }
     if (isTimeSynced.value && parsed.value) {
-      return parsed.value.map(l => l.text).filter(Boolean).join('\n')
+      return parsed.value.flatMap(l => [l.text, ...l.translations]).filter(Boolean).join('\n')
     }
     return raw.trim()
   })
