@@ -12,8 +12,8 @@ import { rgbaToThumbHash } from 'thumbhash'
 import { AUDIO_SNIFF_BYTES, sniffAudioFormat, withAudioExtension } from './audioFormat.js'
 import { config } from './config.js'
 import { generateCoverMaskPng, getCoverMaskContentType } from './coverMask.js'
-import { __db as db, listTracks, tracks, updateTrackFileFormat } from './db/index.js'
-import { formatDurationText, probeDurationSecondsFromFile, readEmbeddedMetadata } from './probeAudio.js'
+import { __db as db, listTracks, tracks, updateTrackFileFormat, updateTrackStoredFile } from './db/index.js'
+import { formatDurationText, probeDurationSecondsFromFile, readEmbeddedMetadata, remuxFlacToMp4 } from './probeAudio.js'
 
 interface ByteRange { start: number, end: number }
 
@@ -344,6 +344,42 @@ async function readFileHead(filePath: string, length: number): Promise<Uint8Arra
   }
 }
 
+interface PreparedTrackFile {
+  filePath: string
+  size: number
+  filename: string
+  contentType: string | null
+}
+
+/**
+ * Labels an audio file by its actual bytes rather than the name and type it
+ * arrived with, and moves FLAC into MP4 so Safari can seek it (see
+ * remuxFlacToMp4). Any remuxed copy is written next to the input, so it is
+ * cleaned up with the input's temp directory.
+ */
+async function prepareTrackFile(filePath: string, filename: string, contentType: string | null): Promise<PreparedTrackFile> {
+  const format = sniffAudioFormat(await readFileHead(filePath, AUDIO_SNIFF_BYTES))
+  if (format?.contentType === 'audio/flac') {
+    const remuxedPath = `${filePath}.m4a`
+    if (await remuxFlacToMp4(filePath, remuxedPath)) {
+      const remuxed = await stat(remuxedPath)
+      return {
+        filePath: remuxedPath,
+        size: remuxed.size,
+        filename: withAudioExtension(filename, '.m4a'),
+        contentType: 'audio/mp4',
+      }
+    }
+  }
+  const original = await stat(filePath)
+  return {
+    filePath,
+    size: original.size,
+    filename: format ? withAudioExtension(filename, format.ext) : filename,
+    contentType: format?.contentType ?? contentType,
+  }
+}
+
 function getTrackObjectRef(record: Track): ObjectRef {
   return {
     backend: record.storageBackend as StorageBackend,
@@ -441,12 +477,8 @@ export async function storeTrack({
 
   const tempFile = await writeTrackBodyToTempFile(body, onProgress)
   try {
-    const format = sniffAudioFormat(await readFileHead(tempFile.filePath, AUDIO_SNIFF_BYTES))
-    if (format) {
-      filename = withAudioExtension(filename || 'audio', format.ext)
-      contentType = format.contentType
-    }
-    const storageKey = `music/${id}-${filename || 'audio'}`
+    const prepared = await prepareTrackFile(tempFile.filePath, filename || 'audio', contentType)
+    const storageKey = `music/${id}-${prepared.filename}`
 
     const [{ durationSeconds, durationText }, embedded] = await Promise.all([
       probeAudioDuration(tempFile.filePath),
@@ -456,9 +488,9 @@ export async function storeTrack({
     const storageBackend = getActiveStorageBackend()
     await getStorageDriver(storageBackend).putObject({
       key: storageKey,
-      body: createReadStream(tempFile.filePath),
-      contentType,
-      contentLength: tempFile.size,
+      body: createReadStream(prepared.filePath),
+      contentType: prepared.contentType,
+      contentLength: prepared.size,
     })
     onProgress?.(tempFile.size)
 
@@ -474,7 +506,7 @@ export async function storeTrack({
 
     const record: Track = {
       id,
-      filename: filename || 'audio',
+      filename: prepared.filename,
       storageBackend,
       storageKey,
       coverStorageBackend: embeddedCover?.cover.backend ?? null,
@@ -491,8 +523,8 @@ export async function storeTrack({
       sourceIdentifier: null,
       durationText,
       durationSeconds,
-      size: tempFile.size,
-      contentType,
+      size: prepared.size,
+      contentType: prepared.contentType,
       lyrics: embedded.lyrics,
       sortOrder: null,
       playCount: 0,
@@ -670,6 +702,60 @@ export async function repairTrackFormats(): Promise<number> {
     }
   }
   return repaired
+}
+
+/**
+ * Moves every stored FLAC track into MP4 (see prepareTrackFile). The new
+ * object is written and the record repointed before the old object is
+ * deleted, so a failure midway leaves the track playable. Returns how many
+ * tracks were converted; tracks already in MP4 are skipped, so reruns are cheap.
+ */
+export async function migrateFlacTracksToMp4(): Promise<number> {
+  let migrated = 0
+  for (const record of await listTracks()) {
+    if (record.contentType !== 'audio/flac') {
+      continue
+    }
+    try {
+      const object = await getStoredTrack(record)
+      const tempFile = await writeTrackBodyToTempFile(object.body)
+      try {
+        const prepared = await prepareTrackFile(tempFile.filePath, record.filename, record.contentType)
+        if (prepared.contentType !== 'audio/mp4') {
+          continue
+        }
+        const storageBackend = getActiveStorageBackend()
+        const storageKey = `music/${record.id}-${prepared.filename}`
+        await getStorageDriver(storageBackend).putObject({
+          key: storageKey,
+          body: createReadStream(prepared.filePath),
+          contentType: prepared.contentType,
+          contentLength: prepared.size,
+        })
+        await updateTrackStoredFile(record.id, {
+          storageBackend,
+          storageKey,
+          filename: prepared.filename,
+          contentType: prepared.contentType,
+          size: prepared.size,
+        })
+        const oldRef = getTrackObjectRef(record)
+        if (oldRef.backend !== storageBackend || oldRef.key !== storageKey) {
+          await getStorageDriver(oldRef.backend).deleteObject(oldRef.key).catch((error: unknown) => {
+            console.warn(`Converted ${record.id} but could not delete its FLAC original: ${error instanceof Error ? error.message : String(error)}`)
+          })
+        }
+        migrated += 1
+      }
+      finally {
+        await tempFile.cleanup()
+      }
+    }
+    catch (error) {
+      console.warn(`Failed to convert ${record.id} to MP4: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+  return migrated
 }
 
 export async function readStoredTrackBuffer(record: Track): Promise<Buffer> {

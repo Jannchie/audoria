@@ -13,7 +13,7 @@ import {
 } from './db/index.js'
 import { initRuntimeDb } from './db/runtime.js'
 import { MusicDlBridgeError, MusicDlUnavailableError, openMusicDlStream } from './musicdl.js'
-import { repairTrackFormats, storeTrack, storeTrackCover } from './storage.js'
+import { migrateFlacTracksToMp4, repairTrackFormats, storeTrack, storeTrackCover } from './storage.js'
 
 const coverFetchTimeoutMs = 15_000
 const maxCoverAssetBytes = 20 * 1024 * 1024
@@ -195,20 +195,30 @@ async function processNextJob(): Promise<boolean> {
   return true
 }
 
+// Fixes up tracks stored before uploads were normalized. The type repair runs
+// first because the MP4 migration picks its tracks by the repaired type.
+async function maintainStoredTracks(): Promise<void> {
+  try {
+    const repaired = await repairTrackFormats()
+    if (repaired > 0) {
+      console.warn(`Corrected the format of ${repaired} track(s) from their file headers`)
+    }
+    const migrated = await migrateFlacTracksToMp4()
+    if (migrated > 0) {
+      console.warn(`Moved ${migrated} FLAC track(s) into MP4`)
+    }
+  }
+  catch (error) {
+    console.warn(`Stored track maintenance failed: ${toErrorMessage(error)}`)
+  }
+}
+
 async function main(): Promise<void> {
   requeueRunningMusicImportJobs()
   console.warn('Import worker is running')
 
   // Runs alongside the job loop; a failure here must not stop imports.
-  repairTrackFormats()
-    .then((repaired) => {
-      if (repaired > 0) {
-        console.warn(`Corrected the format of ${repaired} track(s) from their file headers`)
-      }
-    })
-    .catch((error) => {
-      console.warn(`Track format check failed: ${toErrorMessage(error)}`)
-    })
+  void maintainStoredTracks()
 
   while (true) {
     const processed = await processNextJob()

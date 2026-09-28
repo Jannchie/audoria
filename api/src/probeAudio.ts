@@ -57,6 +57,55 @@ export async function probeDurationSecondsFromFile(filePath: string): Promise<nu
   return null
 }
 
+/**
+ * Copies a FLAC stream into an MP4 container without re-encoding. Safari seeks
+ * FLAC by estimating byte offsets and lands off target while reporting the
+ * requested time, which desyncs lyrics; MP4's sample tables make seeks exact.
+ * Returns false when ffmpeg is missing or fails, so callers keep the original.
+ */
+export async function remuxFlacToMp4(inputPath: string, outputPath: string): Promise<boolean> {
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const proc = spawn('ffmpeg', [
+        '-v',
+        'error',
+        '-y',
+        '-i',
+        inputPath,
+        '-map',
+        '0:a:0',
+        '-map_metadata',
+        '0',
+        '-c:a',
+        'copy',
+        '-f',
+        'mp4',
+        '-movflags',
+        '+faststart',
+        outputPath,
+      ])
+      let stderr = ''
+      proc.stderr.on('data', (chunk: Buffer) => {
+        stderr += chunk.toString()
+      })
+      proc.on('error', reject)
+      proc.on('close', (code) => {
+        if (code === 0) {
+          resolve()
+        }
+        else {
+          reject(new Error(stderr.trim() || `ffmpeg exited with code ${code}`))
+        }
+      })
+    })
+    return true
+  }
+  catch (error) {
+    console.warn(`FLAC to MP4 remux failed: ${error instanceof Error ? error.message : String(error)}`)
+    return false
+  }
+}
+
 export interface EmbeddedMetadata {
   title: string | null
   artists: string | null

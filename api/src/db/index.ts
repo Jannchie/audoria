@@ -120,6 +120,19 @@ export async function updateTrackFileFormat(id: string, format: {
   )
 }
 
+export async function updateTrackStoredFile(id: string, file: {
+  storageBackend: string
+  storageKey: string
+  filename: string
+  contentType: string | null
+  size: number
+}): Promise<void> {
+  await queryRun(db.update(schema.tracks)
+    .set(file)
+    .where(eq(schema.tracks.id, id)),
+  )
+}
+
 export async function updateTrackCover(id: string, cover: {
   backend: string | null
   key: string | null
