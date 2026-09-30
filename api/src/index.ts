@@ -97,6 +97,10 @@ serve(
   {
     fetch: app.fetch,
     port: config.port,
+    // Keep the native Request/Response globals. Hono's replacements break
+    // `instanceof Response` in @huggingface/transformers, so it never caches a
+    // downloaded model and the cover mask fails whenever the cache is empty.
+    overrideGlobalObjects: false,
   },
   (info) => {
     console.warn(`Server is running on http://localhost:${info.port}`)
