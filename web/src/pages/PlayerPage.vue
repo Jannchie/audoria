@@ -1008,76 +1008,80 @@ onUnmounted(() => {
           </div>
 
           <div class="controls-side controls-side--right">
-            <button
-              v-if="currentTrack && isTimeSynced && hasJapanese"
-              type="button"
-              class="ctrl-btn ctrl-btn--sm"
-              :class="{ 'ctrl-btn--active': isFuriganaEnabled }"
-              :aria-label="t('player.lyrics.furigana')"
-              :aria-pressed="isFuriganaEnabled"
-              :title="t('player.lyrics.furigana')"
-              @click="toggleFurigana"
-            >
-              <span
-                class="i-tabler-language-hiragana"
-                aria-hidden="true"
-              />
-            </button>
-            <button
-              v-if="currentTrack && isTimeSynced && !isGuest"
-              type="button"
-              class="ctrl-btn ctrl-btn--sm"
-              :class="{ 'ctrl-btn--active': isLyricsToolbarOpen }"
-              :aria-label="isLyricsToolbarOpen ? t('player.lyrics.hideTools') : t('player.lyrics.showTools')"
-              :aria-expanded="isLyricsToolbarOpen"
-              :title="isLyricsToolbarOpen ? t('player.lyrics.hideTools') : t('player.lyrics.showTools')"
-              @click="toggleLyricsToolbar"
-            >
-              <span
-                class="i-tabler-adjustments-horizontal"
-                aria-hidden="true"
-              />
-            </button>
-            <button
-              v-if="!isGuest"
-              type="button"
-              class="ctrl-btn ctrl-btn--sm"
-              :aria-label="t('common.actions.editMetadata')"
-              :disabled="!currentTrack"
-              @click="openEdit"
-            >
-              <span
-                class="i-tabler-edit"
-                aria-hidden="true"
-              />
-            </button>
-            <button
-              type="button"
-              class="ctrl-btn ctrl-btn--sm"
-              :aria-label="muted ? t('common.actions.unmute') : t('common.actions.mute')"
-              :aria-pressed="muted"
-              @click="toggleMute"
-            >
-              <span
-                :class="volumeIcon"
-                aria-hidden="true"
-              />
-            </button>
-            <input
-              ref="volumeSlider"
-              class="volume-slider"
-              :aria-label="t('common.actions.volume')"
-              max="100"
-              min="0"
-              step="1"
-              type="range"
-              :value="Math.round(effectiveVolume * 100)"
-              :style="volumeSliderStyle"
-              @input="handleVolumeInput"
-              @change="handleVolumeCommit"
-              @pointerdown="handleVolumePointerDown"
-              @pointerup="handleVolumeCommit"
-            >
+            <div class="player-actions">
+              <button
+                v-if="currentTrack && isTimeSynced && hasJapanese"
+                type="button"
+                class="ctrl-btn ctrl-btn--sm"
+                :class="{ 'ctrl-btn--active': isFuriganaEnabled }"
+                :aria-label="t('player.lyrics.furigana')"
+                :aria-pressed="isFuriganaEnabled"
+                :title="t('player.lyrics.furigana')"
+                @click="toggleFurigana"
+              >
+                <span
+                  class="i-tabler-language-hiragana"
+                  aria-hidden="true"
+                />
+              </button>
+              <button
+                v-if="currentTrack && isTimeSynced && !isGuest"
+                type="button"
+                class="ctrl-btn ctrl-btn--sm"
+                :class="{ 'ctrl-btn--active': isLyricsToolbarOpen }"
+                :aria-label="isLyricsToolbarOpen ? t('player.lyrics.hideTools') : t('player.lyrics.showTools')"
+                :aria-expanded="isLyricsToolbarOpen"
+                :title="isLyricsToolbarOpen ? t('player.lyrics.hideTools') : t('player.lyrics.showTools')"
+                @click="toggleLyricsToolbar"
+              >
+                <span
+                  class="i-tabler-adjustments-horizontal"
+                  aria-hidden="true"
+                />
+              </button>
+              <button
+                v-if="!isGuest"
+                type="button"
+                class="ctrl-btn ctrl-btn--sm"
+                :aria-label="t('common.actions.editMetadata')"
+                :disabled="!currentTrack"
+                @click="openEdit"
+              >
+                <span
+                  class="i-tabler-edit"
+                  aria-hidden="true"
+                />
+              </button>
+            </div>
+            <div class="volume-control">
+              <button
+                type="button"
+                class="ctrl-btn ctrl-btn--sm"
+                :aria-label="muted ? t('common.actions.unmute') : t('common.actions.mute')"
+                :aria-pressed="muted"
+                @click="toggleMute"
+              >
+                <span
+                  :class="volumeIcon"
+                  aria-hidden="true"
+                />
+              </button>
+              <input
+                ref="volumeSlider"
+                class="volume-slider"
+                :aria-label="t('common.actions.volume')"
+                max="100"
+                min="0"
+                step="1"
+                type="range"
+                :value="Math.round(effectiveVolume * 100)"
+                :style="volumeSliderStyle"
+                @input="handleVolumeInput"
+                @change="handleVolumeCommit"
+                @pointerdown="handleVolumePointerDown"
+                @pointerup="handleVolumeCommit"
+              >
+            </div>
           </div>
         </div>
       </div>
@@ -1651,8 +1655,7 @@ onUnmounted(() => {
   margin-top: 0.375rem;
 }
 
-/* Mobile keeps both sides as equal-width columns so the transport stays
-   centered; only the play-mode toggle is shown, the right side is a spacer. */
+/* Both sides are equal-width columns so the transport stays centered. */
 .controls-side {
   display: flex;
   align-items: center;
@@ -1665,8 +1668,28 @@ onUnmounted(() => {
   justify-content: flex-end;
 }
 
-.controls-side--right > * {
+/* Mobile lifts the lyric/edit actions to the top-right corner, opposite the
+   back button, and drops the volume control (hardware volume covers it), so
+   the right column is only a spacer. */
+.player-actions {
+  position: absolute;
+  top: calc(0.75rem + var(--player-safe-top));
+  right: 0.75rem;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.player-actions .ctrl-btn {
+  min-width: 2.25rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.volume-control {
   display: none;
+  align-items: center;
+  gap: 0.25rem;
 }
 
 .controls-center {
@@ -1679,10 +1702,14 @@ onUnmounted(() => {
   .controls-row {
     justify-content: space-between;
   }
-  .controls-side--right > * {
-    display: revert;
+  .player-actions {
+    position: static;
   }
-  .controls-side--right > .ctrl-btn {
+  .player-actions .ctrl-btn {
+    min-width: 2.5rem;
+    color: rgba(255, 255, 255, 0.45);
+  }
+  .volume-control {
     display: flex;
   }
   .controls-center {
