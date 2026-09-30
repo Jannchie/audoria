@@ -10,6 +10,7 @@ import ProgressPreviewTooltip from '../components/ProgressPreviewTooltip.vue'
 import ShaderProgressControls from '../components/ShaderProgressControls.vue'
 import { useAuth } from '../composables/useAuth'
 import { useCoverPalette } from '../composables/useCoverPalette'
+import { useDragScroll } from '../composables/useDragScroll'
 import { applyReadingCorrection, useFurigana } from '../composables/useFurigana'
 import { findLyricLineAtTime, shiftLrcTimestamps, useLyrics } from '../composables/useLyrics'
 import { resolveApiUrl, useMusicQuery, useUpdateMusic } from '../composables/useMusic'
@@ -78,6 +79,7 @@ const {
 } = usePlayerState()
 
 const lyricsContainer = ref<HTMLDivElement | null>(null)
+const { isDragging: isLyricsDragging, isDragScrolling: isLyricsDragScrolling } = useDragScroll(lyricsContainer)
 
 const currentTrack = computed(() => {
   const items = tracks.value ?? []
@@ -608,7 +610,8 @@ watch(currentLineIndex, async (idx, prev) => {
   // Mobile browsers may need an extra frame to settle after DOM updates.
   await new Promise(resolve => requestAnimationFrame(resolve))
   const container = lyricsContainer.value
-  if (!container) {
+  // Don't yank the lyrics away while the user is dragging through them.
+  if (!container || isLyricsDragScrolling.value) {
     return
   }
   const activeLine = container.querySelector(`[data-lyric-index="${idx}"]`) as HTMLElement | null
@@ -809,6 +812,7 @@ onUnmounted(() => {
               v-if="isTimeSynced && parsed"
               ref="lyricsContainer"
               class="lyrics-scroll inner-scroll"
+              :class="{ 'lyrics-scroll--dragging': isLyricsDragging }"
             >
               <div class="lyrics-pad">
                 <div
@@ -880,6 +884,7 @@ onUnmounted(() => {
               v-else-if="hasLyrics"
               ref="lyricsContainer"
               class="lyrics-scroll inner-scroll"
+              :class="{ 'lyrics-scroll--dragging': isLyricsDragging }"
             >
               <p class="lyrics-plain">
                 {{ plainText }}
@@ -1477,6 +1482,12 @@ onUnmounted(() => {
   height: 100%;
   overflow-y: auto;
   scrollbar-width: none;
+}
+/* Doubled class outranks .lyric-line's pointer cursor. */
+.lyrics-scroll.lyrics-scroll--dragging,
+.lyrics-scroll.lyrics-scroll--dragging * {
+  cursor: grabbing;
+  user-select: none;
 }
 .lyrics-scroll::-webkit-scrollbar {
   width: 0;
