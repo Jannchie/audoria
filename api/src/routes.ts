@@ -2065,10 +2065,11 @@ api.openapi(updateCoverRoute, async (c) => {
     thumbContentType: storedCover.thumb.contentType,
     thumbhash: storedCover.thumbhash,
   })
+  // Without a new mask the old one is dropped too, since it matched the old cover.
   await deleteTrackCoverExcept(record, [
     storedCover.cover,
-    storedCover.mask,
     storedCover.thumb,
+    ...(storedCover.mask ? [storedCover.mask] : []),
   ])
   const updated = await getTrackById(id)
   if (!updated) {

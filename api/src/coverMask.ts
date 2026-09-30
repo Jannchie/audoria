@@ -1,5 +1,11 @@
-import { AutoModel, AutoProcessor, RawImage } from '@huggingface/transformers'
+import path from 'node:path'
+import { AutoModel, AutoProcessor, env, RawImage } from '@huggingface/transformers'
 import sharp from 'sharp'
+import { appDataDir } from './config.js'
+
+// Keep downloaded models in the data volume so a recreated container does not
+// have to fetch them again.
+env.cacheDir = path.join(appDataDir, 'models')
 
 const MODEL_ID = 'onnx-community/BiRefNet_lite'
 const MASK_CONTENT_TYPE = 'image/png'
@@ -18,7 +24,11 @@ async function loadMaskModel() {
 
 async function getMaskModel() {
   if (!modelPromise) {
-    modelPromise = loadMaskModel()
+    // Forget a failed load so the next cover retries instead of failing forever.
+    modelPromise = loadMaskModel().catch((error: unknown) => {
+      modelPromise = null
+      throw error
+    })
   }
   return await modelPromise
 }

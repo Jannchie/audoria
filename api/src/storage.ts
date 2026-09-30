@@ -36,7 +36,8 @@ type StoredCoverAsset = ObjectRef & {
 
 interface StoredCover {
   cover: StoredCoverAsset
-  mask: StoredCoverAsset
+  // Null when the mask model failed; the cover still stores without it.
+  mask: StoredCoverAsset | null
   thumb: StoredCoverAsset
   thumbhash: string
 }
@@ -560,7 +561,12 @@ export async function storeTrackCover({
     createCoverVariant(body, 'thumb'),
     createCoverThumbhash(body),
   ])
-  const maskBodyPromise = generateCoverMaskPng(coverBody, COVER_CONTENT_TYPE)
+  // The foreground mask only drives a cover effect, so a mask model failure
+  // must not cost the track its cover. `backfill:cover-masks` fills it in later.
+  const maskBodyPromise = generateCoverMaskPng(coverBody, COVER_CONTENT_TYPE).catch((error: unknown) => {
+    console.warn(`Failed to generate cover mask for ${trackId}: ${error instanceof Error ? error.message : String(error)}`)
+    return null
+  })
 
   const coverKey = `covers/${trackId}/${COVER_VARIANT_OPTIONS.cover.suffix}.webp`
   const thumbKey = `covers/${trackId}/${COVER_VARIANT_OPTIONS.thumb.suffix}.webp`
@@ -579,7 +585,7 @@ export async function storeTrackCover({
       body: thumbBody,
       contentType: COVER_CONTENT_TYPE,
     }),
-    driver.putObject({
+    maskBody && driver.putObject({
       key: maskKey,
       body: maskBody,
       contentType: maskContentType,
@@ -592,11 +598,13 @@ export async function storeTrackCover({
       key: coverKey,
       contentType: COVER_CONTENT_TYPE,
     },
-    mask: {
-      backend: storageBackend,
-      key: maskKey,
-      contentType: maskContentType,
-    },
+    mask: maskBody
+      ? {
+          backend: storageBackend,
+          key: maskKey,
+          contentType: maskContentType,
+        }
+      : null,
     thumb: {
       backend: storageBackend,
       key: thumbKey,
