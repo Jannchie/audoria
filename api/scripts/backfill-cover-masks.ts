@@ -1,5 +1,7 @@
+import type { Track } from '../src/db/index.js'
 import { and, isNotNull } from 'drizzle-orm'
-import { db, tracks } from '../src/db.js'
+import { __db as db, tracks } from '../src/db/index.js'
+import { initRuntimeDb } from '../src/db/runtime.js'
 import {
   isStorageObjectMissingError,
   readStoredTrackCoverMaskBuffer,
@@ -7,7 +9,7 @@ import {
 } from '../src/storage.js'
 
 async function main(): Promise<void> {
-  const pending = db
+  const pending: Track[] = await db
     .select()
     .from(tracks)
     .where(and(
@@ -60,6 +62,7 @@ async function main(): Promise<void> {
 }
 
 try {
+  initRuntimeDb()
   await main()
 }
 catch (error) {

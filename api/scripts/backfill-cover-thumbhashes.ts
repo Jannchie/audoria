@@ -1,9 +1,11 @@
+import type { Track } from '../src/db/index.js'
 import { and, eq, isNotNull, isNull } from 'drizzle-orm'
-import { db, tracks } from '../src/db.js'
+import { __db as db, tracks } from '../src/db/index.js'
+import { initRuntimeDb } from '../src/db/runtime.js'
 import { createCoverThumbhash, readStoredTrackCoverBuffer } from '../src/storage.js'
 
 async function main(): Promise<void> {
-  const pending = db
+  const pending: Track[] = await db
     .select()
     .from(tracks)
     .where(and(
@@ -28,7 +30,7 @@ async function main(): Promise<void> {
     try {
       const coverBody = await readStoredTrackCoverBuffer(track)
       const coverThumbhash = await createCoverThumbhash(coverBody)
-      db.update(tracks)
+      await db.update(tracks)
         .set({ coverThumbhash })
         .where(eq(tracks.id, track.id))
         .run()
@@ -46,6 +48,7 @@ async function main(): Promise<void> {
 }
 
 try {
+  initRuntimeDb()
   await main()
 }
 catch (error) {

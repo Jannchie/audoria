@@ -1,5 +1,7 @@
+import type { Track } from '../src/db/index.js'
 import { eq, isNull, lt, or } from 'drizzle-orm'
-import { db, tracks } from '../src/db.js'
+import { __db as db, tracks } from '../src/db/index.js'
+import { initRuntimeDb } from '../src/db/runtime.js'
 import { formatDurationText, probeDurationSeconds } from '../src/probeAudio.js'
 import { readStoredTrackBuffer } from '../src/storage.js'
 
@@ -7,7 +9,7 @@ import { readStoredTrackBuffer } from '../src/storage.js'
 const SUSPICIOUS_DURATION_THRESHOLD_SECONDS = 10
 
 async function main(): Promise<void> {
-  const pending = db
+  const pending: Track[] = await db
     .select()
     .from(tracks)
     .where(or(
@@ -39,7 +41,7 @@ async function main(): Promise<void> {
         continue
       }
       const durationText = formatDurationText(durationSeconds)
-      db.update(tracks)
+      await db.update(tracks)
         .set({ durationSeconds, durationText })
         .where(eq(tracks.id, track.id))
         .run()
@@ -57,6 +59,7 @@ async function main(): Promise<void> {
 }
 
 try {
+  initRuntimeDb()
   await main()
 }
 catch (error) {

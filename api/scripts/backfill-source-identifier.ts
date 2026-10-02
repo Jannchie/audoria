@@ -1,6 +1,8 @@
+import type { Track } from '../src/db/index.js'
 import type { MusicDlSource } from '../src/musicSources.js'
 import { and, eq, isNotNull, isNull, or } from 'drizzle-orm'
-import { db, tracks } from '../src/db.js'
+import { __db as db, tracks } from '../src/db/index.js'
+import { initRuntimeDb } from '../src/db/runtime.js'
 import { searchMusicDl } from '../src/musicdl.js'
 import { musicDlSources } from '../src/musicSources.js'
 
@@ -80,7 +82,7 @@ function pickBestIdentifier(
 }
 
 async function main(): Promise<void> {
-  const pending = db
+  const pending: Track[] = await db
     .select()
     .from(tracks)
     .where(and(
@@ -128,7 +130,7 @@ async function main(): Promise<void> {
         continue
       }
 
-      db.update(tracks)
+      await db.update(tracks)
         .set({ sourceIdentifier: identifier })
         .where(eq(tracks.id, track.id))
         .run()
@@ -147,6 +149,7 @@ async function main(): Promise<void> {
 }
 
 try {
+  initRuntimeDb()
   await main()
 }
 catch (error) {
