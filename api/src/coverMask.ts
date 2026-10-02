@@ -17,7 +17,14 @@ let modelPromise: Promise<{
 
 async function loadMaskModel() {
   return {
-    model: await AutoModel.from_pretrained(MODEL_ID, { dtype: 'fp32' }),
+    // onnxruntime's CPU arena keeps the inference peak (several GB for a 1024x1024
+    // BiRefNet pass) and never returns it to the OS, so each process grew by
+    // ~5GB per cover until it filled RAM and swap. Without the arena RSS stays
+    // around the model size.
+    model: await AutoModel.from_pretrained(MODEL_ID, {
+      dtype: 'fp32',
+      session_options: { enableCpuMemArena: false, enableMemPattern: false },
+    }),
     processor: await AutoProcessor.from_pretrained(MODEL_ID),
   }
 }
