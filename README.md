@@ -90,7 +90,7 @@ D1_API_TOKEN=...
 ```
 
 Audoria does not create D1 tables automatically. Apply the SQL files in `api/drizzle/`
-(`0000_initial.sql`, then `0001_play_stats.sql`, …) in order through the Cloudflare
+(`0000_initial.sql`, then `0001_play_stats.sql`, `0002_cover_mask_requests.sql`, …) in order through the Cloudflare
 dashboard, API, or any D1 management workflow you prefer before starting the app.
 When upgrading, apply only the files you have not applied yet. (SQLite databases are
 upgraded automatically on startup.)

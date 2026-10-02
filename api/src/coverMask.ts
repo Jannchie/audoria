@@ -8,7 +8,6 @@ import { appDataDir } from './config.js'
 env.cacheDir = path.join(appDataDir, 'models')
 
 const MODEL_ID = 'onnx-community/BiRefNet_lite'
-const MASK_CONTENT_TYPE = 'image/png'
 
 let modelPromise: Promise<{
   model: Awaited<ReturnType<typeof AutoModel.from_pretrained>>
@@ -59,8 +58,4 @@ export async function generateCoverMaskPng(
       channels: mask.channels,
     },
   }).png().toBuffer()
-}
-
-export function getCoverMaskContentType(): string {
-  return MASK_CONTENT_TYPE
 }

@@ -13,6 +13,9 @@ export const tracks = sqliteTable('tracks', {
   coverThumbStorageKey: text('cover_thumb_storage_key'),
   coverThumbContentType: text('cover_thumb_content_type'),
   coverThumbhash: text('cover_thumbhash'),
+  // Set when the cover changes and cleared once the import worker has written
+  // the matching foreground mask. Only the worker loads the mask model.
+  coverMaskRequestedAt: integer('cover_mask_requested_at', { mode: 'number' }),
   title: text('title'),
   artists: text('artists'),
   album: text('album'),

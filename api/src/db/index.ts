@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { and, asc, desc, eq, inArray, lt, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNotNull, lt, sql } from 'drizzle-orm'
 import { config } from '../config.js'
 import * as schema from './schema.js'
 
@@ -151,6 +151,7 @@ export async function updateTrackCover(id: string, cover: {
       coverThumbStorageKey: cover.thumbKey,
       coverThumbContentType: cover.thumbContentType,
       coverThumbhash: cover.thumbhash,
+      coverMaskRequestedAt: cover.key ? Date.now() : null,
     })
     .where(eq(schema.tracks.id, id)),
   )
@@ -172,9 +173,11 @@ export async function updateTrackImportedMetadata(id: string, metadata: {
   sourceIdentifier: string | null
   durationText: string | null
   durationSeconds: number | null
+  coverMaskRequestedAt: number | null
 }): Promise<void> {
   await queryRun(db.update(schema.tracks)
     .set({
+      coverMaskRequestedAt: metadata.coverMaskRequestedAt,
       coverStorageBackend: metadata.coverStorageBackend,
       coverStorageKey: metadata.coverStorageKey,
       coverContentType: metadata.coverContentType,
@@ -192,6 +195,23 @@ export async function updateTrackImportedMetadata(id: string, metadata: {
       durationSeconds: metadata.durationSeconds,
     })
     .where(eq(schema.tracks.id, id)),
+  )
+}
+
+export async function getNextTrackAwaitingCoverMask(): Promise<schema.Track | undefined> {
+  return await queryGet<schema.Track | undefined>(db.select()
+    .from(schema.tracks)
+    .where(isNotNull(schema.tracks.coverMaskRequestedAt))
+    .orderBy(asc(schema.tracks.coverMaskRequestedAt))
+    .limit(1))
+}
+
+// Only clears the request it was given, so a cover replaced while its mask was
+// being generated keeps its newer request.
+export async function clearTrackCoverMaskRequest(id: string, requestedAt: number): Promise<void> {
+  await queryRun(db.update(schema.tracks)
+    .set({ coverMaskRequestedAt: null })
+    .where(and(eq(schema.tracks.id, id), eq(schema.tracks.coverMaskRequestedAt, requestedAt))),
   )
 }
 

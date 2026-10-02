@@ -11,7 +11,6 @@ import sharp from 'sharp'
 import { rgbaToThumbHash } from 'thumbhash'
 import { AUDIO_SNIFF_BYTES, sniffAudioFormat, withAudioExtension } from './audioFormat.js'
 import { config } from './config.js'
-import { generateCoverMaskPng, getCoverMaskContentType } from './coverMask.js'
 import { __db as db, listTracks, tracks, updateTrackFileFormat, updateTrackStoredFile } from './db/index.js'
 import { formatDurationText, probeDurationSecondsFromFile, readEmbeddedMetadata, remuxFlacToMp4 } from './probeAudio.js'
 
@@ -36,8 +35,6 @@ type StoredCoverAsset = ObjectRef & {
 
 interface StoredCover {
   cover: StoredCoverAsset
-  // Null when the mask model failed; the cover still stores without it.
-  mask: StoredCoverAsset | null
   thumb: StoredCoverAsset
   thumbhash: string
 }
@@ -46,6 +43,7 @@ type CoverVariant = 'cover' | 'thumb'
 
 const COVER_CONTENT_TYPE = 'image/webp'
 const COVER_MASK_KEY_SUFFIX = 'mask-v1'
+const COVER_MASK_CONTENT_TYPE = 'image/png'
 const COVER_VARIANT_OPTIONS: Record<CoverVariant, { width: number, height: number, quality: number, suffix: string }> = {
   cover: {
     width: 1200,
@@ -517,6 +515,7 @@ export async function storeTrack({
       coverThumbStorageKey: embeddedCover?.thumb.key ?? null,
       coverThumbContentType: embeddedCover?.thumb.contentType ?? null,
       coverThumbhash: embeddedCover?.thumbhash ?? null,
+      coverMaskRequestedAt: embeddedCover ? createdAt : null,
       title: embedded.title,
       artists: embedded.artists,
       album: embedded.album,
@@ -561,18 +560,10 @@ export async function storeTrackCover({
     createCoverVariant(body, 'thumb'),
     createCoverThumbhash(body),
   ])
-  // The foreground mask only drives a cover effect, so a mask model failure
-  // must not cost the track its cover. `backfill:cover-masks` fills it in later.
-  const maskBodyPromise = generateCoverMaskPng(coverBody, COVER_CONTENT_TYPE).catch((error: unknown) => {
-    console.warn(`Failed to generate cover mask for ${trackId}: ${error instanceof Error ? error.message : String(error)}`)
-    return null
-  })
-
+  // The foreground mask is left to the import worker (see coverMaskRequestedAt),
+  // so this process never loads the mask model.
   const coverKey = `covers/${trackId}/${COVER_VARIANT_OPTIONS.cover.suffix}.webp`
   const thumbKey = `covers/${trackId}/${COVER_VARIANT_OPTIONS.thumb.suffix}.webp`
-  const maskKey = getTrackCoverMaskKey(trackId)
-  const maskContentType = getCoverMaskContentType()
-  const maskBody = await maskBodyPromise
 
   await Promise.all([
     driver.putObject({
@@ -585,11 +576,6 @@ export async function storeTrackCover({
       body: thumbBody,
       contentType: COVER_CONTENT_TYPE,
     }),
-    maskBody && driver.putObject({
-      key: maskKey,
-      body: maskBody,
-      contentType: maskContentType,
-    }),
   ])
 
   return {
@@ -598,13 +584,6 @@ export async function storeTrackCover({
       key: coverKey,
       contentType: COVER_CONTENT_TYPE,
     },
-    mask: maskBody
-      ? {
-          backend: storageBackend,
-          key: maskKey,
-          contentType: maskContentType,
-        }
-      : null,
     thumb: {
       backend: storageBackend,
       key: thumbKey,
@@ -645,6 +624,9 @@ export async function storeTrackCoverMask(record: Track): Promise<void> {
   if (!ref) {
     throw new Error('Track cover is not stored')
   }
+  // Loaded on demand so only the process that generates masks pulls in
+  // onnxruntime and the model.
+  const { generateCoverMaskPng } = await import('./coverMask.js')
   const coverObject = await getStoredTrackCover(record)
   const coverBody = await readReadableToBuffer(coverObject.body)
   const maskBody = await generateCoverMaskPng(
@@ -654,7 +636,7 @@ export async function storeTrackCoverMask(record: Track): Promise<void> {
   await getStorageDriver(ref.backend).putObject({
     key: ref.key,
     body: maskBody,
-    contentType: getCoverMaskContentType(),
+    contentType: COVER_MASK_CONTENT_TYPE,
   })
 }
 

@@ -103,6 +103,7 @@ export function initSqlite(dbPath: string): void {
       cover_thumb_storage_key TEXT,
       cover_thumb_content_type TEXT,
       cover_thumbhash TEXT,
+      cover_mask_requested_at INTEGER,
       title TEXT,
       artists TEXT,
       album TEXT,
@@ -306,6 +307,9 @@ export function initSqlite(dbPath: string): void {
   }
   if (!statColumns.has('last_played_at')) {
     sqlite.exec('ALTER TABLE tracks ADD COLUMN last_played_at INTEGER')
+  }
+  if (!statColumns.has('cover_mask_requested_at')) {
+    sqlite.exec('ALTER TABLE tracks ADD COLUMN cover_mask_requested_at INTEGER')
   }
 
   const importJobColumns = sqlite.prepare('PRAGMA table_info(music_import_jobs)').all() as Array<{ name: string }>

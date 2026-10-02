@@ -1,0 +1,1 @@
+ALTER TABLE `tracks` ADD `cover_mask_requested_at` integer;

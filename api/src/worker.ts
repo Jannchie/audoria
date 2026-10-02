@@ -5,6 +5,8 @@ import { setTimeout as sleep } from 'node:timers/promises'
 import { config } from './config.js'
 import {
   claimNextQueuedMusicImportJob,
+  clearTrackCoverMaskRequest,
+  getNextTrackAwaitingCoverMask,
   markMusicImportJobFailed,
   markMusicImportJobSucceeded,
   requeueRunningMusicImportJobs,
@@ -13,7 +15,7 @@ import {
 } from './db/index.js'
 import { initRuntimeDb } from './db/runtime.js'
 import { MusicDlBridgeError, MusicDlUnavailableError, openMusicDlStream } from './musicdl.js'
-import { migrateFlacTracksToMp4, repairTrackFormats, storeTrack, storeTrackCover } from './storage.js'
+import { migrateFlacTracksToMp4, repairTrackFormats, storeTrack, storeTrackCover, storeTrackCoverMask } from './storage.js'
 
 const coverFetchTimeoutMs = 15_000
 const maxCoverAssetBytes = 20 * 1024 * 1024
@@ -171,6 +173,7 @@ async function processNextJob(): Promise<boolean> {
       coverThumbStorageKey: storedCover?.thumb.key ?? track.coverThumbStorageKey,
       coverThumbContentType: storedCover?.thumb.contentType ?? track.coverThumbContentType,
       coverThumbhash: storedCover?.thumbhash ?? track.coverThumbhash,
+      coverMaskRequestedAt: storedCover ? Date.now() : track.coverMaskRequestedAt,
       lyrics: songInfo.lyric ?? track.lyrics,
       title: songInfo.song_name ?? track.title,
       artists: songInfo.singers ?? track.artists,
@@ -192,6 +195,26 @@ async function processNextJob(): Promise<boolean> {
     markMusicImportJobFailed(job.id, message)
   }
 
+  return true
+}
+
+// Covers are stored without their foreground mask; it is generated here so the
+// mask model lives only in this process.
+async function processNextCoverMask(): Promise<boolean> {
+  const track = await getNextTrackAwaitingCoverMask()
+  if (!track?.coverMaskRequestedAt) {
+    return false
+  }
+
+  try {
+    await storeTrackCoverMask(track)
+  }
+  catch (error) {
+    // The mask only drives a cover effect. Drop the request instead of retrying
+    // forever; `backfill:cover-masks` can fill it in later.
+    console.warn(`Failed to generate cover mask for ${track.id}: ${toErrorMessage(error)}`)
+  }
+  await clearTrackCoverMaskRequest(track.id, track.coverMaskRequestedAt)
   return true
 }
 
@@ -221,7 +244,8 @@ async function main(): Promise<void> {
   void maintainStoredTracks()
 
   while (true) {
-    const processed = await processNextJob()
+    // Imports go first; masks fill the idle time between them.
+    const processed = await processNextJob() || await processNextCoverMask()
     if (!processed) {
       await sleep(config.importWorkerPollMs)
     }
