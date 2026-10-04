@@ -5,7 +5,7 @@ import { createReadStream } from 'node:fs'
 import { mkdir, mkdtemp, open, rename, rm, stat, unlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { Readable } from 'node:stream'
+import { pipeline, Readable, Transform } from 'node:stream'
 import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import sharp from 'sharp'
 import { rgbaToThumbHash } from 'thumbhash'
@@ -77,12 +77,21 @@ function getActiveStorageBackend(): StorageBackend {
   return config.storage.backend
 }
 
+// A paused or abandoned download keeps its S3 socket out of the pool; once the
+// pool fills, every other request (uploads included) queues behind them forever.
+const S3_MAX_SOCKETS = 200
+const S3_BODY_IDLE_TIMEOUT_MS = 30_000
+
 const configuredS3Client = config.storage.s3
   ? new S3Client({
       endpoint: config.storage.s3.endpoint,
       region: config.storage.s3.region,
       forcePathStyle: config.storage.s3.forcePathStyle,
       requestChecksumCalculation: 'WHEN_REQUIRED',
+      requestHandler: {
+        httpsAgent: { keepAlive: true, maxSockets: S3_MAX_SOCKETS },
+        httpAgent: { keepAlive: true, maxSockets: S3_MAX_SOCKETS },
+      },
       credentials: {
         accessKeyId: config.storage.s3.accessKeyId,
         secretAccessKey: config.storage.s3.secretAccessKey,
@@ -130,7 +139,7 @@ const s3Driver: StorageDriver = {
       }),
     )
     return {
-      body: toNodeReadable(object.Body),
+      body: destroyWhenIdle(toNodeReadable(object.Body), S3_BODY_IDLE_TIMEOUT_MS),
       contentType: object.ContentType ?? null,
       contentLength: Number(object.ContentLength ?? 0),
     }
@@ -245,6 +254,28 @@ async function writeStorageBodyToFile(
   finally {
     await handle.close().catch(() => {})
   }
+}
+
+/**
+ * Destroys an S3 response body that passes no data for `idleMs`, which happens
+ * when the client stops reading (a paused player) or disconnects without the
+ * cancel reaching us. Destroying it frees the pooled socket.
+ */
+function destroyWhenIdle(body: Readable, idleMs: number): Readable {
+  let timer: NodeJS.Timeout | undefined
+  const watched = new Transform({
+    transform(chunk, _encoding, callback) {
+      timer?.refresh()
+      callback(null, chunk)
+    },
+  })
+  timer = setTimeout(() => {
+    watched.destroy(new Error(`S3 response body idle for ${idleMs} ms`))
+  }, idleMs)
+  pipeline(body, watched, () => {
+    clearTimeout(timer)
+  })
+  return watched
 }
 
 function toNodeReadable(body: unknown): Readable {
