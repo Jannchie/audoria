@@ -8,6 +8,7 @@ import { Readable } from 'node:stream'
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import { getCookie, setCookie } from 'hono/cookie'
 import { cors } from 'hono/cors'
+import { abortUploadSession, completeUploadSession, createUploadSession, UploadSessionError, writeUploadChunk } from './chunkedUpload.js'
 import { aiProviderApiKeyEnvNames, config, loadConfig, mergeConfigSources, pickSecretConfigSource, readPersistedConfigSource } from './config.js'
 import { applyConfigOverrides, writePersistedConfigOverrides } from './configOverrides.js'
 import {
@@ -742,6 +743,199 @@ api.openapi(uploadMusicRoute, async (c) => {
   })
 
   return c.json(toMusicResponse(record), 201)
+})
+
+const uploadSessionParamsSchema = z.object({
+  id: z.string().min(1),
+})
+
+const createUploadSessionRoute = createRoute({
+  method: 'post',
+  path: '/music/uploads',
+  summary: 'Start a chunked music upload',
+  request: {
+    body: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            filename: z.string(),
+            contentType: z.string().nullable().optional(),
+            size: z.number().int().positive(),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    201: {
+      description: 'Upload session',
+      content: {
+        'application/json': {
+          schema: z.object({
+            id: z.string(),
+            chunkSize: z.number().int(),
+            chunkCount: z.number().int(),
+          }),
+        },
+      },
+    },
+    400: {
+      description: 'Invalid request',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+    413: {
+      description: 'File too large',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+})
+
+api.openapi(createUploadSessionRoute, async (c) => {
+  const { filename, contentType, size } = c.req.valid('json')
+  try {
+    const session = await createUploadSession({ filename, contentType: contentType ?? null, size })
+    return c.json(session, 201)
+  }
+  catch (error) {
+    if (error instanceof UploadSessionError) {
+      return c.json({ message: error.message }, error.status as 400 | 413)
+    }
+    throw error
+  }
+})
+
+const uploadChunkRoute = createRoute({
+  method: 'put',
+  path: '/music/uploads/{id}/chunks/{index}',
+  summary: 'Upload one chunk of a chunked music upload',
+  request: {
+    params: uploadSessionParamsSchema.extend({
+      index: z.coerce.number().int().nonnegative(),
+    }),
+    body: {
+      content: {
+        'application/octet-stream': {
+          schema: z.string().openapi({ format: 'binary' }),
+        },
+      },
+    },
+  },
+  responses: {
+    204: {
+      description: 'Chunk stored',
+    },
+    400: {
+      description: 'Invalid chunk',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+    404: {
+      description: 'Upload session not found',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+})
+
+api.openapi(uploadChunkRoute, async (c) => {
+  const { id, index } = c.req.valid('param')
+  const body = c.req.raw.body
+  if (!body) {
+    return c.json({ message: 'Chunk body is required' }, 400)
+  }
+  try {
+    await writeUploadChunk(id, index, Readable.fromWeb(body as unknown as ReadableStream))
+    return c.body(null, 204)
+  }
+  catch (error) {
+    if (error instanceof UploadSessionError) {
+      return c.json({ message: error.message }, error.status as 400 | 404)
+    }
+    throw error
+  }
+})
+
+const completeUploadSessionRoute = createRoute({
+  method: 'post',
+  path: '/music/uploads/{id}/complete',
+  summary: 'Finish a chunked music upload and store the track',
+  request: {
+    params: uploadSessionParamsSchema,
+  },
+  responses: {
+    201: {
+      description: 'Created',
+      content: {
+        'application/json': {
+          schema: MusicSchema,
+        },
+      },
+    },
+    404: {
+      description: 'Upload session not found',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+    409: {
+      description: 'Chunks are missing',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+})
+
+api.openapi(completeUploadSessionRoute, async (c) => {
+  const { id } = c.req.valid('param')
+  try {
+    const record = await completeUploadSession(id)
+    return c.json(toMusicResponse(record), 201)
+  }
+  catch (error) {
+    if (error instanceof UploadSessionError) {
+      return c.json({ message: error.message }, error.status as 404 | 409)
+    }
+    throw error
+  }
+})
+
+const abortUploadSessionRoute = createRoute({
+  method: 'delete',
+  path: '/music/uploads/{id}',
+  summary: 'Abort a chunked music upload',
+  request: {
+    params: uploadSessionParamsSchema,
+  },
+  responses: {
+    204: {
+      description: 'Aborted',
+    },
+  },
+})
+
+api.openapi(abortUploadSessionRoute, async (c) => {
+  const { id } = c.req.valid('param')
+  await abortUploadSession(id)
+  return c.body(null, 204)
 })
 
 const searchImportRoute = createRoute({

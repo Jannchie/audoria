@@ -502,75 +502,92 @@ export async function storeTrack({
   body: Readable
   onProgress?: (transferredBytes: number) => void
 }): Promise<Track> {
-  const id = randomUUID()
-  const createdAt = Date.now()
-
   const tempFile = await writeTrackBodyToTempFile(body, onProgress)
   try {
-    const prepared = await prepareTrackFile(tempFile.filePath, filename || 'audio', contentType)
-    const storageKey = `music/${id}-${prepared.filename}`
-
-    const [{ durationSeconds, durationText }, embedded] = await Promise.all([
-      probeAudioDuration(tempFile.filePath),
-      readEmbeddedMetadata(tempFile.filePath),
-    ])
-
-    const storageBackend = getActiveStorageBackend()
-    await getStorageDriver(storageBackend).putObject({
-      key: storageKey,
-      body: createReadStream(prepared.filePath),
-      contentType: prepared.contentType,
-      contentLength: prepared.size,
-    })
+    const record = await storeTrackFile({ filePath: tempFile.filePath, filename, contentType })
     onProgress?.(tempFile.size)
-
-    let embeddedCover: StoredCover | null = null
-    if (embedded.cover) {
-      try {
-        embeddedCover = await storeTrackCover({ trackId: id, body: embedded.cover })
-      }
-      catch (error) {
-        console.warn(`Failed to store embedded cover for ${id}: ${error instanceof Error ? error.message : String(error)}`)
-      }
-    }
-
-    const record: Track = {
-      id,
-      filename: prepared.filename,
-      storageBackend,
-      storageKey,
-      coverStorageBackend: embeddedCover?.cover.backend ?? null,
-      coverStorageKey: embeddedCover?.cover.key ?? null,
-      coverContentType: embeddedCover?.cover.contentType ?? null,
-      coverThumbStorageBackend: embeddedCover?.thumb.backend ?? null,
-      coverThumbStorageKey: embeddedCover?.thumb.key ?? null,
-      coverThumbContentType: embeddedCover?.thumb.contentType ?? null,
-      coverThumbhash: embeddedCover?.thumbhash ?? null,
-      coverMaskRequestedAt: embeddedCover ? createdAt : null,
-      title: embedded.title,
-      artists: embedded.artists,
-      album: embedded.album,
-      source: null,
-      sourceIdentifier: null,
-      durationText,
-      durationSeconds,
-      size: prepared.size,
-      contentType: prepared.contentType,
-      lyrics: embedded.lyrics,
-      sortOrder: null,
-      playCount: 0,
-      skipCount: 0,
-      listenedSeconds: 0,
-      lastPlayedAt: null,
-      createdAt,
-    }
-
-    db.insert(tracks).values(record).run()
     return record
   }
   finally {
     await tempFile.cleanup()
   }
+}
+
+/**
+ * Stores an audio file that is already on local disk. A FLAC remux is written
+ * next to it, so the caller owns the file's directory and removes it afterwards.
+ */
+export async function storeTrackFile({
+  filePath,
+  filename,
+  contentType,
+}: {
+  filePath: string
+  filename: string
+  contentType: string | null
+}): Promise<Track> {
+  const id = randomUUID()
+  const createdAt = Date.now()
+
+  const prepared = await prepareTrackFile(filePath, filename || 'audio', contentType)
+  const storageKey = `music/${id}-${prepared.filename}`
+
+  const [{ durationSeconds, durationText }, embedded] = await Promise.all([
+    probeAudioDuration(filePath),
+    readEmbeddedMetadata(filePath),
+  ])
+
+  const storageBackend = getActiveStorageBackend()
+  await getStorageDriver(storageBackend).putObject({
+    key: storageKey,
+    body: createReadStream(prepared.filePath),
+    contentType: prepared.contentType,
+    contentLength: prepared.size,
+  })
+
+  let embeddedCover: StoredCover | null = null
+  if (embedded.cover) {
+    try {
+      embeddedCover = await storeTrackCover({ trackId: id, body: embedded.cover })
+    }
+    catch (error) {
+      console.warn(`Failed to store embedded cover for ${id}: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  const record: Track = {
+    id,
+    filename: prepared.filename,
+    storageBackend,
+    storageKey,
+    coverStorageBackend: embeddedCover?.cover.backend ?? null,
+    coverStorageKey: embeddedCover?.cover.key ?? null,
+    coverContentType: embeddedCover?.cover.contentType ?? null,
+    coverThumbStorageBackend: embeddedCover?.thumb.backend ?? null,
+    coverThumbStorageKey: embeddedCover?.thumb.key ?? null,
+    coverThumbContentType: embeddedCover?.thumb.contentType ?? null,
+    coverThumbhash: embeddedCover?.thumbhash ?? null,
+    coverMaskRequestedAt: embeddedCover ? createdAt : null,
+    title: embedded.title,
+    artists: embedded.artists,
+    album: embedded.album,
+    source: null,
+    sourceIdentifier: null,
+    durationText,
+    durationSeconds,
+    size: prepared.size,
+    contentType: prepared.contentType,
+    lyrics: embedded.lyrics,
+    sortOrder: null,
+    playCount: 0,
+    skipCount: 0,
+    listenedSeconds: 0,
+    lastPlayedAt: null,
+    createdAt,
+  }
+
+  db.insert(tracks).values(record).run()
+  return record
 }
 
 export async function storeTrackCover({

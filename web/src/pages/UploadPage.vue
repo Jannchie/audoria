@@ -16,6 +16,16 @@ const uploadMutation = useUploadMusic()
 const { selectTrack, setPlaying } = usePlayerState()
 
 const isUploading = computed<boolean>(() => uploadMutation.isPending.value)
+const uploadButtonLabel = computed<string>(() => {
+  const progress = uploadMutation.progress.value
+  if (progress?.phase === 'processing') {
+    return t('upload.processing')
+  }
+  if (progress) {
+    return t('upload.progress', { percent: progress.percent })
+  }
+  return isUploading.value ? t('common.actions.uploading') : t('common.actions.upload')
+})
 
 const uploadErrorMessage = computed(() => {
   const err = uploadMutation.error.value
@@ -136,7 +146,7 @@ function formatFileSize(bytes: number): string {
           class="text-base"
           :class="isUploading ? 'i-tabler-loader-2 animate-spin' : 'i-tabler-upload'"
         />
-        {{ isUploading ? t('common.actions.uploading') : t('common.actions.upload') }}
+        {{ uploadButtonLabel }}
       </button>
     </label>
 

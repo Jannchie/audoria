@@ -1,9 +1,9 @@
 import type { Ref } from 'vue'
 import type { Music, MusicDlSearchResult, MusicDlSource, MusicImportJob } from '../api/types.gen'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { client } from '../api/client.gen'
-import { deleteMusicById, getMusicImportsById, postMusic, postMusicImports, postMusicImportsSearch } from '../api/sdk.gen'
+import { deleteMusicById, getMusicImportsById, postMusicImports, postMusicImportsSearch } from '../api/sdk.gen'
 import { translate } from '../i18n'
 
 export const musicQueryKey = ['music'] as const
@@ -49,23 +49,103 @@ export function useMusicQuery(sortKey?: Ref<string | undefined>) {
   })
 }
 
+export interface UploadProgress {
+  phase: 'uploading' | 'processing'
+  percent: number
+}
+
+interface UploadSession {
+  id: string
+  chunkSize: number
+  chunkCount: number
+}
+
+const UPLOAD_CHUNK_ATTEMPTS = 3
+
+async function putUploadChunk(url: string, chunk: Blob): Promise<void> {
+  for (let attempt = 1; ; attempt += 1) {
+    let response: Response | null = null
+    try {
+      response = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: chunk,
+      })
+    }
+    catch (error) {
+      if (attempt >= UPLOAD_CHUNK_ATTEMPTS) {
+        throw error
+      }
+    }
+    if (response?.ok) {
+      return
+    }
+    // Client errors will not change on retry; server and network errors may.
+    if (response && (response.status < 500 || attempt >= UPLOAD_CHUNK_ATTEMPTS)) {
+      await parseJsonError(response, 'errors.uploadFailedStatus')
+    }
+    await new Promise(resolve => setTimeout(resolve, attempt * 1000))
+  }
+}
+
+// Uploads go through Cloudflare, which rejects request bodies over 100 MB, so
+// files are sent in chunks and assembled by the API.
+async function uploadInChunks(file: File, onProgress: (progress: UploadProgress) => void): Promise<Music> {
+  const baseUrl = client.getConfig().baseUrl ?? ''
+  const sessionResponse = await fetch(`${baseUrl}/music/uploads`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ filename: file.name || 'audio', contentType: file.type || null, size: file.size }),
+  })
+  if (!sessionResponse.ok) {
+    await parseJsonError(sessionResponse, 'errors.uploadFailedStatus')
+  }
+  const session = await sessionResponse.json() as UploadSession
+  const sessionUrl = `${baseUrl}/music/uploads/${encodeURIComponent(session.id)}`
+
+  try {
+    onProgress({ phase: 'uploading', percent: 0 })
+    for (let index = 0; index < session.chunkCount; index += 1) {
+      const start = index * session.chunkSize
+      const end = Math.min(start + session.chunkSize, file.size)
+      await putUploadChunk(`${sessionUrl}/chunks/${index}`, file.slice(start, end))
+      onProgress({ phase: 'uploading', percent: Math.round(end / file.size * 100) })
+    }
+
+    onProgress({ phase: 'processing', percent: 100 })
+    const completeResponse = await fetch(`${sessionUrl}/complete`, { method: 'POST' })
+    if (!completeResponse.ok) {
+      await parseJsonError(completeResponse, 'errors.uploadFailedStatus')
+    }
+    return await completeResponse.json() as Music
+  }
+  catch (error) {
+    fetch(sessionUrl, { method: 'DELETE' }).catch(() => {})
+    throw error
+  }
+}
+
 export function useUploadMusic() {
   const queryClient = useQueryClient()
+  const progress = ref<UploadProgress | null>(null)
 
-  return useMutation({
+  const mutation = useMutation({
     mutationFn: async (file: File): Promise<Music> => {
-      const response = await postMusic({
-        body: { file },
-        throwOnError: true,
+      return await uploadInChunks(file, (next) => {
+        progress.value = next
       })
-      return response.data
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: musicQueryKey }).catch(() => {})
       queryClient.invalidateQueries({ queryKey: ['playlists'] }).catch(() => {})
       queryClient.invalidateQueries({ queryKey: ['playlist'] }).catch(() => {})
     },
+    onSettled: () => {
+      progress.value = null
+    },
   })
+
+  return { ...mutation, progress }
 }
 
 export function useDeleteMusic() {
