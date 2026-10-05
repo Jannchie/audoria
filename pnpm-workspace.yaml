@@ -5,6 +5,7 @@ packages:
   - api
   - web
   - packages/*
+  - apps/*
 
 onlyBuiltDependencies:
   - better-sqlite3

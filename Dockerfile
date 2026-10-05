@@ -12,6 +12,8 @@ COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY api/package.json api/package.json
 COPY web/package.json web/package.json
 COPY packages/lyrics-core/package.json packages/lyrics-core/package.json
+COPY packages/lyrics-editor/package.json packages/lyrics-editor/package.json
+COPY apps/lyrics-editor/package.json apps/lyrics-editor/package.json
 
 RUN pnpm install --frozen-lockfile
 

@@ -1,0 +1,23 @@
+{
+  "name": "@audoria/lyrics-editor-app",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Standalone lyrics timing editor: open a song and its lyrics, time them word by word, export TTML or LRC",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@audoria/lyrics-core": "workspace:*",
+    "@audoria/lyrics-editor": "workspace:*",
+    "vue": "^3.5.32"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.6",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.8",
+    "vue-tsc": "^3.2.6"
+  }
+}

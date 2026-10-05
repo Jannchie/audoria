@@ -1,0 +1,64 @@
+@font-face {
+  font-family: 'Berkeley Mono';
+  src: url('https://cdn.jannchie.com/fonts/variants/BerkeleyMono-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Berkeley Mono';
+  src: url('https://cdn.jannchie.com/fonts/variants/BerkeleyMono-Oblique.woff2') format('woff2');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Berkeley Mono';
+  src: url('https://cdn.jannchie.com/fonts/variants/BerkeleyMono-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Berkeley Mono';
+  src: url('https://cdn.jannchie.com/fonts/variants/BerkeleyMono-Bold-Oblique.woff2') format('woff2');
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+:root {
+  --font-mono: 'Berkeley Mono', 'Sarasa Mono SC', 'Noto Sans Mono CJK SC', 'Source Han Mono SC', ui-monospace, Menlo, Consolas, monospace;
+  --font-sans: 'Hiragino Sans', 'Noto Sans JP', 'PingFang SC', 'HarmonyOS Sans SC', 'Microsoft YaHei', sans-serif;
+  --bg-base: #0c0c0e;
+  --bg-primary: #121214;
+  --bg-surface: #18181b;
+  --bg-elevated: #222226;
+  --bg-hover: #28282e;
+  --text-primary: #ededf0;
+  --text-tertiary: #9a9aa4;
+  --accent: #e8574a;
+  --accent-soft: rgba(232, 87, 74, 0.12);
+  --border: rgba(255, 255, 255, 0.06);
+  --border-strong: rgba(255, 255, 255, 0.11);
+  --radius-sm: 0.375rem;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  -webkit-font-smoothing: antialiased;
+}

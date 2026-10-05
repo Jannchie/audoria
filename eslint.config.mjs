@@ -12,4 +12,12 @@ export default jannchie(
       'style/array-element-newline': 'off',
     },
   },
+  {
+    // The lyrics packages are styled with plain CSS, not UnoCSS.
+    files: ['packages/**', 'apps/**'],
+    rules: {
+      'unocss/order': 'off',
+      'unocss/order-attributify': 'off',
+    },
+  },
 )
