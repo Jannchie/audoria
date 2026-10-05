@@ -1,7 +1,7 @@
 import type { Element, Node } from '@xmldom/xmldom'
 import type { LyricsCue, LyricsDoc, LyricsRuby, LyricsTrack, LyricsWord } from './doc.js'
 import { DOMParser } from '@xmldom/xmldom'
-import { cueText, detectLang, rubyRuns, sortedRuby, validateLyricsDoc } from './doc.js'
+import { cueText, detectLang, rubyRuns, sortedRuby, validateLyricsDoc, wordTimeAt } from './doc.js'
 
 // The TTML dialect Apple Music and AMLL (Apple Music-like Lyrics) share: `itunes:timing`,
 // `itunes:key` line ids, `ttm:agent` singers, `x-bg` backing vocals, translations either in an
@@ -19,10 +19,6 @@ const TEXT_NODE = 3
 const CDATA_SECTION_NODE = 4
 
 export class TtmlParseError extends Error {}
-
-export function looksLikeTtml(text: string): boolean {
-  return /^\s*(?:<\?xml[^>]*\?>\s*)?<tt[\s>]/.test(text)
-}
 
 // ── Reading ──
 
@@ -400,9 +396,7 @@ function writeWordContent(cue: LyricsCue): string {
     }
 
     const inside = ruby.filter(range => range.start >= wordStart && range.end <= wordEnd)
-    const duration = (word.end ?? 0) - (word.begin ?? 0)
-    const timeAt = (position: number): number | undefined =>
-      word.begin === undefined ? undefined : Math.round(word.begin + duration * (position - wordStart) / Math.max(1, word.text.length))
+    const timeAt = (position: number): number | undefined => wordTimeAt(word, position - wordStart)
     let cursor = wordStart
     const pushPart = (end: number): void => {
       if (end > cursor) {

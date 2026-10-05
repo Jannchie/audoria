@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import type { Music } from '../api/types.gen'
+import { isLrcFormat, looksLikeTtml } from '@audoria/lyrics-core'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useDialogFocus } from '../composables/useDialogFocus'
-import { isLrcFormat, looksLikeTtml } from '../composables/useLyrics'
 import { resolveApiUrl, useDeleteCover, useUpdateCover, useUpdateMusic } from '../composables/useMusic'
 import { getSourceDisplay } from '../utils/source'
 import LazyCoverImage from './LazyCoverImage.vue'

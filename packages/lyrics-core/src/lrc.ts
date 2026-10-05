@@ -1,4 +1,5 @@
 import type { LyricsCue, LyricsDoc, LyricsRuby, LyricsTrack } from './doc.js'
+import { isLrcFormat } from './detect.js'
 import { cueText, detectLang, rubyRuns } from './doc.js'
 
 const LRC_TIMESTAMP_RE = /\[(\d{1,3}):(\d{2})(?:\.(\d{1,3}))?\]/g
@@ -6,16 +7,6 @@ const LRC_LEADING_TIMESTAMPS_RE = /^(?:\[\d{1,3}:\d{2}(?:\.\d{1,3})?\])+/
 // Hand-written furigana inside lyrics: 運命(さだめ).
 const READING_NOTATION_RE = /([\p{Script=Han}〆ヶ]+)[(（]([\p{Script=Hiragana}\p{Script=Katakana}ー]+)[)）]/gu
 const KANJI_ONLY_RE = /^[\p{Script=Han}〆ヶ]+$/u
-
-function isLrcFormat(raw: string): boolean {
-  let timestampCount = 0
-  for (const line of raw.split('\n').slice(0, 20)) {
-    if (LRC_LEADING_TIMESTAMPS_RE.test(line.trim())) {
-      timestampCount++
-    }
-  }
-  return timestampCount >= 2
-}
 
 /** Splits `運命(さだめ)の今` into the text `運命の今` and a reading over 運命. */
 function parseReadingNotation(source: string): { text: string, ruby: LyricsRuby[] } {

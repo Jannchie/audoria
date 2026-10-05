@@ -1,9 +1,9 @@
+import type { LyricsDoc, LyricsRuby } from '@audoria/lyrics-core'
 import type { IpadicFeatures, Tokenizer } from 'kuromoji'
-import type { LyricsDoc, LyricsRuby } from './lyrics/doc.js'
 import { createRequire } from 'node:module'
 import path from 'node:path'
+import { cueText, rubyRuns } from '@audoria/lyrics-core'
 import kuromoji from 'kuromoji'
-import { cueText, rubyRuns } from './lyrics/doc.js'
 
 export interface RubySegment {
   text: string

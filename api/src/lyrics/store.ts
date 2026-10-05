@@ -1,7 +1,6 @@
+import type { LyricsDoc } from '@audoria/lyrics-core'
 import type { Track } from '../db/schema.js'
-import type { LyricsDoc } from './doc.js'
-import { lyricsDocFromText, lyricsDocToText } from './lrc.js'
-import { looksLikeTtml, lyricsDocFromTtml } from './ttml.js'
+import { looksLikeTtml, lyricsDocFromText, lyricsDocFromTtml, lyricsDocToText } from '@audoria/lyrics-core'
 
 // How a track's lyrics live in its two columns. `lyrics_doc` is the source of truth once set,
 // with `lyrics` holding its LRC rendering; while it is null, the document is read from the

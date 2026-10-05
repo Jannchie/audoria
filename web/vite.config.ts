@@ -100,6 +100,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, 'src'),
+      // Bundled from source, so the web build never waits on the package's own build.
+      '@audoria/lyrics-core': path.resolve(__dirname, '../packages/lyrics-core/src/index.ts'),
     },
   },
   server: {

@@ -1,52 +1,59 @@
-import { z } from '@hono/zod-openapi'
+// The lyrics document: what Audoria stores, edits and plays. Times are integer milliseconds;
+// text offsets are UTF-16 code units into the cue's text, i.e. the concatenation of its words.
 
-// Times are integer milliseconds; text offsets are UTF-16 code units into the cue's text,
-// i.e. the concatenation of its words.
+export interface LyricsWord {
+  text: string
+  begin?: number
+  end?: number
+}
 
-export const LyricsWordSchema = z.object({
-  text: z.string().max(1000),
-  begin: z.number().int().min(0).optional(),
-  end: z.number().int().min(0).optional(),
-}).openapi('LyricsWord')
+/** A hand-set reading over cue text [start, end); unset ranges are left to an analyzer. */
+export interface LyricsRuby {
+  start: number
+  end: number
+  reading: string
+}
 
-export const LyricsRubySchema = z.object({
-  start: z.number().int().min(0),
-  end: z.number().int().min(1),
-  reading: z.string().min(1).max(200),
-}).openapi('LyricsRuby', { description: 'A hand-set reading over cue text [start, end); unset ranges are read by the analyzer' })
+export interface LyricsCue {
+  id: string
+  begin?: number
+  end?: number
+  /** Singer for duets, as TTML ttm:agent (v1, v2, …). */
+  agent?: string
+  words: LyricsWord[]
+  /** Backing vocals sung over this cue. */
+  background?: LyricsWord[]
+  ruby?: LyricsRuby[]
+}
 
-export const LyricsCueSchema = z.object({
-  id: z.string().min(1).max(64),
-  begin: z.number().int().min(0).optional(),
-  end: z.number().int().min(0).optional(),
-  agent: z.string().max(64).optional().openapi({ description: 'Singer for duets, as TTML ttm:agent (v1, v2, …)' }),
-  words: z.array(LyricsWordSchema).max(500),
-  background: z.array(LyricsWordSchema).max(500).optional().openapi({ description: 'Backing vocals sung over this cue' }),
-  ruby: z.array(LyricsRubySchema).max(500).optional(),
-}).openapi('LyricsCue')
+export interface LyricsTrack {
+  lang: string
+  kind: 'translation' | 'transliteration'
+  /** Text keyed by cue id. */
+  lines: Record<string, string>
+}
 
-export const LyricsTrackSchema = z.object({
-  lang: z.string().min(1).max(35),
-  kind: z.enum(['translation', 'transliteration']),
-  lines: z.record(z.string(), z.string().max(1000)).openapi({ description: 'Text keyed by cue id' }),
-}).openapi('LyricsTrack')
-
-export const LyricsDocSchema = z.object({
-  version: z.literal(1),
-  timing: z.enum(['none', 'line', 'word']),
-  lang: z.string().min(1).max(35).optional(),
-  cues: z.array(LyricsCueSchema).max(5000),
-  tracks: z.array(LyricsTrackSchema).max(20),
-}).openapi('LyricsDoc')
-
-export type LyricsWord = z.infer<typeof LyricsWordSchema>
-export type LyricsRuby = z.infer<typeof LyricsRubySchema>
-export type LyricsCue = z.infer<typeof LyricsCueSchema>
-export type LyricsTrack = z.infer<typeof LyricsTrackSchema>
-export type LyricsDoc = z.infer<typeof LyricsDocSchema>
+export interface LyricsDoc {
+  version: 1
+  timing: 'none' | 'line' | 'word'
+  lang?: string
+  cues: LyricsCue[]
+  tracks: LyricsTrack[]
+}
 
 export function cueText(cue: Pick<LyricsCue, 'words'>): string {
   return cue.words.map(word => word.text).join('')
+}
+
+/**
+ * The time at `offset` characters into a word, sharing the word's time out by length; how a
+ * word cut by a reading is timed. Undefined for untimed words.
+ */
+export function wordTimeAt(word: LyricsWord, offset: number): number | undefined {
+  if (word.begin === undefined || word.end === undefined) {
+    return undefined
+  }
+  return Math.round(word.begin + (word.end - word.begin) * offset / Math.max(1, word.text.length))
 }
 
 export function sortedRuby(cue: Pick<LyricsCue, 'ruby'>): LyricsRuby[] {

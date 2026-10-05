@@ -11,11 +11,13 @@ RUN corepack enable
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY api/package.json api/package.json
 COPY web/package.json web/package.json
+COPY packages/lyrics-core/package.json packages/lyrics-core/package.json
 
 RUN pnpm install --frozen-lockfile
 
 COPY . .
 
+RUN pnpm -C packages/lyrics-core build
 RUN pnpm -C web build
 RUN pnpm -C api build
 
@@ -45,6 +47,9 @@ COPY --from=builder /app/api/node_modules ./api/node_modules
 COPY --from=builder /app/api/dist ./api/dist
 COPY --from=builder /app/web/dist ./web/dist
 COPY --from=builder /app/api/package.json ./api/package.json
+COPY --from=builder /app/packages/lyrics-core/dist ./packages/lyrics-core/dist
+COPY --from=builder /app/packages/lyrics-core/node_modules ./packages/lyrics-core/node_modules
+COPY --from=builder /app/packages/lyrics-core/package.json ./packages/lyrics-core/package.json
 COPY --from=builder /app/web/package.json ./web/package.json
 COPY docker-entrypoint.sh ./docker-entrypoint.sh
 

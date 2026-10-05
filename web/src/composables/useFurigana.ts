@@ -1,9 +1,10 @@
-import type { LyricsDoc, LyricsRuby, RubySegment } from '../api/types.gen'
+import type { LyricsDoc, LyricsRuby } from '@audoria/lyrics-core'
+import type { RubySegment } from '../api/types.gen'
+import { cueText } from '@audoria/lyrics-core'
 import { useQuery } from '@tanstack/vue-query'
 import { useLocalStorage } from '@vueuse/core'
 import { computed } from 'vue'
 import { getMusicByIdLyricsFurigana } from '../api/sdk.gen'
-import { cueText } from './useLyrics'
 
 const KANA_RE = /[\p{Script=Hiragana}\p{Script=Katakana}]/u
 

@@ -131,23 +131,6 @@ describe('useplayerstate', () => {
     expect(player.getNextTrackId(tracks)).toBe('track-c')
   })
 
-  it('shifts cue and word times in a lyrics document, clamping at zero', async () => {
-    const { shiftLyricsDoc } = await import('../composables/useLyrics')
-
-    const shifted = shiftLyricsDoc({
-      version: 1,
-      timing: 'word',
-      cues: [
-        { id: 'a', begin: 50, end: 900, words: [{ text: 'Intro', begin: 50, end: 900 }] },
-        { id: 'b', begin: 10_000, end: 11_000, words: [{ text: 'First', begin: 10_000, end: 11_000 }] },
-      ],
-      tracks: [],
-    }, -100)
-
-    expect(shifted.cues.map(cue => [cue.begin, cue.end, cue.words[0].begin, cue.words[0].end]))
-      .toEqual([[0, 800, 0, 800], [9900, 10_900, 9900, 10_900]])
-  })
-
   it('turns a lyrics document into lines with their translations', async () => {
     const { linesFromDoc } = await import('../composables/useLyrics')
 

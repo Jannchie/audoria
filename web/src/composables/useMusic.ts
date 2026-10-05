@@ -1,5 +1,6 @@
+import type { LyricsDoc } from '@audoria/lyrics-core'
 import type { Ref } from 'vue'
-import type { LyricsDoc, Music, MusicDlSearchResult, MusicDlSource, MusicImportJob } from '../api/types.gen'
+import type { Music, MusicDlSearchResult, MusicDlSource, MusicImportJob } from '../api/types.gen'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, ref } from 'vue'
 import { client } from '../api/client.gen'

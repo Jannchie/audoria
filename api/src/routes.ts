@@ -6,6 +6,7 @@ import type { LyricsColumns } from './lyrics/store.js'
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { env } from 'node:process'
 import { Readable } from 'node:stream'
+import { lyricsDocToTtml, TtmlParseError, validateLyricsDoc } from '@audoria/lyrics-core'
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi'
 import { getCookie, setCookie } from 'hono/cookie'
 import { cors } from 'hono/cors'
@@ -41,9 +42,8 @@ import {
 } from './db/index.js'
 import { deletePlayEventsForTrack, getListeningStats, PlaySessionConflictError, recordPlayEvent } from './db/playStats.js'
 import { annotateLyricsFurigana } from './furigana.js'
-import { LyricsDocSchema, validateLyricsDoc } from './lyrics/doc.js'
+import { LyricsDocSchema } from './lyrics/schema.js'
 import { lyricsColumnsFromDoc, lyricsColumnsFromText, readLyricsDoc } from './lyrics/store.js'
-import { lyricsDocToTtml, TtmlParseError } from './lyrics/ttml.js'
 import { MusicDlBridgeError, MusicDlUnavailableError, resolveMusicDlSongInfo, resolveMusicUrl, searchMusicDl } from './musicdl.js'
 import { musicDlSources, musicDlUrlSources } from './musicSources.js'
 import {
@@ -75,6 +75,7 @@ function toMusicResponse(row: Track, playlistIds: string[] = []) {
     coverThumbUrl: row.coverStorageKey ? buildCoverPath(row.id, 'thumb') : null,
     coverThumbhash: row.coverThumbhash,
     lyrics: row.lyrics,
+    hasLyricsDoc: row.lyricsDoc !== null,
     title: row.title,
     artists: row.artists,
     album: row.album,
@@ -165,6 +166,7 @@ const MusicSchema = z.object({
   coverThumbUrl: z.string().nullable().openapi({ example: '/music/a3f9d3d1-9c9d-4a40-a54d-0e4cb7acb8a0/cover/thumb' }),
   coverThumbhash: z.string().nullable().openapi({ example: '2OcRJYB4d3h/iIeHeEh3eIhw+j2A=' }),
   lyrics: z.string().nullable().openapi({ example: '[00:00.00] Lyrics line' }),
+  hasLyricsDoc: z.boolean().openapi({ description: 'The lyrics have been edited into a document, fetched from /music/{id}/lyrics; otherwise `lyrics` is the whole of them' }),
   title: z.string().nullable().openapi({ example: '稻香' }),
   artists: z.string().nullable().openapi({ example: '周杰伦' }),
   album: z.string().nullable().openapi({ example: '魔杰座' }),

@@ -1,10 +1,8 @@
-import type { LyricsDoc } from '../src/lyrics/doc.js'
+import type { LyricsDoc } from '../src/index.js'
 import assert from 'node:assert/strict'
-// The api package has no vitest dependency; it runs on the built-in runner.
 // eslint-disable-next-line test/no-import-node-test
 import { describe, it } from 'node:test'
-import { lyricsDocFromText } from '../src/lyrics/lrc.js'
-import { looksLikeTtml, lyricsDocFromTtml, lyricsDocToTtml, parseTtmlTime, TtmlParseError } from '../src/lyrics/ttml.js'
+import { looksLikeTtml, lyricsDocFromText, lyricsDocFromTtml, lyricsDocToTtml, parseTtmlTime, TtmlParseError } from '../src/index.js'
 
 // Shaped like the AMLL documentation's examples: pretty-printed, inline roles, a sidecar.
 const AMLL_SAMPLE = `<?xml version="1.0" encoding="UTF-8"?>

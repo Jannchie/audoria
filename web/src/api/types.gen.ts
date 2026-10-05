@@ -13,6 +13,10 @@ export type Music = {
     coverThumbUrl: string | null;
     coverThumbhash: string | null;
     lyrics: string | null;
+    /**
+     * The lyrics have been edited into a document, fetched from /music/{id}/lyrics; otherwise `lyrics` is the whole of them
+     */
+    hasLyricsDoc: boolean;
     title: string | null;
     artists: string | null;
     album: string | null;

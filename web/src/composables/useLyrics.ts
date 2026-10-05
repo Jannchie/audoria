@@ -1,4 +1,6 @@
-import type { LyricsCue, LyricsDoc, LyricsWord, RubySegment } from '../api/types.gen'
+import type { LyricsDoc, LyricsWord } from '@audoria/lyrics-core'
+import type { RubySegment } from '../api/types.gen'
+import { cueText, lyricsDocFromText, wordTimeAt } from '@audoria/lyrics-core'
 import { useQuery } from '@tanstack/vue-query'
 import { computed } from 'vue'
 import { getMusicByIdLyrics } from '../api/sdk.gen'
@@ -37,46 +39,6 @@ export interface LyricChunk {
   end?: number
 }
 
-const LRC_LEADING_TIMESTAMPS_RE = /^(?:\[\d{1,3}:\d{2}(?:\.\d{1,3})?\])+/
-
-export function cueText(cue: Pick<LyricsCue, 'words'>): string {
-  return cue.words.map(word => word.text).join('')
-}
-
-/** Whether lyrics text reads as LRC; must match the API's check in lyrics/lrc.ts. */
-export function isLrcFormat(raw: string): boolean {
-  let timestampCount = 0
-  for (const line of raw.split('\n').slice(0, 20)) {
-    if (LRC_LEADING_TIMESTAMPS_RE.test(line.trim())) {
-      timestampCount++
-    }
-  }
-  return timestampCount >= 2
-}
-
-/** Whether lyrics text is TTML, which the API stores as a document; must match lyrics/ttml.ts. */
-export function looksLikeTtml(raw: string): boolean {
-  return /^\s*(?:<\?xml[^>]*\?>\s*)?<tt[\s>]/.test(raw)
-}
-
-/** Moves every cue and word time by `deltaMs`, clamping at zero. */
-export function shiftLyricsDoc(doc: LyricsDoc, deltaMs: number): LyricsDoc {
-  const shift = (time: number | undefined): number | undefined =>
-    time === undefined ? undefined : Math.max(0, Math.round(time + deltaMs))
-  const shiftWords = (words: LyricsCue['words']): LyricsCue['words'] =>
-    words.map(word => ({ ...word, begin: shift(word.begin), end: shift(word.end) }))
-  return {
-    ...doc,
-    cues: doc.cues.map(cue => ({
-      ...cue,
-      begin: shift(cue.begin),
-      end: shift(cue.end),
-      words: shiftWords(cue.words),
-      ...(cue.background ? { background: shiftWords(cue.background) } : {}),
-    })),
-  }
-}
-
 export function linesFromDoc(doc: LyricsDoc | null | undefined): LyricLine[] | null {
   if (!doc || doc.timing === 'none') {
     return null
@@ -95,8 +57,8 @@ export function linesFromDoc(doc: LyricsDoc | null | undefined): LyricLine[] | n
 
 /**
  * Lays a line out for display: its furigana segments (or the whole text, when there are none
- * or they no longer match the text), each cut where words begin and end. A word cut in two
- * shares its time out by length, as the TTML export does.
+ * or they no longer match the text), each cut where words begin and end, so a word cut in two
+ * shares its time out by length.
  */
 export function layoutLyricLine(words: LyricsWord[], segments?: RubySegment[]): LyricChunk[] {
   const text = cueText({ words })
@@ -110,13 +72,8 @@ export function layoutLyricLine(words: LyricsWord[], segments?: RubySegment[]): 
     offset = span.end
     return span
   })
-  const timeAt = (span: typeof spans[number], position: number): number | undefined => {
-    const { begin, end } = span.word
-    if (begin === undefined || end === undefined) {
-      return undefined
-    }
-    return Math.round(begin + (end - begin) * (position - span.start) / Math.max(1, span.end - span.start))
-  }
+  const timeAt = (span: typeof spans[number], position: number): number | undefined =>
+    wordTimeAt(span.word, position - span.start)
 
   let cursor = 0
   return usable.map((segment, index) => {
@@ -155,24 +112,33 @@ export function lyricsDocQueryKey(trackId: string | null | undefined, lyrics: st
   return ['lyrics-doc', trackId, lyrics] as const
 }
 
+interface TrackLyrics {
+  id: string
+  lyrics?: string | null
+  hasLyricsDoc?: boolean
+}
+
 /**
- * Loads a track's lyrics document. The track's `lyrics` text is part of the key: the API keeps
+ * A track's lyrics document. Lyrics never edited in place are their `lyrics` text, read here
+ * without a request; edited ones are fetched. The text is part of the query key: the API keeps
  * it in step with the document, so any edit to either refetches.
  */
-export function useLyricsDoc(track: () => { id: string, lyrics?: string | null } | null | undefined) {
+export function useLyricsDoc(track: () => TrackLyrics | null | undefined) {
   const hasLyrics = computed(() => Boolean(track()?.lyrics?.trim()))
+  const isEdited = computed(() => hasLyrics.value && Boolean(track()?.hasLyricsDoc))
+  const parsedText = computed(() => isEdited.value ? null : lyricsDocFromText(track()?.lyrics))
   const query = useQuery({
     queryKey: computed(() => lyricsDocQueryKey(track()?.id, track()?.lyrics)),
     queryFn: async () => {
       const { data } = await getMusicByIdLyrics({ path: { id: track()!.id }, throwOnError: true })
       return data.doc
     },
-    enabled: hasLyrics,
+    enabled: isEdited,
     // After an edit, keep showing the same track's lyrics until the new document arrives.
     placeholderData: (previous, previousQuery) => previousQuery?.queryKey[1] === track()?.id ? previous : undefined,
     staleTime: Infinity,
   })
-  return computed<LyricsDoc | null>(() => hasLyrics.value ? query.data.value ?? null : null)
+  return computed<LyricsDoc | null>(() => isEdited.value ? query.data.value ?? null : parsedText.value)
 }
 
 export function useLyrics(doc: () => LyricsDoc | null | undefined) {

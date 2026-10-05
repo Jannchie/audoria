@@ -1,0 +1,31 @@
+{
+  "name": "@audoria/lyrics-core",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Lyrics documents with word timing, readings and translations; LRC and TTML (Apple Music / AMLL) reading and writing",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "development": "./src/index.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "node --conditions=development --import tsx --test test/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@xmldom/xmldom": "^0.9.12"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3"
+  }
+}
