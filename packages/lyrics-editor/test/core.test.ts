@@ -1,7 +1,7 @@
 import type { LyricsDoc } from '@audoria/lyrics-core'
 import { validateLyricsDoc } from '@audoria/lyrics-core'
 import { describe, expect, it } from 'vitest'
-import { clearTiming, finishTiming, History, mergeWithNext, nextWord, nudgeWord, previousWord, setCueText, splitWord, stampWordEnd, stampWordStart, toWordTiming, wordBreaks, wordsAt } from '../src/core'
+import { clearTiming, computePeaks, finishTiming, History, incompleteLines, isCreditLine, lineStatus, mergeWithNext, nextWord, nudgeWord, prepareForTiming, previousWord, setCueText, shiftCue, splitWord, stampLine, stampWordEnd, stampWordStart, toWholeLine, wordBreaks, wordsAt } from '../src/core'
 
 function lineDoc(...lines: Array<[number, string]>): LyricsDoc {
   return { version: 1, timing: 'line', cues: lines.map(([begin, text], i) => ({ id: `c${i}`, begin, words: [{ text }] })), tracks: [] }
@@ -20,17 +20,17 @@ describe('wordbreaks', () => {
 })
 
 describe('timing commands', () => {
-  it('turns lines into untimed words that start with their line', () => {
-    const doc = toWordTiming(lineDoc([1000, 'あい'], [5000, 'Hi you']))
+  it('cuts lines into untimed words, leaving each line its own begin', () => {
+    const doc = prepareForTiming(lineDoc([1000, 'あい'], [5000, 'Hi you']))
     expect(doc.timing).toBe('word')
-    expect(doc.cues.map(cue => cue.words)).toEqual([
-      [{ text: 'あ', begin: 1000 }, { text: 'い' }],
-      [{ text: 'Hi ', begin: 5000 }, { text: 'you' }],
+    expect(doc.cues.map(cue => [cue.begin, cue.words])).toEqual([
+      [1000, [{ text: 'あ' }, { text: 'い' }]],
+      [5000, [{ text: 'Hi ' }, { text: 'you' }]],
     ])
   })
 
   it('stamps word starts in turn, ending each word where the next begins', () => {
-    let doc = toWordTiming(lineDoc([0, 'あい'], [0, 'う']))
+    let doc = prepareForTiming(lineDoc([0, 'あい'], [0, 'う']))
     let ref = { cue: 0, word: 0 }
     for (const time of [100, 300, 900]) {
       const result = stampWordStart(doc, ref, time)
@@ -44,13 +44,14 @@ describe('timing commands', () => {
   })
 
   it('stamps whole milliseconds from a fractional playback clock', () => {
-    const doc = toWordTiming(lineDoc([0, 'あい']))
+    const doc = prepareForTiming(lineDoc([0, 'あい']))
     expect(stampWordStart(doc, { cue: 0, word: 0 }, 1234.56).doc.cues[0].words[0].begin).toBe(1235)
-    expect(stampWordEnd(doc, { cue: 0, word: 0 }, 99.4).cues[0].words[0].end).toBe(99)
+    const started = stampWordStart(doc, { cue: 0, word: 0 }, 10).doc
+    expect(stampWordEnd(started, { cue: 0, word: 0 }, 99.4).cues[0].words[0].end).toBe(99)
   })
 
   it('keeps an end stamped for a pause when the next word starts later', () => {
-    let doc = toWordTiming(lineDoc([0, 'あい']))
+    let doc = prepareForTiming(lineDoc([0, 'あい']))
     doc = stampWordStart(doc, { cue: 0, word: 0 }, 100).doc
     doc = stampWordEnd(doc, { cue: 0, word: 0 }, 200)
     doc = stampWordStart(doc, { cue: 0, word: 1 }, 500).doc
@@ -71,7 +72,7 @@ describe('timing commands', () => {
   })
 
   it('walks words across lines, skipping empty ones', () => {
-    const doc = toWordTiming(lineDoc([0, 'あい'], [0, ''], [0, 'う']))
+    const doc = prepareForTiming(lineDoc([0, 'あい'], [0, ''], [0, 'う']))
     expect(nextWord(doc, { cue: 0, word: 1 })).toEqual({ cue: 2, word: 0 })
     expect(previousWord(doc, { cue: 2, word: 0 })).toEqual({ cue: 0, word: 1 })
     expect(nextWord(doc, { cue: 2, word: 0 })).toBeNull()
@@ -84,7 +85,7 @@ describe('timing commands', () => {
   })
 
   it('clears times, and fills the ends timing leaves implied so the result validates', () => {
-    let doc = toWordTiming(lineDoc([0, 'あい'], [0, 'う']))
+    let doc = prepareForTiming(lineDoc([0, 'あい'], [0, 'う']))
     for (const [ref, time] of [[{ cue: 0, word: 0 }, 100], [{ cue: 0, word: 1 }, 200], [{ cue: 1, word: 0 }, 9000]] as const) {
       doc = stampWordStart(doc, ref, time).doc
     }
@@ -92,6 +93,76 @@ describe('timing commands', () => {
     expect(finished.cues.map(cue => cue.words.map(word => word.end))).toEqual([[200, 3200], [12_000]])
     expect(validateLyricsDoc(finished)).toBeNull()
     expect(clearTiming(finished, { cue: 0 }).cues[0].words).toEqual([{ text: 'あ' }, { text: 'い' }])
+  })
+})
+
+function plain(): LyricsDoc {
+  return prepareForTiming({
+    version: 1,
+    timing: 'none',
+    cues: ['作词 : 某人', '作曲：某人', 'あいう', '', 'えお'].map((text, i) => ({ id: `c${i}`, words: text ? [{ text }] : [] })),
+    tracks: [],
+  })
+}
+
+describe('line timing', () => {
+  it('tells credits from sung lines', () => {
+    expect(plain().cues.map(cue => isCreditLine(cue))).toEqual([true, true, false, false, false])
+    expect(isCreditLine({ words: [{ text: 'Hello: is it me you’re looking for, is it me you’re looking for' }] })).toBe(false)
+  })
+
+  it('stamps whole lines, moving word-timed lines with their words', () => {
+    let doc = stampLine(plain(), 2, 1000.4)
+    expect(doc.cues[2]).toMatchObject({ begin: 1000, words: [{ text: 'あ' }, { text: 'い' }, { text: 'う' }] })
+    doc = stampWordStart(doc, { cue: 2, word: 0 }, 1000).doc
+    doc = stampWordStart(doc, { cue: 2, word: 1 }, 1200).doc
+    doc = stampWordStart(doc, { cue: 2, word: 2 }, 1400).doc
+    doc = stampWordEnd(doc, { cue: 2, word: 2 }, 1600)
+    const moved = stampLine(doc, 2, 2000)
+    expect(moved.cues[2].words.map(word => [word.begin, word.end])).toEqual([[2000, 2200], [2200, 2400], [2400, 2600]])
+    expect(shiftCue(moved, 2, -2500).cues[2].begin).toBe(0)
+  })
+
+  it('reports line status and what keeps a draft from saving', () => {
+    let doc = stampLine(plain(), 2, 1000)
+    doc = stampWordStart(doc, { cue: 4, word: 0 }, 5000).doc
+    expect(doc.cues.map(cue => lineStatus(cue))).toEqual(['untimed', 'untimed', 'line', 'empty', 'partial'])
+    expect(incompleteLines(doc)).toEqual([4])
+    expect(lineStatus(toWholeLine(doc, 4).cues[4])).toBe('line')
+    expect(toWholeLine(doc, 4).cues[4].begin).toBe(5000)
+  })
+
+  it('saves lines timed as wholes as line timing, placing credits and blank lines', () => {
+    let doc = stampLine(plain(), 2, 6000)
+    doc = stampLine(doc, 4, 9000)
+    const finished = finishTiming(doc)
+    expect(finished.timing).toBe('line')
+    expect(finished.cues.map(cue => [cue.begin, cue.words])).toEqual([
+      [2000, [{ text: '作词 : 某人' }]],
+      [4000, [{ text: '作曲：某人' }]],
+      [6000, [{ text: 'あいう' }]],
+      [6000, []],
+      [9000, [{ text: 'えお' }]],
+    ])
+    expect(validateLyricsDoc(finished)).toBeNull()
+  })
+
+  it('keeps a mix of word-timed and whole lines as word timing', () => {
+    let doc = stampLine(plain(), 2, 6000)
+    doc = stampWordStart(doc, { cue: 4, word: 0 }, 9000).doc
+    doc = stampWordStart(doc, { cue: 4, word: 1 }, 9300).doc
+    const finished = finishTiming(doc)
+    expect(finished.timing).toBe('word')
+    expect(finished.cues[2].words).toEqual([{ text: 'あいう' }])
+    expect(validateLyricsDoc(finished)).toBeNull()
+  })
+})
+
+describe('computepeaks', () => {
+  it('keeps the lowest and highest sample of each bucket across channels', () => {
+    const peaks = computePeaks([new Float32Array([0.1, -0.5, 0.2, 0.9]), new Float32Array([0, 0, -0.8, 0])], 4, 2)
+    expect([...peaks.min]).toEqual([-0.5, -0.800_000_011_920_929])
+    expect([...peaks.max].map(value => Math.round(value * 10) / 10)).toEqual([0.1, 0.9])
   })
 })
 

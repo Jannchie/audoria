@@ -395,7 +395,7 @@ declare global {
   export type { InputPromptOptions } from './composables/useInputPrompt'
   import('./composables/useInputPrompt')
   // @ts-ignore
-  export type { LyricLine, LyricPiece, LyricChunk } from './composables/useLyrics'
+  export type { LyricLine, LyricChunk } from './composables/useLyrics'
   import('./composables/useLyrics')
   // @ts-ignore
   export type { UploadProgress, UpdateMusicPayload } from './composables/useMusic'

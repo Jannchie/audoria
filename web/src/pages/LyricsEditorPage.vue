@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { LyricsDoc } from '@audoria/lyrics-core'
 import type { AudioSource, EditorLocale } from '@audoria/lyrics-editor'
-import { finishTiming, LyricsTimingEditor, mediaElementSource, untimedWords } from '@audoria/lyrics-editor'
+import { finishTiming, incompleteLines, LyricsTimingEditor, mediaElementSource } from '@audoria/lyrics-editor'
 import { useEventListener } from '@vueuse/core'
 import { computed, onMounted, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -82,9 +82,9 @@ async function save(): Promise<void> {
   if (!doc.value || !isDirty.value || updateLyrics.isPending.value) {
     return
   }
-  const untimed = untimedWords(doc.value)
-  if (untimed.length > 0) {
-    message.value = t('lyricsEditor.untimed', { line: untimed[0].cue + 1, count: untimed[0].count })
+  const incomplete = incompleteLines(doc.value)
+  if (incomplete.length > 0) {
+    message.value = t('lyricsEditor.incomplete', { line: incomplete[0] + 1, count: incomplete.length })
     return
   }
   message.value = ''
@@ -115,6 +115,15 @@ watch(audioEl, (element) => {
   audio.value = element ? mediaElementSource(element) : null
 })
 onMounted(() => setPlaying(false))
+
+// The waveform needs the whole file; the editor asks for it only when words are refined.
+async function loadAudioData(): Promise<ArrayBuffer> {
+  const response = await fetch(buildDownloadUrl(trackId.value))
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`)
+  }
+  return await response.arrayBuffer()
+}
 </script>
 
 <template>
@@ -168,6 +177,7 @@ onMounted(() => setPlaying(false))
       v-model:doc="doc"
       class="editor"
       :audio="audio"
+      :load-audio-data="loadAudioData"
       :locale="editorLocale"
     />
     <p

@@ -741,10 +741,11 @@ onUnmounted(() => {
           </div>
 
           <div
-            v-if="currentTrack && isTimeSynced && isLyricsToolbarOpen && !isGuest"
+            v-if="currentTrack && hasLyrics && isLyricsToolbarOpen && !isGuest"
             class="lyrics-toolbar"
           >
             <div
+              v-if="isTimeSynced"
               class="lyrics-offset-control"
               :aria-label="t('player.lyrics.offsetLabel')"
             >
@@ -1097,7 +1098,7 @@ onUnmounted(() => {
                 />
               </button>
               <button
-                v-if="currentTrack && isTimeSynced && !isGuest"
+                v-if="currentTrack && hasLyrics && !isGuest"
                 type="button"
                 class="ctrl-btn ctrl-btn--sm"
                 :class="{ 'ctrl-btn--active': isLyricsToolbarOpen }"

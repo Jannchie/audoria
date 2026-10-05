@@ -96,8 +96,12 @@ describe('validateLyricsDoc', () => {
     assert.match(validateLyricsDoc(wordTimedDoc({ ruby: [{ start: 2, end: 4, reading: 'x' }] }))!, /outside/)
   })
 
-  it('rejects untimed words in a word-timed document and dangling translation lines', () => {
-    assert.match(validateLyricsDoc(wordTimedDoc({ words: [{ text: 'x' }] }))!, /without timing/)
+  it('accepts whole-line cues in a word-timed document, but not half-timed ones', () => {
+    assert.equal(validateLyricsDoc(wordTimedDoc({ words: [{ text: '作' }, { text: '词' }] })), null)
+    assert.match(validateLyricsDoc(wordTimedDoc({ words: [{ text: 'x', begin: 0, end: 1 }, { text: 'y' }] }))!, /without timing/)
+  })
+
+  it('rejects dangling translation lines', () => {
     assert.match(validateLyricsDoc({ ...wordTimedDoc({}), tracks: [{ lang: 'zh', kind: 'translation', lines: { b: 'x' } }] })!, /unknown cue/)
   })
 })

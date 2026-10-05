@@ -1,11 +1,14 @@
 import type { LyricsCue, LyricsDoc, LyricsWord } from '@audoria/lyrics-core'
-import { cueText, wordTimeAt } from '@audoria/lyrics-core'
+import { cueText, isWordTimedCue, wordTimeAt } from '@audoria/lyrics-core'
 import { splitCueIntoWords } from './split.js'
 
 // Edits to a lyrics document while timing it. Each takes a document and returns a new one,
-// leaving the input untouched, so history is just a list of documents. A document being timed
-// may be incomplete (words without times); `finishTiming` fills what can be inferred before it
-// is saved.
+// leaving the input untouched, so history is just a list of documents.
+//
+// Each line is timed one of two ways: as a whole, by the cue's own begin (credit lines, held
+// notes, or a first pass over plain lyrics), or word by word. While editing, a line can be
+// half way between; `incompleteLines` says which, and `finishTiming` fills what can be
+// inferred before the document is saved.
 
 /** A word, by cue index and word index within the cue. */
 export interface WordRef {
@@ -63,23 +66,14 @@ export function wordAt(doc: LyricsDoc, ref: WordRef): LyricsWord | undefined {
 }
 
 /**
- * Switches a document to word timing, cutting each cue into words. Lines already timed keep
- * their cue times, and their first word starts with the line.
+ * Gets a document ready for timing: lines not yet timed word by word are cut into words, with
+ * the words untimed and the line keeping its own begin. Word-timed lines are left as they are.
  */
-export function toWordTiming(doc: LyricsDoc): LyricsDoc {
-  if (doc.timing === 'word') {
-    return doc
-  }
+export function prepareForTiming(doc: LyricsDoc): LyricsDoc {
   return {
     ...doc,
     timing: 'word',
-    cues: doc.cues.map((cue) => {
-      const split = splitCueIntoWords(cue)
-      if (split.words.length > 0 && cue.begin !== undefined) {
-        split.words[0] = { ...split.words[0], begin: cue.begin }
-      }
-      return split
-    }),
+    cues: doc.cues.map(cue => cue.words.some(word => word.begin !== undefined) ? cue : splitCueIntoWords(cue)),
   }
 }
 
@@ -174,28 +168,123 @@ export function setCueText(doc: LyricsDoc, index: number, text: string): LyricsD
   })
 }
 
+/** Shifts a whole line, its words and backing vocals included, by `deltaMs`. */
+export function shiftCue(doc: LyricsDoc, index: number, deltaMs: number): LyricsDoc {
+  const move = (time: number | undefined): number | undefined => time === undefined ? undefined : Math.max(0, Math.round(time + deltaMs))
+  const moveWords = (words: LyricsWord[]): LyricsWord[] => words.map(word => ({ ...word, begin: move(word.begin), end: move(word.end) }))
+  return updateCue(doc, index, cue => ({
+    ...cue,
+    begin: move(cue.begin),
+    end: move(cue.end),
+    words: moveWords(cue.words),
+    ...(cue.background ? { background: moveWords(cue.background) } : {}),
+  }))
+}
+
 /**
- * Fills what timing leaves implied: a word without an end runs until the next word starts, and
- * the last word of a line until the next line starts but at most `maxHoldMs`, so a line before
- * an instrumental break doesn't run through it. Cue times follow their words.
+ * Marks `at` as the start of a whole line. A line already timed word by word moves with it,
+ * keeping its rhythm; otherwise only the line's begin changes.
  */
-export function finishTiming(doc: LyricsDoc, maxHoldMs = 3000): LyricsDoc {
-  if (doc.timing !== 'word') {
+export function stampLine(doc: LyricsDoc, index: number, at: number): LyricsDoc {
+  const cue = doc.cues[index]
+  const time = Math.round(at)
+  if (!cue) {
     return doc
   }
+  if (isWordTimedCue(cue) && cue.begin !== undefined) {
+    return shiftCue(doc, index, time - cue.begin)
+  }
+  return setLineBegin(doc, index, time)
+}
+
+/** Sets a line's own begin, or with undefined removes it; for undoing a stamp exactly. */
+export function setLineBegin(doc: LyricsDoc, index: number, begin: number | undefined): LyricsDoc {
+  return {
+    ...doc,
+    cues: doc.cues.map((cue, i) => {
+      if (i !== index) {
+        return cue
+      }
+      const { begin: _begin, ...rest } = cue
+      return begin === undefined ? rest : { ...rest, begin }
+    }),
+  }
+}
+
+/** Times a line as a whole again, dropping its word times; the line keeps its begin. */
+export function toWholeLine(doc: LyricsDoc, index: number): LyricsDoc {
+  return updateCue(doc, index, cue => ({
+    ...cue,
+    begin: cue.begin ?? cue.words.find(word => word.begin !== undefined)?.begin,
+    words: cue.words.map(word => ({ text: word.text })),
+    ...(cue.background ? { background: cue.background.map(word => ({ text: word.text })) } : {}),
+  }))
+}
+
+const CREDIT_RE = /^\s*[^\s:：]{1,16}\s*[:：]/u
+
+/**
+ * Whether a line reads as a credit rather than a sung line, like `作词 : 姚若龙` or
+ * `Composer: …`: a short label then a colon. Credits may be left untimed.
+ */
+export function isCreditLine(cue: Pick<LyricsCue, 'words'>): boolean {
+  const text = cueText(cue)
+  return text.length <= 60 && CREDIT_RE.test(text)
+}
+
+export type LineStatus = 'empty' | 'untimed' | 'line' | 'partial' | 'word'
+
+/** How far a line is timed: not at all, as a whole line, some of its words, or every word. */
+export function lineStatus(cue: LyricsCue): LineStatus {
+  if (cue.words.length === 0) {
+    return 'empty'
+  }
+  const timed = cue.words.filter(word => word.begin !== undefined).length
+  if (timed === 0) {
+    return cue.begin === undefined ? 'untimed' : 'line'
+  }
+  return timed === cue.words.length ? 'word' : 'partial'
+}
+
+/**
+ * Lines that keep a draft from being saved: lines with words only partly timed, and sung lines
+ * with no time at all. Credits and empty lines may stay untimed; `finishTiming` places them.
+ */
+export function incompleteLines(doc: LyricsDoc): number[] {
+  return doc.cues.flatMap((cue, index) => {
+    const status = lineStatus(cue)
+    return status === 'partial' || (status === 'untimed' && !isCreditLine(cue)) ? [index] : []
+  })
+}
+
+/**
+ * Fills what timing leaves implied, so the draft saves as a valid document:
+ * - a word without an end runs until the next word starts, and a line's last word until the
+ *   next line starts but at most `maxHoldMs`, so it doesn't run through a break;
+ * - untimed credits and empty lines take their place between timed neighbours: those before
+ *   the first timed line are spread over the intro, the others start with the line before;
+ * - lines timed as a whole are kept as one word, and a document with no word-timed line at
+ *   all is saved as line timing.
+ */
+export function finishTiming(doc: LyricsDoc, maxHoldMs = 3000): LyricsDoc {
   const nextStart = (cueIndex: number, wordIndex: number, after: number): number | undefined => {
     for (let c = cueIndex; c < doc.cues.length; c++) {
-      for (const word of doc.cues[c].words.slice(c === cueIndex ? wordIndex + 1 : 0)) {
-        if (word.begin !== undefined && word.begin > after) {
-          return word.begin
-        }
+      const cue = doc.cues[c]
+      const starts = c === cueIndex ? cue.words.slice(wordIndex + 1).map(word => word.begin) : [cue.words[0]?.begin ?? cue.begin]
+      const found = starts.find(start => start !== undefined && start > after)
+      if (found !== undefined) {
+        return found
       }
     }
     return undefined
   }
-  return {
-    ...doc,
-    cues: doc.cues.map((cue, c) => syncCueTimes(doc, {
+
+  const cues = doc.cues.map((cue, c) => {
+    if (!cue.words.some(word => word.begin !== undefined)) {
+      const text = cueText(cue)
+      return { ...cue, words: text ? [{ text }] : [] }
+    }
+    return syncCueTimes(doc, {
       ...cue,
       words: cue.words.map((word, w) => {
         if (word.begin === undefined || word.end !== undefined) {
@@ -203,19 +292,23 @@ export function finishTiming(doc: LyricsDoc, maxHoldMs = 3000): LyricsDoc {
         }
         const following = nextStart(c, w, word.begin)
         const isLast = w === cue.words.length - 1
-        const end = isLast
-          ? Math.min(following ?? Infinity, word.begin + maxHoldMs)
-          : following ?? word.begin + maxHoldMs
+        const end = isLast ? Math.min(following ?? Infinity, word.begin + maxHoldMs) : following ?? word.begin + maxHoldMs
         return { ...word, end }
       }),
-    })),
-  }
-}
-
-/** Lines that still have words without a start, with how many; what stands between a draft and a save. */
-export function untimedWords(doc: LyricsDoc): Array<{ cue: number, count: number }> {
-  return doc.cues.flatMap((cue, index) => {
-    const count = cue.words.filter(word => word.begin === undefined).length
-    return count > 0 ? [{ cue: index, count }] : []
+    })
   })
+
+  const firstTimed = cues.findIndex(cue => cue.begin !== undefined)
+  if (firstTimed !== -1) {
+    const firstBegin = cues[firstTimed].begin!
+    for (let i = 0; i < cues.length; i++) {
+      if (cues[i].begin === undefined) {
+        const begin = i < firstTimed ? Math.round(firstBegin * (i + 1) / (firstTimed + 1)) : cues[i - 1].begin!
+        cues[i] = { ...cues[i], begin }
+      }
+    }
+  }
+
+  const wordTimed = cues.some(cue => isWordTimedCue(cue))
+  return { ...doc, timing: wordTimed ? 'word' : firstTimed >= 0 ? 'line' : 'none', cues }
 }

@@ -1,301 +1,166 @@
 <script setup lang="ts">
 import type { LyricsDoc } from '@audoria/lyrics-core'
-import type { AudioSource, WordRef } from './core/index.js'
+import type { AudioSource } from './core/index.js'
 import type { EditorLocale } from './messages.js'
-import { cueText } from '@audoria/lyrics-core'
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
-import { clearTiming, History, mergeWithNext, nextWord, nudgeWord, previousWord, setCueText, splitWord, stampWordEnd, stampWordStart, toWordTiming, wordAt } from './core/index.js'
+import type { Stage } from './session.js'
+import { computed, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
+import LineStage from './components/LineStage.vue'
+import PreviewStage from './components/PreviewStage.vue'
+import ShortcutsOverlay from './components/ShortcutsOverlay.vue'
+import WordStage from './components/WordStage.vue'
 import { editorMessages } from './messages.js'
-import { formatTimecode, parseTimecode } from './time.js'
+import { createSession, SESSION_KEY } from './session.js'
+import { formatTimecode } from './time.js'
 
 const props = withDefaults(defineProps<{
-  /** The document being timed; it is switched to word timing as soon as it is edited. */
+  /** The document being timed. Edits come back through `update:doc` as drafts. */
   doc: LyricsDoc
   audio: AudioSource
+  /** The song's encoded audio, for drawing its waveform; without it the editor works unaided. */
+  loadAudioData?: () => Promise<ArrayBuffer>
   locale?: EditorLocale
-}>(), { locale: 'zh' })
+}>(), { locale: 'zh', loadAudioData: undefined })
 
 const emit = defineEmits<{
-  /** Every edit, as a draft: words may still lack times. Pass it through `finishTiming` to save. */
+  /** Every edit, as a draft: lines may be half timed. Pass it through `finishTiming` to save. */
   'update:doc': [doc: LyricsDoc]
 }>()
 
 const t = computed(() => editorMessages(props.locale))
+const session = createSession({
+  initial: props.doc,
+  audio: () => props.audio,
+  loadAudioData: props.loadAudioData,
+  messages: t,
+  onChange: doc => emit('update:doc', doc),
+})
+provide(SESSION_KEY, session)
+const { doc, now, playing, duration, rate, stage, canUndo, canRedo } = session
+
+// A different document from outside (another song) starts over; our own drafts coming back
+// through v-model are ignored.
+watch(() => props.doc, (incoming) => {
+  if (incoming !== doc.value) {
+    session.reset(incoming)
+  }
+})
+
+const STAGES: Array<{ id: Stage, key: string }> = [
+  { id: 'line', key: '1' },
+  { id: 'word', key: '2' },
+  { id: 'preview', key: '3' },
+]
 const RATES = [0.5, 0.75, 1, 1.25]
+function stageLabel(id: Stage): string {
+  return { line: t.value.stageLine, word: t.value.stageWord, preview: t.value.stagePreview }[id]
+}
 
-// ── Document and history ──
+// ── Completion: one segment per sung line ──
 
-const history = new History<LyricsDoc>(toWordTiming(props.doc))
-const doc = shallowRef(history.present)
-const canUndo = ref(false)
-const canRedo = ref(false)
-const cursor = ref<WordRef>(firstUntimed(doc.value))
-
-function firstUntimed(value: LyricsDoc): WordRef {
-  for (const [cue, line] of value.cues.entries()) {
-    const word = line.words.findIndex(item => item.begin === undefined)
-    if (word !== -1) {
-      return { cue, word }
+const segments = computed(() => doc.value.cues.flatMap((cue, index) => cue.words.length === 0 ? [] : [{ index, status: session.statusOf(index) }]))
+const counts = computed(() => {
+  const result = { word: 0, line: 0, partial: 0, untimed: 0 }
+  for (const segment of segments.value) {
+    if (segment.status !== 'empty') {
+      result[segment.status]++
     }
   }
-  const cue = value.cues.findIndex(line => line.words.length > 0)
-  return { cue: Math.max(0, cue), word: 0 }
-}
-
-function sync(): void {
-  doc.value = history.present
-  canUndo.value = history.canUndo
-  canRedo.value = history.canRedo
-  if (!wordAt(doc.value, cursor.value)) {
-    cursor.value = firstUntimed(doc.value)
-  }
-  emit('update:doc', doc.value)
-}
-
-function apply(next: LyricsDoc, group?: string): void {
-  history.record(next, group)
-  sync()
-}
-
-function undo(): void {
-  history.undo()
-  sync()
-}
-
-function redo(): void {
-  history.redo()
-  sync()
-}
-
-// A different document from outside (another song, say) starts a fresh history; our own
-// emitted drafts coming back through v-model are ignored.
-watch(() => props.doc, (incoming) => {
-  if (incoming === doc.value) {
-    return
-  }
-  history.reset(toWordTiming(incoming))
-  doc.value = history.present
-  canUndo.value = false
-  canRedo.value = false
-  cursor.value = firstUntimed(doc.value)
+  return result
 })
 
-const totalWords = computed(() => doc.value.cues.reduce((count, cue) => count + cue.words.length, 0))
-const timedWords = computed(() => doc.value.cues.reduce((count, cue) => count + cue.words.filter(word => word.begin !== undefined).length, 0))
-const selectedCue = computed(() => doc.value.cues[cursor.value.cue])
-const selectedWord = computed(() => wordAt(doc.value, cursor.value))
-
-// ── Lane: the selected line's words on a time axis ──
-
-const laneWindow = computed(() => {
-  const cue = selectedCue.value
-  const times = (cue?.words ?? []).flatMap(word => [word.begin, word.end]).filter((time): time is number => time !== undefined)
-  const anchor = times.length > 0 ? Math.min(...times) : cue?.begin ?? 0
-  const last = times.length > 0 ? Math.max(...times) : anchor
-  const start = Math.max(0, anchor - 800)
-  const span = Math.max(5000, last - start + 1600)
-  return { start, span }
-})
-
-// ── Playback ──
-
-const isPlaying = ref(!props.audio.paused)
-const rate = ref(props.audio.playbackRate || 1)
-const duration = ref(props.audio.duration)
-const activeCue = ref(-1)
-const timecodeEl = ref<HTMLElement | null>(null)
-const playheadEl = ref<HTMLElement | null>(null)
-const linesEl = ref<HTMLElement | null>(null)
-
-function nowMs(): number {
-  return props.audio.currentTime * 1000
+function openLine(index: number): void {
+  session.cursor.value = { cue: index, word: 0 }
 }
 
-function togglePlay(): void {
-  if (props.audio.paused) {
-    void props.audio.play()
-  }
-  else {
-    props.audio.pause()
-  }
-}
+// ── Transport ──
 
-function setRate(value: number): void {
-  props.audio.setPlaybackRate(value)
-  rate.value = value
-}
-
-function stepRate(direction: -1 | 1): void {
-  const index = RATES.indexOf(rate.value)
-  const next = RATES[Math.min(RATES.length - 1, Math.max(0, (index === -1 ? RATES.indexOf(1) : index) + direction))]
-  setRate(next)
-}
-
-function seek(ms: number): void {
-  props.audio.seek(Math.max(0, ms) / 1000)
-}
-
-function replayFromCursor(): void {
-  const begin = selectedWord.value?.begin ?? selectedCue.value?.begin
-  if (begin !== undefined) {
-    seek(begin - 1000)
-  }
-  void props.audio.play()
-}
-
-// The playhead moves every frame; it is written straight to the DOM rather than through Vue.
 let frame = 0
 function tick(): void {
-  const time = nowMs()
-  if (timecodeEl.value) {
-    timecodeEl.value.textContent = formatTimecode(time)
-  }
-  isPlaying.value = !props.audio.paused
-  duration.value = props.audio.duration
-
-  let current = -1
-  for (const [index, cue] of doc.value.cues.entries()) {
-    if (cue.begin !== undefined && cue.begin <= time) {
-      current = index
-    }
-  }
-  activeCue.value = current
-
-  const { start, span } = laneWindow.value
-  if (playheadEl.value) {
-    const position = (time - start) / span
-    playheadEl.value.style.left = `${position * 100}%`
-    playheadEl.value.style.opacity = position >= 0 && position <= 1 ? '1' : '0'
-  }
-  for (const element of linesEl.value?.querySelectorAll<HTMLElement>('.lte-line--active [data-begin]') ?? []) {
-    const begin = Number(element.dataset.begin)
-    const end = element.dataset.end ? Number(element.dataset.end) : begin + 400
-    const progress = Math.min(1, Math.max(0, (time - begin) / Math.max(1, end - begin)))
-    element.style.setProperty('--p', progress.toFixed(3))
-  }
+  now.value = props.audio.currentTime * 1000
+  playing.value = !props.audio.paused
+  duration.value = props.audio.duration * 1000
+  rate.value = props.audio.playbackRate || 1
   frame = requestAnimationFrame(tick)
 }
 
-// ── Timing commands ──
-
-function stamp(): void {
-  if (!wordAt(doc.value, cursor.value)) {
-    return
-  }
-  const result = stampWordStart(doc.value, cursor.value, nowMs())
-  apply(result.doc)
-  if (result.next) {
-    cursor.value = result.next
-  }
+const scrub = ref<HTMLElement | null>(null)
+function seekFromPointer(event: PointerEvent): void {
+  const rect = scrub.value!.getBoundingClientRect()
+  session.seek(Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width)) * duration.value)
 }
-
-function stampEnd(): void {
-  // The word just stamped sits before the cursor; at a line's start, that is the last word of the line before.
-  const target = previousWord(doc.value, cursor.value) ?? cursor.value
-  apply(stampWordEnd(doc.value, target, nowMs()))
+function onScrubDown(event: PointerEvent): void {
+  scrub.value?.setPointerCapture(event.pointerId)
+  seekFromPointer(event)
 }
-
-function nudge(edge: 'begin' | 'end', deltaMs: number): void {
-  const ref = cursor.value
-  apply(nudgeWord(doc.value, ref, edge, deltaMs), `nudge:${ref.cue}:${ref.word}:${edge}`)
-}
-
-function setEdge(edge: 'begin' | 'end', text: string): void {
-  const word = selectedWord.value
-  const time = parseTimecode(text)
-  if (!word || time === undefined) {
-    return
-  }
-  const current = word[edge]
-  apply(current === undefined
-    ? (edge === 'begin' ? stampWordStart(doc.value, cursor.value, time).doc : stampWordEnd(doc.value, cursor.value, time))
-    : nudgeWord(doc.value, cursor.value, edge, time - current))
-}
-
-function split(offset: number): void {
-  apply(splitWord(doc.value, cursor.value, offset))
-}
-
-function merge(): void {
-  apply(mergeWithNext(doc.value, cursor.value))
-}
-
-function clear(): void {
-  apply(clearTiming(doc.value, cursor.value))
-}
-
-function editLineText(text: string): void {
-  if (selectedCue.value && text !== cueText(selectedCue.value)) {
-    apply(setCueText(doc.value, cursor.value.cue, text))
-    cursor.value = { cue: cursor.value.cue, word: 0 }
+function onScrubMove(event: PointerEvent): void {
+  if (scrub.value?.hasPointerCapture(event.pointerId)) {
+    seekFromPointer(event)
   }
 }
+const lineMarks = computed(() => duration.value > 0
+  ? doc.value.cues.flatMap(cue => cue.begin === undefined || cue.words.length === 0 ? [] : [cue.begin / duration.value * 100])
+  : [])
 
-function select(ref: WordRef): void {
-  cursor.value = ref
+function stepRate(direction: -1 | 1): void {
+  const index = RATES.indexOf(rate.value)
+  session.setRate(RATES[Math.min(RATES.length - 1, Math.max(0, (index === -1 ? 2 : index) + direction))])
 }
 
-function moveLine(direction: -1 | 1): void {
-  for (let cue = cursor.value.cue + direction; cue >= 0 && cue < doc.value.cues.length; cue += direction) {
-    const count = doc.value.cues[cue].words.length
-    if (count > 0) {
-      cursor.value = { cue, word: Math.min(cursor.value.word, count - 1) }
-      return
-    }
-  }
-}
+// ── Keyboard: the stage first, then shortcuts that work everywhere ──
 
-watch(cursor, async () => {
-  await nextTick()
-  linesEl.value?.querySelector('.lte-word--cursor')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-})
-
-// ── Keyboard ──
+const helpOpen = ref(false)
 
 function onKeydown(event: KeyboardEvent): void {
   const target = event.target
   if (target instanceof Element && target.closest('input, textarea, select, [contenteditable="true"]')) {
     return
   }
-  const step = event.shiftKey ? 100 : 10
+  if (helpOpen.value && (event.key === 'Escape' || event.key === '?')) {
+    helpOpen.value = false
+    event.preventDefault()
+    return
+  }
+  if (session.keyHandler.value?.(event)) {
+    event.preventDefault()
+    return
+  }
   const mod = event.ctrlKey || event.metaKey
   const key = event.key.toLowerCase()
-  const actions: Record<string, () => void> = {
-    ' ': togglePlay,
-    'j': stamp,
-    'k': stampEnd,
-    'arrowleft': () => {
-      cursor.value = previousWord(doc.value, cursor.value) ?? cursor.value
-    },
-    'arrowright': () => {
-      cursor.value = nextWord(doc.value, cursor.value) ?? cursor.value
-    },
-    'arrowup': () => moveLine(-1),
-    'arrowdown': () => moveLine(1),
-    'a': () => nudge('begin', -step),
-    'd': () => nudge('begin', step),
-    'z': () => nudge('end', -step),
-    'c': () => nudge('end', step),
-    'r': replayFromCursor,
-    'm': merge,
-    'backspace': clear,
-    'delete': clear,
-    '-': () => stepRate(-1),
-    '=': () => stepRate(1),
-  }
-  let action: (() => void) | undefined
+  let handled = true
   if (mod && key === 'z') {
-    action = event.shiftKey ? redo : undo
+    if (event.shiftKey) {
+      session.redo()
+    }
+    else {
+      session.undo()
+    }
   }
   else if (mod && key === 'y') {
-    action = redo
+    session.redo()
   }
-  else if (!mod && !event.altKey) {
-    action = actions[key]
+  else if (mod || event.altKey) {
+    handled = false
   }
-  if (action) {
+  else if (key === ' ' || key === 'p') {
+    session.togglePlay()
+  }
+  else if (event.shiftKey && (key === 'arrowleft' || key === 'arrowright')) {
+    session.seek(now.value + (key === 'arrowleft' ? -3000 : 3000))
+  }
+  else if (key === '-' || key === '=') {
+    stepRate(key === '-' ? -1 : 1)
+  }
+  else if (key === '?') {
+    helpOpen.value = true
+  }
+  else if (STAGES.some(item => item.key === key)) {
+    stage.value = STAGES.find(item => item.key === key)!.id
+  }
+  else {
+    handled = false
+  }
+  if (handled) {
     event.preventDefault()
-    action()
   }
 }
 
@@ -303,89 +168,141 @@ onMounted(() => {
   globalThis.addEventListener('keydown', onKeydown)
   frame = requestAnimationFrame(tick)
 })
-
 onBeforeUnmount(() => {
   globalThis.removeEventListener('keydown', onKeydown)
   cancelAnimationFrame(frame)
 })
-
-const laneTicks = computed(() => {
-  const { start, span } = laneWindow.value
-  const first = Math.ceil(start / 1000) * 1000
-  return Array.from({ length: Math.floor((start + span - first) / 1000) + 1 }, (_, i) => first + i * 1000)
-})
-
-const laneBars = computed(() => {
-  const { start, span } = laneWindow.value
-  return (selectedCue.value?.words ?? []).flatMap((word, index) => {
-    if (word.begin === undefined) {
-      return []
-    }
-    const end = word.end ?? word.begin + 250
-    return [{
-      index,
-      text: word.text,
-      open: word.end === undefined,
-      left: (word.begin - start) / span * 100,
-      width: Math.max(0.4, (end - word.begin) / span * 100),
-    }]
-  })
-})
-
-function seekOnLane(event: MouseEvent): void {
-  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
-  const { start, span } = laneWindow.value
-  seek(start + (event.clientX - rect.left) / rect.width * span)
-}
-
-function lineNumber(index: number): string {
-  return (index + 1).toString().padStart(2, '0')
-}
-
-function compactTime(ms: number | undefined): string {
-  return ms === undefined ? '·' : (ms / 1000).toFixed(2)
-}
 </script>
 
 <template>
   <div class="lte">
-    <header class="lte-transport">
+    <header class="lte-head">
+      <nav
+        class="lte-stages"
+        role="tablist"
+      >
+        <button
+          v-for="item in STAGES"
+          :key="item.id"
+          type="button"
+          role="tab"
+          class="lte-stage"
+          :class="{ 'lte-stage--on': stage === item.id }"
+          :aria-selected="stage === item.id"
+          @click="stage = item.id"
+        >
+          <span class="lte-stage-key">{{ item.key }}</span>{{ stageLabel(item.id) }}
+        </button>
+      </nav>
+
+      <div
+        class="lte-progress"
+        :title="`${t.statusWord} ${counts.word} · ${t.statusLine} ${counts.line} · ${t.statusPartial} ${counts.partial} · ${t.statusUntimed} ${counts.untimed}`"
+      >
+        <div class="lte-strip">
+          <button
+            v-for="segment in segments"
+            :key="segment.index"
+            type="button"
+            class="lte-strip-cell"
+            :class="[`lte-strip-cell--${segment.status}`, { 'lte-strip-cell--on': segment.index === session.cursor.value.cue }]"
+            :aria-label="`${segment.index + 1}`"
+            @click="openLine(segment.index)"
+          />
+        </div>
+        <div class="lte-legend">
+          <span class="lte-dot lte-dot--word" />{{ t.statusWord }} {{ counts.word }}
+          <span class="lte-dot lte-dot--line" />{{ t.statusLine }} {{ counts.line }}
+          <template v-if="counts.partial">
+            <span class="lte-dot lte-dot--partial" />{{ t.statusPartial }} {{ counts.partial }}
+          </template>
+          <span class="lte-dot lte-dot--untimed" />{{ t.statusUntimed }} {{ counts.untimed }}
+        </div>
+      </div>
+
+      <div class="lte-tools">
+        <button
+          type="button"
+          class="lte-icon"
+          :disabled="!canUndo"
+          :title="`${t.undo} · Ctrl+Z`"
+          @click="session.undo()"
+        >
+          <svg viewBox="0 0 16 16"><path d="M6 3 2.5 6.5 6 10M3 6.5h6.5a4 4 0 0 1 0 8H7" /></svg>
+        </button>
+        <button
+          type="button"
+          class="lte-icon"
+          :disabled="!canRedo"
+          :title="`${t.redo} · Ctrl+Shift+Z`"
+          @click="session.redo()"
+        >
+          <svg viewBox="0 0 16 16"><path d="M10 3l3.5 3.5L10 10m3-3.5H6.5a4 4 0 0 0 0 8H9" /></svg>
+        </button>
+        <button
+          type="button"
+          class="lte-icon lte-icon--text"
+          :title="t.shortcuts"
+          @click="helpOpen = true"
+        >
+          ?
+        </button>
+      </div>
+    </header>
+
+    <main class="lte-main">
+      <LineStage v-if="stage === 'line'" />
+      <WordStage v-else-if="stage === 'word'" />
+      <PreviewStage v-else />
+    </main>
+
+    <footer class="lte-transport">
       <button
         type="button"
         class="lte-play"
-        :aria-label="isPlaying ? t.pause : t.play"
-        @click="togglePlay"
+        :aria-label="playing ? t.pause : t.play"
+        @click="session.togglePlay()"
       >
         <svg
-          v-if="isPlaying"
+          v-if="playing"
           viewBox="0 0 16 16"
-          aria-hidden="true"
         ><rect
-          x="3"
-          y="2"
-          width="3.5"
-          height="12"
+          x="3.5"
+          y="2.5"
+          width="3"
+          height="11"
           rx="1"
         /><rect
           x="9.5"
-          y="2"
-          width="3.5"
-          height="12"
+          y="2.5"
+          width="3"
+          height="11"
           rx="1"
         /></svg>
         <svg
           v-else
           viewBox="0 0 16 16"
-          aria-hidden="true"
-        ><path d="M4 2.5v11a.5.5 0 0 0 .77.42l8.5-5.5a.5.5 0 0 0 0-.84l-8.5-5.5A.5.5 0 0 0 4 2.5Z" /></svg>
+        ><path d="M4.5 2.8v10.4a.6.6 0 0 0 .9.5l8.2-5.2a.6.6 0 0 0 0-1L5.4 2.3a.6.6 0 0 0-.9.5Z" /></svg>
       </button>
-      <div class="lte-clock">
+      <span class="lte-clock">{{ formatTimecode(now) }}</span>
+      <div
+        ref="scrub"
+        class="lte-scrub"
+        @pointerdown="onScrubDown"
+        @pointermove="onScrubMove"
+      >
         <span
-          ref="timecodeEl"
-          class="lte-timecode"
-        >0:00.000</span>
-        <span class="lte-duration">/ {{ formatTimecode(duration * 1000) }}</span>
+          v-for="(mark, i) in lineMarks"
+          :key="i"
+          class="lte-scrub-mark"
+          :style="{ left: `${mark}%` }"
+        />
+        <span
+          class="lte-scrub-fill"
+          :style="{ width: `${duration ? now / duration * 100 : 0}%` }"
+        />
       </div>
+      <span class="lte-clock lte-clock--total">{{ formatTimecode(duration) }}</span>
       <div
         class="lte-rates"
         role="group"
@@ -395,225 +312,45 @@ function compactTime(ms: number | undefined): string {
           v-for="value in RATES"
           :key="value"
           type="button"
-          class="lte-rate"
           :class="{ 'lte-rate--on': rate === value }"
-          @click="setRate(value)"
+          @click="session.setRate(value)"
         >
           {{ value }}×
         </button>
       </div>
-      <div class="lte-meter">
-        <span class="lte-meter-label">{{ timedWords === totalWords && totalWords > 0 ? t.done : t.progress }}</span>
-        <span class="lte-meter-count">{{ timedWords }}<span>/{{ totalWords }}</span></span>
-        <span
-          class="lte-meter-bar"
-          :style="{ '--fill': totalWords ? timedWords / totalWords : 0 }"
-        />
-      </div>
-      <div class="lte-history">
-        <button
-          type="button"
-          class="lte-ghost"
-          :disabled="!canUndo"
-          :title="`${t.undo} (Ctrl+Z)`"
-          @click="undo"
-        >
-          ↶
-        </button>
-        <button
-          type="button"
-          class="lte-ghost"
-          :disabled="!canRedo"
-          :title="`${t.redo} (Ctrl+Shift+Z)`"
-          @click="redo"
-        >
-          ↷
-        </button>
-      </div>
-    </header>
+    </footer>
 
-    <section
-      class="lte-lane"
-      @click="seekOnLane"
-    >
-      <span
-        v-for="mark in laneTicks"
-        :key="mark"
-        class="lte-tick"
-        :style="{ left: `${(mark - laneWindow.start) / laneWindow.span * 100}%` }"
-      >{{ formatTimecode(mark).slice(0, -4) }}</span>
-      <button
-        v-for="bar in laneBars"
-        :key="bar.index"
-        type="button"
-        class="lte-bar"
-        :class="{ 'lte-bar--cursor': bar.index === cursor.word, 'lte-bar--open': bar.open }"
-        :style="{ left: `${bar.left}%`, width: `${bar.width}%` }"
-        @click.stop="select({ cue: cursor.cue, word: bar.index })"
-      >
-        {{ bar.text }}
-      </button>
-      <span
-        ref="playheadEl"
-        class="lte-playhead"
-      />
-    </section>
-
-    <div class="lte-body">
-      <ol
-        ref="linesEl"
-        class="lte-lines"
-      >
-        <li
-          v-if="doc.cues.length === 0"
-          class="lte-empty"
-        >
-          {{ t.empty }}
-        </li>
-        <li
-          v-for="(cue, c) in doc.cues"
-          :key="cue.id"
-          class="lte-line"
-          :class="{ 'lte-line--active': c === activeCue, 'lte-line--selected': c === cursor.cue }"
-        >
-          <span class="lte-line-num">{{ lineNumber(c) }}</span>
-          <span class="lte-line-time">{{ formatTimecode(cue.begin) }}</span>
-          <div class="lte-words">
-            <button
-              v-for="(word, w) in cue.words"
-              :key="w"
-              type="button"
-              class="lte-word"
-              :class="{
-                'lte-word--timed': word.begin !== undefined,
-                'lte-word--cursor': c === cursor.cue && w === cursor.word,
-              }"
-              :data-begin="word.begin"
-              :data-end="word.end"
-              @click="select({ cue: c, word: w })"
-              @dblclick="word.begin !== undefined && seek(word.begin)"
-            >
-              <span class="lte-word-text">{{ word.text.trim() || '␣' }}</span>
-              <span class="lte-word-time">{{ compactTime(word.begin) }}</span>
-            </button>
-          </div>
-        </li>
-      </ol>
-
-      <aside class="lte-inspector">
-        <template v-if="selectedWord && selectedCue">
-          <p class="lte-caption">
-            {{ t.line }} {{ lineNumber(cursor.cue) }} · {{ t.word }} {{ cursor.word + 1 }}/{{ selectedCue.words.length }}
-          </p>
-          <p
-            class="lte-split"
-            :title="t.split"
-          >
-            <template
-              v-for="(char, i) in [...selectedWord.text]"
-              :key="i"
-            >
-              <button
-                v-if="i > 0"
-                type="button"
-                class="lte-split-at"
-                :aria-label="`${t.split} ${i}`"
-                @click="split(i)"
-              />
-              <span>{{ char === ' ' ? '␣' : char }}</span>
-            </template>
-          </p>
-          <div class="lte-edges">
-            <label
-              v-for="edge in (['begin', 'end'] as const)"
-              :key="edge"
-              class="lte-edge"
-            >
-              <span>{{ edge === 'begin' ? t.begin : t.end }}</span>
-              <input
-                :value="selectedWord[edge] === undefined ? '' : formatTimecode(selectedWord[edge])"
-                :placeholder="t.untimed"
-                spellcheck="false"
-                @change="setEdge(edge, ($event.target as HTMLInputElement).value)"
-              >
-            </label>
-          </div>
-          <div class="lte-actions">
-            <button
-              type="button"
-              class="lte-ghost"
-              @click="replayFromCursor"
-            >
-              {{ t.replay }}
-            </button>
-            <button
-              type="button"
-              class="lte-ghost"
-              :disabled="cursor.word >= selectedCue.words.length - 1"
-              @click="merge"
-            >
-              {{ t.merge }}
-            </button>
-            <button
-              type="button"
-              class="lte-ghost"
-              :disabled="selectedWord.begin === undefined"
-              @click="clear"
-            >
-              {{ t.clear }}
-            </button>
-          </div>
-          <label class="lte-text">
-            <span>{{ t.lineText }}</span>
-            <input
-              :value="cueText(selectedCue)"
-              spellcheck="false"
-              @change="editLineText(($event.target as HTMLInputElement).value)"
-            >
-          </label>
-        </template>
-
-        <dl class="lte-keys">
-          <dt class="lte-keys-title">
-            {{ t.keys }}
-          </dt>
-          <div><dt><kbd>J</kbd></dt><dd>{{ t.keyStamp }}</dd></div>
-          <div><dt><kbd>K</kbd></dt><dd>{{ t.keyEnd }}</dd></div>
-          <div><dt><kbd>Space</kbd></dt><dd>{{ t.keyPlay }}</dd></div>
-          <div><dt><kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd></dt><dd>{{ t.keyMove }}</dd></div>
-          <div><dt><kbd>A</kbd><kbd>D</kbd></dt><dd>{{ t.keyNudgeBegin }}</dd></div>
-          <div><dt><kbd>Z</kbd><kbd>C</kbd></dt><dd>{{ t.keyNudgeEnd }}</dd></div>
-          <div><dt><kbd>R</kbd></dt><dd>{{ t.keyReplay }}</dd></div>
-          <div><dt><kbd>M</kbd></dt><dd>{{ t.keyMerge }}</dd></div>
-          <div><dt><kbd>⌫</kbd></dt><dd>{{ t.keyClear }}</dd></div>
-          <div><dt><kbd>-</kbd><kbd>=</kbd></dt><dd>{{ t.keyRate }}</dd></div>
-          <div><dt><kbd>Ctrl</kbd><kbd>Z</kbd></dt><dd>{{ t.keyUndo }}</dd></div>
-        </dl>
-      </aside>
-    </div>
+    <ShortcutsOverlay
+      v-if="helpOpen"
+      @close="helpOpen = false"
+    />
   </div>
 </template>
 
 <style scoped>
 .lte {
-  --lte-bg: var(--bg-primary, #141416);
-  --lte-panel: var(--bg-surface, #1a1a1e);
+  --lte-bg: var(--bg-primary, #121214);
+  --lte-panel: var(--bg-surface, #18181b);
   --lte-raised: var(--bg-elevated, #222226);
   --lte-hover: var(--bg-hover, #28282e);
   --lte-text: var(--text-primary, #ededf0);
-  --lte-muted: var(--text-tertiary, #a4a4ae);
-  --lte-faint: rgba(255, 255, 255, 0.28);
+  --lte-muted: var(--text-tertiary, #9a9aa4);
+  --lte-faint: rgba(255, 255, 255, 0.3);
   --lte-line: var(--border, rgba(255, 255, 255, 0.06));
-  --lte-line-strong: var(--border-strong, rgba(255, 255, 255, 0.12));
+  --lte-line-strong: var(--border-strong, rgba(255, 255, 255, 0.11));
   --lte-accent: var(--accent, #e8574a);
   --lte-accent-soft: var(--accent-soft, rgba(232, 87, 74, 0.12));
-  --lte-timed: #7fd1b9;
+  --lte-word: #7fd1b9;
+  --lte-word-soft: rgba(127, 209, 185, 0.12);
+  --lte-whole: #e8b86b;
+  --lte-whole-soft: rgba(232, 184, 107, 0.12);
   --lte-mono: var(--font-mono, 'Berkeley Mono', 'Sarasa Mono SC', 'Noto Sans Mono CJK SC', ui-monospace, monospace);
   --lte-sans: var(--font-sans, 'Hiragino Sans', 'Noto Sans JP', 'PingFang SC', 'Microsoft YaHei', sans-serif);
   --lte-radius: var(--radius-sm, 0.375rem);
 
+  position: relative;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
   height: 100%;
   min-height: 0;
   background: var(--lte-bg);
@@ -622,14 +359,162 @@ function compactTime(ms: number | undefined): string {
   font-size: 13px;
 }
 
-button {
+.lte :deep(button) {
   font: inherit;
   color: inherit;
   cursor: pointer;
 }
-button:disabled {
+.lte :deep(button:disabled) {
   cursor: default;
   opacity: 0.35;
+}
+
+/* ── Head ── */
+
+.lte-head {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--lte-line);
+  background: var(--lte-panel);
+}
+.lte-stages {
+  display: flex;
+  padding: 3px;
+  border: 1px solid var(--lte-line);
+  border-radius: calc(var(--lte-radius) + 3px);
+  background: var(--lte-bg);
+}
+.lte-stage {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.85rem;
+  border: none;
+  border-radius: var(--lte-radius);
+  background: none;
+  color: var(--lte-muted);
+  font-family: var(--lte-sans) !important;
+  font-size: 0.875rem !important;
+  transition: background 150ms ease, color 150ms ease;
+}
+.lte-stage:hover {
+  color: var(--lte-text);
+}
+.lte-stage--on {
+  background: var(--lte-raised);
+  color: var(--lte-text);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+.lte-stage-key {
+  font-family: var(--lte-mono);
+  font-size: 0.6875rem;
+  color: var(--lte-faint);
+}
+.lte-stage--on .lte-stage-key {
+  color: var(--lte-accent);
+}
+
+.lte-progress {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+.lte-strip {
+  display: flex;
+  gap: 2px;
+  height: 0.5rem;
+}
+.lte-strip-cell {
+  flex: 1;
+  min-width: 2px;
+  padding: 0;
+  border: none;
+  border-radius: 1px;
+  background: var(--lte-line-strong);
+  transition: transform 120ms ease;
+}
+.lte-strip-cell:hover {
+  transform: scaleY(1.6);
+}
+.lte-strip-cell--word {
+  background: var(--lte-word);
+}
+.lte-strip-cell--line {
+  background: var(--lte-whole);
+}
+.lte-strip-cell--partial {
+  background: repeating-linear-gradient(135deg, var(--lte-word) 0 2px, transparent 2px 4px);
+}
+.lte-strip-cell--on {
+  box-shadow: 0 0 0 1px var(--lte-text);
+}
+.lte-legend {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--lte-muted);
+  font-size: 0.6875rem;
+}
+.lte-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  margin-left: 0.6rem;
+  border-radius: 1px;
+}
+.lte-dot:first-child {
+  margin-left: 0;
+}
+.lte-dot--word {
+  background: var(--lte-word);
+}
+.lte-dot--line {
+  background: var(--lte-whole);
+}
+.lte-dot--partial {
+  background: repeating-linear-gradient(135deg, var(--lte-word) 0 2px, transparent 2px 4px);
+}
+.lte-dot--untimed {
+  background: var(--lte-line-strong);
+}
+
+.lte-tools {
+  display: flex;
+  gap: 0.25rem;
+}
+.lte-icon {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid var(--lte-line-strong);
+  border-radius: var(--lte-radius);
+  background: none;
+  transition: background 120ms ease;
+}
+.lte-icon:hover:not(:disabled) {
+  background: var(--lte-hover);
+}
+.lte-icon svg {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.lte-icon--text {
+  font-weight: 700;
+}
+
+.lte-main {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* ── Transport ── */
@@ -637,16 +522,17 @@ button:disabled {
 .lte-transport {
   display: flex;
   align-items: center;
-  gap: 1.25rem;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid var(--lte-line);
+  gap: 0.9rem;
+  padding: 0.6rem 1rem;
+  border-top: 1px solid var(--lte-line);
   background: var(--lte-panel);
 }
 .lte-play {
   display: grid;
+  flex: none;
   place-items: center;
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 2.4rem;
+  height: 2.4rem;
   border: none;
   border-radius: 50%;
   background: var(--lte-accent);
@@ -657,387 +543,98 @@ button:disabled {
   transform: scale(0.94);
 }
 .lte-play svg {
-  width: 1rem;
-  height: 1rem;
+  width: 0.95rem;
+  height: 0.95rem;
   fill: #fff;
 }
 .lte-clock {
-  display: flex;
-  align-items: baseline;
-  gap: 0.4rem;
+  min-width: 8.5ch;
+  font-size: 1.05rem;
   font-variant-numeric: tabular-nums;
 }
-.lte-timecode {
-  font-size: 1.6rem;
-  letter-spacing: -0.02em;
-  min-width: 8.5ch;
-}
-.lte-duration {
+.lte-clock--total {
+  min-width: 0;
   color: var(--lte-muted);
+  font-size: 0.8125rem;
+}
+.lte-scrub {
+  position: relative;
+  flex: 1;
+  height: 1.75rem;
+  cursor: pointer;
+  touch-action: none;
+}
+.lte-scrub::before {
+  content: '';
+  position: absolute;
+  inset: 50% 0 auto;
+  height: 4px;
+  margin-top: -2px;
+  border-radius: 2px;
+  background: var(--lte-line-strong);
+}
+.lte-scrub-fill {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  height: 4px;
+  margin-top: -2px;
+  border-radius: 2px;
+  background: var(--lte-accent);
+  pointer-events: none;
+}
+.lte-scrub-fill::after {
+  content: '';
+  position: absolute;
+  top: -4px;
+  right: -6px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 3px var(--lte-accent-soft);
+}
+.lte-scrub-mark {
+  position: absolute;
+  top: 0.35rem;
+  bottom: 0.35rem;
+  width: 1px;
+  background: var(--lte-faint);
+  pointer-events: none;
 }
 .lte-rates {
   display: flex;
+  overflow: hidden;
   border: 1px solid var(--lte-line-strong);
   border-radius: var(--lte-radius);
-  overflow: hidden;
 }
-.lte-rate {
-  padding: 0.3rem 0.55rem;
+.lte-rates button {
+  padding: 0.3rem 0.5rem;
   border: none;
   background: none;
   color: var(--lte-muted);
+  font-size: 0.75rem;
 }
-.lte-rate + .lte-rate {
+.lte-rates button + button {
   border-left: 1px solid var(--lte-line-strong);
 }
-.lte-rate--on {
+.lte-rates .lte-rate--on {
   background: var(--lte-raised);
   color: var(--lte-text);
 }
-.lte-meter {
-  display: grid;
-  grid-template-columns: auto auto;
-  column-gap: 0.75rem;
-  align-items: baseline;
-  margin-left: auto;
-}
-.lte-meter-label {
-  color: var(--lte-muted);
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-.lte-meter-count {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-.lte-meter-count span {
-  color: var(--lte-muted);
-}
-.lte-meter-bar {
-  grid-column: 1 / -1;
-  height: 3px;
-  margin-top: 0.35rem;
-  border-radius: 2px;
-  background: linear-gradient(90deg, var(--lte-timed) calc(var(--fill) * 100%), var(--lte-line-strong) 0);
-}
-.lte-history {
-  display: flex;
-  gap: 0.25rem;
-}
-.lte-ghost {
-  padding: 0.3rem 0.65rem;
-  border: 1px solid var(--lte-line-strong);
-  border-radius: var(--lte-radius);
-  background: none;
-  transition: background 120ms ease;
-}
-.lte-ghost:hover:not(:disabled) {
-  background: var(--lte-hover);
-}
 
-/* ── Lane ── */
-
-.lte-lane {
-  position: relative;
-  height: 5.5rem;
-  overflow: hidden;
-  border-bottom: 1px solid var(--lte-line);
-  background:
-    repeating-linear-gradient(90deg, transparent 0 calc(10% - 1px), var(--lte-line) calc(10% - 1px) 10%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 60%),
-    var(--lte-bg);
-  cursor: crosshair;
-}
-.lte-tick {
-  position: absolute;
-  top: 0.35rem;
-  transform: translateX(-50%);
-  color: var(--lte-faint);
-  font-size: 0.6875rem;
-  pointer-events: none;
-}
-.lte-tick::after {
-  content: '';
-  position: absolute;
-  top: 1.1rem;
-  left: 50%;
-  height: 0.4rem;
-  border-left: 1px solid var(--lte-line-strong);
-}
-.lte-bar {
-  position: absolute;
-  top: 2.15rem;
-  height: 2.4rem;
-  min-width: 2px;
-  padding: 0 0.35rem;
-  overflow: hidden;
-  border: 1px solid rgba(127, 209, 185, 0.5);
-  border-radius: 3px;
-  background: rgba(127, 209, 185, 0.14);
-  color: var(--lte-text);
-  font-family: var(--lte-sans);
-  font-size: 0.9rem;
-  text-align: left;
-  white-space: nowrap;
-}
-.lte-bar--open {
-  border-right-style: dashed;
-}
-.lte-bar--cursor {
-  border-color: var(--lte-accent);
-  background: var(--lte-accent-soft);
-  z-index: 1;
-}
-.lte-playhead {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  margin-left: -1px;
-  background: var(--lte-accent);
-  box-shadow: 0 0 12px var(--lte-accent);
-  pointer-events: none;
-  z-index: 2;
-}
-
-/* ── Lines ── */
-
-.lte-body {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 18rem;
-  min-height: 0;
-}
-.lte-lines {
-  margin: 0;
-  padding: 0.5rem 0 40vh;
-  overflow-y: auto;
-  list-style: none;
-}
-.lte-empty {
-  padding: 2rem 1rem;
-  color: var(--lte-muted);
-}
-.lte-line {
-  display: grid;
-  grid-template-columns: 2.5rem 6.5rem minmax(0, 1fr);
-  align-items: start;
-  padding: 0.45rem 1rem 0.45rem 0;
-  border-left: 2px solid transparent;
-}
-.lte-line--selected {
-  border-left-color: var(--lte-accent);
-  background: linear-gradient(90deg, var(--lte-accent-soft), transparent 40%);
-}
-.lte-line-num {
-  padding-top: 0.45rem;
-  color: var(--lte-faint);
-  font-size: 0.6875rem;
-  text-align: right;
-  padding-right: 0.75rem;
-}
-.lte-line-time {
-  padding-top: 0.4rem;
-  color: var(--lte-muted);
-  font-size: 0.75rem;
-  font-variant-numeric: tabular-nums;
-}
-.lte-line--active .lte-line-time {
-  color: var(--lte-accent);
-}
-.lte-words {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem;
-}
-.lte-word {
-  --p: 0;
-  position: relative;
-  display: grid;
-  justify-items: center;
-  min-width: 2rem;
-  padding: 0.2rem 0.4rem 0.3rem;
-  border: 1px solid var(--lte-line-strong);
-  border-radius: var(--lte-radius);
-  background: none;
-  overflow: hidden;
-  transition: border-color 120ms ease, background 120ms ease;
-}
-.lte-word:hover {
-  background: var(--lte-hover);
-}
-.lte-word::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  height: 2px;
-  width: calc(var(--p) * 100%);
-  background: var(--lte-accent);
-}
-.lte-word-text {
-  font-family: var(--lte-sans);
-  font-size: 1.05rem;
-  line-height: 1.4;
-  color: var(--lte-muted);
-}
-.lte-word-time {
-  color: var(--lte-faint);
-  font-size: 0.625rem;
-  font-variant-numeric: tabular-nums;
-}
-.lte-word--timed {
-  border-color: rgba(127, 209, 185, 0.35);
-  background: rgba(127, 209, 185, 0.06);
-}
-.lte-word--timed .lte-word-text {
-  color: var(--lte-text);
-}
-.lte-word--timed .lte-word-time {
-  color: var(--lte-timed);
-}
-.lte-word--cursor {
-  border-color: var(--lte-accent);
-  box-shadow: 0 0 0 1px var(--lte-accent), 0 0 18px -4px var(--lte-accent);
-}
-
-/* ── Inspector ── */
-
-.lte-inspector {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  padding: 1rem;
-  overflow-y: auto;
-  border-left: 1px solid var(--lte-line);
-  background: var(--lte-panel);
-}
-.lte-caption {
-  margin: 0;
-  color: var(--lte-muted);
-  font-size: 0.75rem;
-  letter-spacing: 0.06em;
-}
-.lte-split {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  margin: 0;
-  font-family: var(--lte-sans);
-  font-size: 2rem;
-  line-height: 1.2;
-}
-.lte-split-at {
-  width: 0.7rem;
-  height: 2rem;
-  margin: 0 -0.1rem;
-  border: none;
-  background: none;
-  position: relative;
-}
-.lte-split-at::before {
-  content: '';
-  position: absolute;
-  inset: 0.2rem 50%;
-  border-left: 1px dashed transparent;
-}
-.lte-split-at:hover::before {
-  border-left-color: var(--lte-accent);
-}
-.lte-edges {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.5rem;
-}
-.lte-edge,
-.lte-text {
-  display: grid;
-  gap: 0.3rem;
-  color: var(--lte-muted);
-  font-size: 0.6875rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-.lte-edge input,
-.lte-text input {
-  width: 100%;
-  padding: 0.4rem 0.5rem;
-  border: 1px solid var(--lte-line-strong);
-  border-radius: var(--lte-radius);
-  background: var(--lte-bg);
-  color: var(--lte-text);
-  font: inherit;
-  font-size: 0.875rem;
-  letter-spacing: 0;
-  text-transform: none;
-  outline: none;
-}
-.lte-text input {
-  font-family: var(--lte-sans);
-}
-.lte-edge input:focus,
-.lte-text input:focus {
-  border-color: var(--lte-accent);
-}
-.lte-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-}
-.lte-keys {
-  display: grid;
-  gap: 0.35rem;
-  margin: auto 0 0;
-  padding-top: 1rem;
-  border-top: 1px solid var(--lte-line);
-  font-size: 0.75rem;
-}
-.lte-keys-title {
-  color: var(--lte-muted);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  font-size: 0.6875rem;
-}
-.lte-keys div {
-  display: grid;
-  grid-template-columns: 6.5rem 1fr;
-  gap: 0.5rem;
-  align-items: center;
-}
-.lte-keys dt,
-.lte-keys dd {
-  margin: 0;
-}
-.lte-keys dd {
-  color: var(--lte-muted);
-}
-kbd {
-  display: inline-block;
-  min-width: 1.4rem;
-  margin-right: 0.2rem;
-  padding: 0.05rem 0.3rem;
-  border: 1px solid var(--lte-line-strong);
-  border-bottom-width: 2px;
-  border-radius: 4px;
-  font-family: var(--lte-mono);
-  font-size: 0.6875rem;
-  text-align: center;
-}
-
-@media (max-width: 860px) {
-  .lte-body {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) auto;
+@media (max-width: 720px) {
+  .lte-head {
+    flex-wrap: wrap;
+    gap: 0.6rem;
   }
-  .lte-inspector {
-    border-left: none;
-    border-top: 1px solid var(--lte-line);
-    max-height: 40vh;
+  .lte-progress {
+    flex-basis: 100%;
+    order: 3;
   }
-  .lte-keys {
-    display: none;
-  }
-  .lte-meter {
+  .lte-legend,
+  .lte-clock--total,
+  .lte-rates {
     display: none;
   }
 }

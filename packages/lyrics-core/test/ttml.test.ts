@@ -95,6 +95,14 @@ describe('lyricsDocFromTtml', () => {
     assert.deepEqual(doc.cues[0].words.map(word => word.text), ['Hel', 'lo ', 'world'])
   })
 
+  it('keeps lines without word spans in a word-timed file as whole lines, both ways', () => {
+    const doc = lyricsDocFromTtml('<tt xmlns="http://www.w3.org/ns/ttml"><body><div><p begin="0" end="1">作词 : 某人</p><p begin="1" end="2"><span begin="1" end="1.5">あ</span><span begin="1.5" end="2">い</span></p></div></body></tt>')
+    assert.equal(doc.timing, 'word')
+    assert.deepEqual(doc.cues[0], { id: 'c0', begin: 0, end: 1000, words: [{ text: '作词 : 某人' }] })
+    assert.match(lyricsDocToTtml(doc), /<p begin="00:00:00.000" end="00:00:01.000" itunes:key="L1">作词 : 某人<\/p>/)
+    assert.deepEqual(lyricsDocFromTtml(lyricsDocToTtml(doc)), doc)
+  })
+
   it('reads line-timed and untimed files', () => {
     const line = lyricsDocFromTtml('<tt xmlns="http://www.w3.org/ns/ttml"><body><div><p begin="00:01.000" end="00:02.000">Hello  there</p></div></body></tt>')
     assert.equal(line.timing, 'line')

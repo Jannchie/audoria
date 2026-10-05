@@ -2,7 +2,7 @@
 import type { LyricsDoc } from '@audoria/lyrics-core'
 import type { AudioSource, EditorLocale } from '@audoria/lyrics-editor'
 import { looksLikeTtml, lyricsDocFromText, lyricsDocFromTtml, lyricsDocToText, lyricsDocToTtml, validateLyricsDoc } from '@audoria/lyrics-core'
-import { finishTiming, LyricsTimingEditor, mediaElementSource, untimedWords } from '@audoria/lyrics-editor'
+import { finishTiming, incompleteLines, LyricsTimingEditor, mediaElementSource } from '@audoria/lyrics-editor'
 import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 
 const DRAFT_KEY = 'lyrics-editor:draft'
@@ -24,7 +24,7 @@ const text = {
     exportLrc: '导出 LRC',
     close: '换一首',
     invalid: '还不能导出：',
-    untimed: (line: number, count: number, lines: number) => `第 ${line} 行还有 ${count} 个字没打点${lines > 1 ? `，另外还有 ${lines - 1} 行` : ''}。`,
+    incomplete: (line: number, lines: number) => `第 ${line} 行还没打完${lines > 1 ? `，一共还有 ${lines} 行` : ''}。`,
     parseFailed: '读不出这份歌词：',
     privacy: '文件只在这个页面里打开，不会上传。',
   },
@@ -43,7 +43,7 @@ const text = {
     exportLrc: 'LRC を書き出す',
     close: '別の曲',
     invalid: 'まだ書き出せません：',
-    untimed: (line: number, count: number, lines: number) => `${line} 行目にタイミング未設定の語が ${count} 個あります${lines > 1 ? `（ほか ${lines - 1} 行）` : ''}。`,
+    incomplete: (line: number, lines: number) => `${line} 行目がまだ途中です${lines > 1 ? `（残り ${lines} 行）` : ''}。`,
     parseFailed: '歌詞を読み込めません：',
     privacy: 'ファイルはこのページ内で開くだけで、アップロードされません。',
   },
@@ -62,7 +62,7 @@ const text = {
     exportLrc: 'Export LRC',
     close: 'Another song',
     invalid: 'Can’t export yet: ',
-    untimed: (line: number, count: number, lines: number) => `line ${line} still has ${count} untimed word${count > 1 ? 's' : ''}${lines > 1 ? `, and ${lines - 1} more line${lines > 2 ? 's' : ''}` : ''}.`,
+    incomplete: (line: number, lines: number) => `line ${line} isn’t fully timed${lines > 1 ? ` (${lines} lines left)` : ''}.`,
     parseFailed: 'Couldn’t read these lyrics: ',
     privacy: 'Files open in this page only; nothing is uploaded.',
   },
@@ -89,6 +89,8 @@ const doc = shallowRef<LyricsDoc | null>(draft?.doc ?? null)
 const lyricsName = ref(draft?.lyricsName ?? '')
 const audioName = ref(draft?.audioName ?? '')
 const audioUrl = ref('')
+// Kept to read the song again for its waveform.
+const audioFile = shallowRef<File | null>(null)
 const restored = ref(Boolean(draft))
 const editing = ref(false)
 const pasted = ref('')
@@ -120,6 +122,7 @@ function loadAudio(file: File): void {
   URL.revokeObjectURL(audioUrl.value)
   audioUrl.value = URL.createObjectURL(file)
   audioName.value = file.name
+  audioFile.value = file
 }
 
 function loadLyricsText(raw: string, name: string): void {
@@ -172,9 +175,9 @@ function exportAs(format: 'ttml' | 'lrc'): void {
   if (!doc.value) {
     return
   }
-  const untimed = untimedWords(doc.value)
-  if (untimed.length > 0) {
-    error.value = text.invalid + text.untimed(untimed[0].cue + 1, untimed[0].count, untimed.length)
+  const incomplete = incompleteLines(doc.value)
+  if (incomplete.length > 0) {
+    error.value = text.invalid + text.incomplete(incomplete[0] + 1, incomplete.length)
     return
   }
   const finished = finishTiming(doc.value)
@@ -254,6 +257,7 @@ onBeforeUnmount(() => URL.revokeObjectURL(audioUrl.value))
       v-model:doc="doc"
       class="editor"
       :audio="audio"
+      :load-audio-data="audioFile ? () => audioFile!.arrayBuffer() : undefined"
       :locale="locale"
     />
   </main>

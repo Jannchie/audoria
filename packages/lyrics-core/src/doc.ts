@@ -46,6 +46,15 @@ export function cueText(cue: Pick<LyricsCue, 'words'>): string {
 }
 
 /**
+ * Whether a cue is timed word by word: every word has a start and an end. In a word-timed
+ * document, a cue whose words have no times is timed as a whole line, from its own begin;
+ * credit lines and long held notes are often left that way.
+ */
+export function isWordTimedCue(cue: Pick<LyricsCue, 'words'>): boolean {
+  return cue.words.length > 0 && cue.words.every(word => word.begin !== undefined && word.end !== undefined)
+}
+
+/**
  * The time at `offset` characters into a word, sharing the word's time out by length; how a
  * word cut by a reading is timed. Undefined for untimed words.
  */
@@ -101,7 +110,8 @@ export function detectLang(texts: string[]): string | undefined {
  * Checks what the schema can't: unique cue ids, timings that fit their timing mode, and ruby
  * ranges that stay inside the text, don't overlap, and never cut a word in two. A reading
  * either sits inside one word or spans whole words, so highlighting can follow word timing.
- * Returns the first problem found, or null.
+ * In a word-timed document each cue is timed either word by word or as a whole line, never
+ * half and half. Returns the first problem found, or null.
  */
 export function validateLyricsDoc(doc: LyricsDoc): string | null {
   const ids = new Set<string>()
@@ -117,10 +127,16 @@ export function validateLyricsDoc(doc: LyricsDoc): string | null {
     if (cue.begin !== undefined && cue.end !== undefined && cue.end < cue.begin) {
       return `Cue ${cue.id} ends before it begins`
     }
-    for (const word of [...cue.words, ...cue.background ?? []]) {
-      if (doc.timing === 'word' && (word.begin === undefined || word.end === undefined)) {
+    if (doc.timing === 'word') {
+      const timed = cue.words.filter(word => word.begin !== undefined || word.end !== undefined)
+      if (timed.length > 0 && !isWordTimedCue(cue)) {
         return `Cue ${cue.id} has a word without timing`
       }
+      if (timed.length > 0 && cue.background?.some(word => word.begin === undefined || word.end === undefined)) {
+        return `Cue ${cue.id} has a backing vocal without timing`
+      }
+    }
+    for (const word of [...cue.words, ...cue.background ?? []]) {
       if (word.begin !== undefined && word.end !== undefined && word.end < word.begin) {
         return `Cue ${cue.id} has a word that ends before it begins`
       }

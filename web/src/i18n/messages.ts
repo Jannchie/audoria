@@ -8,7 +8,7 @@ export const messages = {
       saved: 'Saved',
       unsaved: 'Unsaved changes',
       draftRestored: 'Your unsaved draft for this song is back.',
-      untimed: 'Line {line} still has {count} untimed words. Time every word before saving.',
+      incomplete: 'Line {line} isn’t fully timed ({count} lines left). Finish its words, or time it as a whole line.',
       notFound: 'This track isn’t in the library.',
     },
     auth: {
@@ -518,7 +518,7 @@ export const messages = {
       saved: '保存しました',
       unsaved: '未保存の変更があります',
       draftRestored: 'この曲の未保存の下書きを復元しました。',
-      untimed: '{line} 行目にタイミング未設定の語が {count} 個あります。すべて設定してから保存してください。',
+      incomplete: '{line} 行目がまだ途中です（残り {count} 行）。語をすべて設定するか、行単位に切り替えてください。',
       notFound: 'この曲はライブラリにありません。',
     },
     auth: {
@@ -1028,7 +1028,7 @@ export const messages = {
       saved: '已保存',
       unsaved: '有未保存的修改',
       draftRestored: '已恢复这首歌上次没保存的草稿。',
-      untimed: '第 {line} 行还有 {count} 个字没打点，全部打完才能保存。',
+      incomplete: '第 {line} 行还没打完（一共还有 {count} 行）。把字打完，或把这一行改成按句。',
       notFound: '曲库里没有这首歌。',
     },
     auth: {

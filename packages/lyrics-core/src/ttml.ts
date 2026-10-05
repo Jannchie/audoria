@@ -1,7 +1,7 @@
 import type { Element, Node } from '@xmldom/xmldom'
 import type { LyricsCue, LyricsDoc, LyricsRuby, LyricsTrack, LyricsWord } from './doc.js'
 import { DOMParser } from '@xmldom/xmldom'
-import { cueText, detectLang, rubyRuns, sortedRuby, validateLyricsDoc, wordTimeAt } from './doc.js'
+import { cueText, detectLang, isWordTimedCue, rubyRuns, sortedRuby, validateLyricsDoc, wordTimeAt } from './doc.js'
 
 // The TTML dialect Apple Music and AMLL (Apple Music-like Lyrics) share: `itunes:timing`,
 // `itunes:key` line ids, `ttm:agent` singers, `x-bg` backing vocals, translations either in an
@@ -283,10 +283,11 @@ export function lyricsDocFromTtml(xml: string): LyricsDoc {
     }
   }
 
-  // Lines without word spans in a word-timed file are timed as one word spanning the line.
-  if (wordTimed) {
-    for (const cue of cues) {
-      for (const word of [...cue.words, ...cue.background ?? []]) {
+  // Lines without word spans in a word-timed file stay timed as whole lines. Backing vocals of a
+  // word-timed line without their own word spans are timed as one word over the line.
+  for (const cue of cues) {
+    if (isWordTimedCue(cue)) {
+      for (const word of cue.background ?? []) {
         word.begin ??= cue.begin
         word.end ??= cue.end
       }
@@ -464,7 +465,7 @@ export function lyricsDocToTtml(doc: LyricsDoc, metadata: TtmlMetadata = {}): st
     const timed = doc.timing !== 'none'
     const end = cue.end ?? (doc.timing === 'line' ? doc.cues[index + 1]?.begin : undefined)
     const attrs = `${timed ? timeAttrs(cue.begin, end) : ''} itunes:key="${lineKey(index)}"${cue.agent ? ` ttm:agent="${escapeXml(cue.agent)}"` : ''}`
-    const content = doc.timing === 'word' ? writeWordContent(cue) : writeLineContent(cue)
+    const content = doc.timing === 'word' && isWordTimedCue(cue) ? writeWordContent(cue) : writeLineContent(cue)
     return `<p${attrs}>${content}</p>`
   })
 
