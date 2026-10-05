@@ -2,7 +2,7 @@
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { findLyricLineAtTime, useLyrics } from '../composables/useLyrics'
+import { findLyricLineAtTime, useLyrics, useLyricsDoc } from '../composables/useLyrics'
 import { buildDownloadUrl, resolveApiUrl, useMusicQuery } from '../composables/useMusic'
 import { usePlayerState } from '../composables/usePlayerState'
 import { usePlayTracker } from '../composables/usePlayTracker'
@@ -89,7 +89,8 @@ const currentTrackCoverUrl = computed(() => {
   }
   return resolveApiUrl(coverUrl)
 })
-const { parsed } = useLyrics(() => currentTrack.value?.lyrics)
+const lyricsDoc = useLyricsDoc(() => currentTrack.value)
+const { parsed } = useLyrics(() => lyricsDoc.value)
 
 const progress = computed(() => {
   if (isScrubbing.value && scrubPreviewTime.value !== null && duration.value) {

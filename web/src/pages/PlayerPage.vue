@@ -1,6 +1,9 @@
 <script setup lang="ts">
+import type { LyricsDoc } from '@audoria/lyrics-core'
 import type { FilamentConfig } from '../components/ShaderProgressBar.vue'
 import type { RubySegment } from '../composables/useFurigana'
+import { shiftLyricsDoc } from '@audoria/lyrics-core'
+import { useRafFn } from '@vueuse/core'
 import { computed, defineAsyncComponent, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -12,8 +15,9 @@ import { useAuth } from '../composables/useAuth'
 import { useCoverPalette } from '../composables/useCoverPalette'
 import { useDragScroll } from '../composables/useDragScroll'
 import { applyReadingCorrection, useFurigana } from '../composables/useFurigana'
-import { findLyricLineAtTime, shiftLrcTimestamps, useLyrics } from '../composables/useLyrics'
-import { resolveApiUrl, useMusicQuery, useUpdateMusic } from '../composables/useMusic'
+import { findLyricLineAtTime, layoutLyricLine, useLyrics, useLyricsDoc } from '../composables/useLyrics'
+import { resolveApiUrl, useMusicQuery, useUpdateLyrics } from '../composables/useMusic'
+import { usePlaybackClock } from '../composables/usePlaybackClock'
 import { usePlayerState } from '../composables/usePlayerState'
 import { useSettings } from '../composables/useSettings'
 import { useStableViewportHeight } from '../composables/useStableViewportHeight'
@@ -57,7 +61,7 @@ const volumePreview = ref<number | null>(null)
 const lyricShiftMs = ref(100)
 const lyricError = ref('')
 const isLyricsToolbarOpen = ref(false)
-const updateLyricsMutation = useUpdateMusic()
+const updateLyricsMutation = useUpdateLyrics()
 const {
   currentTrackId,
   isPlaying,
@@ -172,7 +176,9 @@ const trackSpecs = computed(() => currentTrack.value ? formatTrackSpecs(currentT
 const currentLyrics = computed(() => currentTrack.value?.lyrics)
 const isSavingLyrics = computed(() => updateLyricsMutation.isPending.value)
 
-const { parsed, isTimeSynced, plainText, currentLineIndex } = useLyrics(() => currentLyrics.value)
+const lyricsDoc = useLyricsDoc(() => currentTrack.value)
+const ttmlExportUrl = computed(() => currentTrack.value ? resolveApiUrl(`/music/${encodeURIComponent(currentTrack.value.id)}/lyrics/ttml`) : undefined)
+const { parsed, isTimeSynced, plainText, currentLineIndex } = useLyrics(() => lyricsDoc.value)
 
 const hasLyrics = computed(() => Boolean(currentLyrics.value?.trim()))
 
@@ -180,10 +186,11 @@ const { isGuest } = useAuth()
 const {
   enabled: isFuriganaEnabled,
   hasJapanese,
-  segmentsByLine: furiganaByLine,
+  segmentsByCue: furiganaByCue,
 } = useFurigana(() => currentTrack.value?.id, () => currentLyrics.value)
+const lineLayouts = computed(() => parsed.value?.map(line => layoutLyricLine(line.words, furiganaByCue.value[line.id])) ?? [])
 const isFuriganaEditing = ref(false)
-const editingReading = ref<{ line: string, index: number } | null>(null)
+const editingReading = ref<{ cueId: string, index: number } | null>(null)
 const editingReadingValue = ref('')
 const KANJI_RE = /\p{Script=Han}/u
 const KANA_RE = /[\p{Script=Hiragana}\p{Script=Katakana}]/u
@@ -196,8 +203,8 @@ function isRubyEditable(segment: RubySegment): boolean {
   return isFuriganaEditing.value && KANJI_RE.test(segment.text)
 }
 
-function isEditingReading(line: string, index: number): boolean {
-  return editingReading.value?.line === line && editingReading.value.index === index
+function isEditingReading(cueId: string, index: number): boolean {
+  return editingReading.value?.cueId === cueId && editingReading.value.index === index
 }
 
 function toggleFurigana(): void {
@@ -208,13 +215,13 @@ function toggleFurigana(): void {
   }
 }
 
-async function handleRubyClick(event: MouseEvent, line: string, index: number, segment: RubySegment): Promise<void> {
+async function handleRubyClick(event: MouseEvent, cueId: string, index: number, segment: RubySegment): Promise<void> {
   if (!isRubyEditable(segment)) {
     return
   }
   // In edit mode a click on a word edits its reading instead of seeking to the line.
   event.stopPropagation()
-  editingReading.value = { line, index }
+  editingReading.value = { cueId, index }
   editingReadingValue.value = segment.ruby ?? ''
   await nextTick()
   const input = document.querySelector<HTMLInputElement>('.lyric-ruby-input')
@@ -238,19 +245,22 @@ function handleReadingEnter(event: KeyboardEvent): void {
 async function saveReadingEdit(): Promise<void> {
   const target = editingReading.value
   const track = currentTrack.value
-  const rawLyrics = currentLyrics.value
-  const segments = target ? furiganaByLine.value[target.line] : undefined
+  const doc = lyricsDoc.value
+  const segments = target ? furiganaByCue.value[target.cueId] : undefined
   editingReading.value = null
-  if (!target || !track || !rawLyrics || !segments || isSavingLyrics.value) {
+  if (!target || !track || !doc || !segments || isSavingLyrics.value) {
     return
   }
-  const nextLyrics = applyReadingCorrection(rawLyrics, target.line, segments, target.index, editingReadingValue.value)
-  if (nextLyrics === rawLyrics) {
+  await saveLyricsDoc(track.id, doc, applyReadingCorrection(doc, target.cueId, segments, target.index, editingReadingValue.value))
+}
+
+async function saveLyricsDoc(trackId: string, doc: LyricsDoc, nextDoc: LyricsDoc): Promise<void> {
+  if (nextDoc === doc) {
     return
   }
   lyricError.value = ''
   try {
-    await updateLyricsMutation.mutateAsync({ id: track.id, patch: { lyrics: nextLyrics } })
+    await updateLyricsMutation.mutateAsync({ id: trackId, doc: nextDoc })
   }
   catch (error) {
     lyricError.value = error instanceof Error ? error.message : t('player.lyrics.saveFailed')
@@ -526,25 +536,11 @@ function handleLyricShiftInput(event: Event): void {
 
 async function shiftCurrentLyrics(direction: -1 | 1): Promise<void> {
   const track = currentTrack.value
-  const rawLyrics = currentLyrics.value
-  if (!track || !rawLyrics || isSavingLyrics.value) {
+  const doc = lyricsDoc.value
+  if (!track || !doc || isSavingLyrics.value) {
     return
   }
-  const deltaMs = direction * lyricShiftMs.value
-  const shiftedLyrics = shiftLrcTimestamps(rawLyrics, deltaMs)
-  if (shiftedLyrics === rawLyrics) {
-    return
-  }
-  lyricError.value = ''
-  try {
-    await updateLyricsMutation.mutateAsync({
-      id: track.id,
-      patch: { lyrics: shiftedLyrics },
-    })
-  }
-  catch (error) {
-    lyricError.value = error instanceof Error ? error.message : t('player.lyrics.saveFailed')
-  }
+  await saveLyricsDoc(track.id, doc, shiftLyricsDoc(doc, direction * lyricShiftMs.value))
 }
 
 function handleVolumeInput(event: Event): void {
@@ -596,6 +592,31 @@ function togglePlayPause(): void {
   }
   setPlaying(!isPlaying.value)
 }
+
+// Word-by-word highlighting: each frame, every timed piece of the active line gets its progress
+// as `--p`, written straight to the DOM so Vue doesn't re-render at frame rate.
+const readPlaybackTime = usePlaybackClock()
+function updateWordProgress(): void {
+  const index = currentLineIndex.value
+  if (!parsed.value?.[index]?.wordTimed) {
+    return
+  }
+  const line = lyricsContainer.value?.querySelector(`[data-lyric-index="${index}"]`)
+  if (!line) {
+    return
+  }
+  const timeMs = readPlaybackTime() * 1000
+  for (const element of line.querySelectorAll<HTMLElement>('[data-begin]')) {
+    const begin = Number(element.dataset.begin)
+    const end = Number(element.dataset.end)
+    const progress = end > begin ? Math.min(1, Math.max(0, (timeMs - begin) / (end - begin))) : Number(timeMs >= begin)
+    element.style.setProperty('--p', progress.toFixed(3))
+  }
+}
+// Animate only while playing; otherwise progress changes only when the line or lyrics do.
+const wordProgressLoop = useRafFn(updateWordProgress, { immediate: false })
+watch(isPlaying, playing => playing ? wordProgressLoop.resume() : wordProgressLoop.pause(), { immediate: true })
+watch([currentLineIndex, lineLayouts, currentTime], updateWordProgress, { flush: 'post' })
 
 const lyricTick = ref(0)
 watch(currentLineIndex, async (idx, prev) => {
@@ -720,10 +741,11 @@ onUnmounted(() => {
           </div>
 
           <div
-            v-if="currentTrack && isTimeSynced && isLyricsToolbarOpen && !isGuest"
+            v-if="currentTrack && hasLyrics && isLyricsToolbarOpen && !isGuest"
             class="lyrics-toolbar"
           >
             <div
+              v-if="isTimeSynced"
               class="lyrics-offset-control"
               :aria-label="t('player.lyrics.offsetLabel')"
             >
@@ -796,6 +818,28 @@ onUnmounted(() => {
                 {{ t('player.lyrics.editFurigana') }}
               </button>
             </div>
+            <RouterLink
+              v-if="currentTrack"
+              class="lyrics-tool-btn"
+              :to="`/lyrics-editor/${currentTrack.id}`"
+            >
+              <span
+                class="i-tabler-clock-edit"
+                aria-hidden="true"
+              />
+              {{ t('player.lyrics.timing') }}
+            </RouterLink>
+            <a
+              class="lyrics-tool-btn"
+              :href="ttmlExportUrl"
+              download
+            >
+              <span
+                class="i-tabler-download"
+                aria-hidden="true"
+              />
+              {{ t('player.lyrics.exportTtml') }}
+            </a>
           </div>
 
           <p
@@ -823,6 +867,7 @@ onUnmounted(() => {
                   :data-lyric-index="i"
                   class="lyric-line"
                   :class="[
+                    { 'lyric-line--word-timed': line.wordTimed },
                     i === currentLineIndex
                       ? 'lyric-line--active'
                       : i < currentLineIndex
@@ -836,41 +881,64 @@ onUnmounted(() => {
                   @keydown.space.self.prevent="handleLyricClick(line)"
                 >
                   <span
-                    v-if="furiganaByLine[line.source]"
                     class="lyric-text"
                     :lang="lyricLang(line.text)"
                   >
+                    <template v-if="!line.text">···</template>
                     <template
-                      v-for="(segment, j) in furiganaByLine[line.source]"
-                      :key="j"
+                      v-for="chunk in lineLayouts[i]"
+                      v-else
+                      :key="chunk.index"
                     >
                       <ruby
-                        v-if="segment.ruby || isRubyEditable(segment)"
+                        v-if="chunk.segment.ruby || isRubyEditable(chunk.segment)"
                         class="lyric-ruby"
                         :class="{
-                          'lyric-ruby--editable': isRubyEditable(segment),
-                          'lyric-ruby--explicit': isFuriganaEditing && segment.explicit,
+                          'lyric-ruby--editable': isRubyEditable(chunk.segment),
+                          'lyric-ruby--explicit': isFuriganaEditing && chunk.segment.explicit,
                         }"
-                        @click="handleRubyClick($event, line.source, j, segment)"
-                      >{{ segment.text }}<rt><input
-                        v-if="isEditingReading(line.source, j)"
+                        @click="handleRubyClick($event, line.id, chunk.index, chunk.segment)"
+                      ><span
+                        v-for="(piece, k) in chunk.pieces"
+                        :key="k"
+                        class="lyric-word"
+                        :data-begin="piece.begin"
+                        :data-end="piece.end"
+                      >{{ piece.text }}</span><rt
+                        class="lyric-word"
+                        :data-begin="chunk.begin"
+                        :data-end="chunk.end"
+                      ><input
+                        v-if="isEditingReading(line.id, chunk.index)"
                         v-model="editingReadingValue"
                         class="lyric-ruby-input"
-                        :aria-label="t('player.lyrics.readingFor', { text: segment.text })"
+                        :aria-label="t('player.lyrics.readingFor', { text: chunk.segment.text })"
                         @click.stop
                         @keydown.stop
                         @keydown.enter="handleReadingEnter"
                         @keydown.esc.prevent="cancelReadingEdit"
                         @blur="cancelReadingEdit"
-                      ><template v-else>{{ segment.ruby }}</template></rt></ruby>
-                      <template v-else>{{ segment.text }}</template>
+                      ><template v-else>{{ chunk.segment.ruby }}</template></rt></ruby>
+                      <template v-else><span
+                        v-for="(piece, k) in chunk.pieces"
+                        :key="k"
+                        class="lyric-word"
+                        :data-begin="piece.begin"
+                        :data-end="piece.end"
+                      >{{ piece.text }}</span></template>
                     </template>
                   </span>
                   <span
-                    v-else
-                    class="lyric-text"
+                    v-if="line.background.length > 0"
+                    class="lyric-background"
                     :lang="lyricLang(line.text)"
-                  >{{ line.text || '···' }}</span>
+                  ><span
+                    v-for="(word, k) in line.background"
+                    :key="k"
+                    class="lyric-word"
+                    :data-begin="word.begin"
+                    :data-end="word.end"
+                  >{{ word.text }}</span></span>
                   <span
                     v-for="(translation, j) in line.translations"
                     :key="j"
@@ -1030,7 +1098,7 @@ onUnmounted(() => {
                 />
               </button>
               <button
-                v-if="currentTrack && isTimeSynced && !isGuest"
+                v-if="currentTrack && hasLyrics && !isGuest"
                 type="button"
                 class="ctrl-btn ctrl-btn--sm"
                 :class="{ 'ctrl-btn--active': isLyricsToolbarOpen }"
@@ -1529,8 +1597,29 @@ onUnmounted(() => {
   color: rgba(255, 255, 255, 0.65);
 }
 .lyric-text,
-.lyric-translation {
+.lyric-translation,
+.lyric-background {
   display: block;
+}
+.lyric-background {
+  font-size: 0.75em;
+  line-height: 1.5;
+  opacity: 0.8;
+}
+/* The active word-timed line fills in word by word: a soft edge sweeps across each piece as
+   its progress --p goes from 0 to 1. */
+.lyric-line--word-timed.lyric-line--active {
+  color: rgba(255, 255, 255, 0.45);
+}
+.lyric-line--word-timed.lyric-line--active .lyric-word[data-begin] {
+  background-image: linear-gradient(
+    90deg,
+    var(--text-primary) calc(var(--p, 0) * (100% + 0.5em) - 0.5em),
+    rgba(255, 255, 255, 0.45) calc(var(--p, 0) * (100% + 0.5em))
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 .lyric-translation {
   font-size: 0.8em;

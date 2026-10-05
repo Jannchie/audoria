@@ -578,6 +578,7 @@ export async function storeTrackFile({
     size: prepared.size,
     contentType: prepared.contentType,
     lyrics: embedded.lyrics,
+    lyricsDoc: null,
     sortOrder: null,
     playCount: 0,
     skipCount: 0,

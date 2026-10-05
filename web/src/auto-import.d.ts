@@ -24,12 +24,14 @@ declare global {
   const createEventHook: typeof import('@vueuse/core').createEventHook
   const createGlobalState: typeof import('@vueuse/core').createGlobalState
   const createInjectionState: typeof import('@vueuse/core').createInjectionState
+  const createPlaybackClock: typeof import('./composables/usePlaybackClock').createPlaybackClock
   const createReactiveFn: typeof import('@vueuse/core').createReactiveFn
   const createRef: typeof import('@vueuse/core').createRef
   const createReusableTemplate: typeof import('@vueuse/core').createReusableTemplate
   const createSharedComposable: typeof import('@vueuse/core').createSharedComposable
   const createTemplatePromise: typeof import('@vueuse/core').createTemplatePromise
   const createUnrefFn: typeof import('@vueuse/core').createUnrefFn
+  const cueText: typeof import('./composables/useLyrics').cueText
   const customRef: typeof import('vue').customRef
   const debouncedRef: typeof import('@vueuse/core').debouncedRef
   const debouncedWatch: typeof import('@vueuse/core').debouncedWatch
@@ -54,6 +56,10 @@ declare global {
   const isReadonly: typeof import('vue').isReadonly
   const isRef: typeof import('vue').isRef
   const isShallow: typeof import('vue').isShallow
+  const layoutLyricLine: typeof import('./composables/useLyrics').layoutLyricLine
+  const linesFromDoc: typeof import('./composables/useLyrics').linesFromDoc
+  const looksLikeTtml: typeof import('./composables/useLyrics').looksLikeTtml
+  const lyricsDocQueryKey: typeof import('./composables/useLyrics').lyricsDocQueryKey
   const makeDestructurable: typeof import('@vueuse/core').makeDestructurable
   const markRaw: typeof import('vue').markRaw
   const musicQueryKey: typeof import('./composables/useMusic').musicQueryKey
@@ -108,6 +114,7 @@ declare global {
   const shallowReadonly: typeof import('vue').shallowReadonly
   const shallowRef: typeof import('vue').shallowRef
   const shiftLrcTimestamps: typeof import('./composables/useLyrics').shiftLrcTimestamps
+  const shiftLyricsDoc: typeof import('./composables/useLyrics').shiftLyricsDoc
   const shortcutRegistry: typeof import('./composables/useKeyboardShortcuts').shortcutRegistry
   const sortTracks: typeof import('./composables/useTrackSort').sortTracks
   const statsQueryKey: typeof import('./composables/useListeningStats').statsQueryKey
@@ -233,6 +240,7 @@ declare global {
   const useListeningStatsQuery: typeof import('./composables/useListeningStats').useListeningStatsQuery
   const useLocalStorage: typeof import('@vueuse/core').useLocalStorage
   const useLyrics: typeof import('./composables/useLyrics').useLyrics
+  const useLyricsDoc: typeof import('./composables/useLyrics').useLyricsDoc
   const useMagicKeys: typeof import('@vueuse/core').useMagicKeys
   const useManualRefHistory: typeof import('@vueuse/core').useManualRefHistory
   const useMediaControls: typeof import('@vueuse/core').useMediaControls
@@ -260,6 +268,7 @@ declare global {
   const usePerformanceObserver: typeof import('@vueuse/core').usePerformanceObserver
   const usePermission: typeof import('@vueuse/core').usePermission
   const usePlayTracker: typeof import('./composables/usePlayTracker').usePlayTracker
+  const usePlaybackClock: typeof import('./composables/usePlaybackClock').usePlaybackClock
   const usePlaybackControls: typeof import('./composables/usePlaybackControls').usePlaybackControls
   const usePlayerState: typeof import('./composables/usePlayerState').usePlayerState
   const usePlaylistDetailFetcher: typeof import('./composables/usePlaylists').usePlaylistDetailFetcher
@@ -327,6 +336,7 @@ declare global {
   const useTransition: typeof import('@vueuse/core').useTransition
   const useUpdateAppConfig: typeof import('./composables/useAppConfig').useUpdateAppConfig
   const useUpdateCover: typeof import('./composables/useMusic').useUpdateCover
+  const useUpdateLyrics: typeof import('./composables/useMusic').useUpdateLyrics
   const useUpdateMusic: typeof import('./composables/useMusic').useUpdateMusic
   const useUpdatePlaylist: typeof import('./composables/usePlaylists').useUpdatePlaylist
   const useUploadMusic: typeof import('./composables/useMusic').useUploadMusic
@@ -385,10 +395,10 @@ declare global {
   export type { InputPromptOptions } from './composables/useInputPrompt'
   import('./composables/useInputPrompt')
   // @ts-ignore
-  export type { LyricLine } from './composables/useLyrics'
+  export type { LyricLine, LyricChunk } from './composables/useLyrics'
   import('./composables/useLyrics')
   // @ts-ignore
-  export type { UpdateMusicPayload } from './composables/useMusic'
+  export type { UploadProgress, UpdateMusicPayload } from './composables/useMusic'
   import('./composables/useMusic')
   // @ts-ignore
   export type { PlayMode, PlaybackContextType, TrackLike, PlaybackContextInput } from './composables/usePlayerState'

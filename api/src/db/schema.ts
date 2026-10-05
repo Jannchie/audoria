@@ -26,6 +26,9 @@ export const tracks = sqliteTable('tracks', {
   size: integer('size', { mode: 'number' }).notNull(),
   contentType: text('content_type'),
   lyrics: text('lyrics'),
+  // JSON LyricsDoc, the source of truth once lyrics are edited in place. `lyrics` then holds
+  // its LRC rendering; while this is null, the document is read from `lyrics` instead.
+  lyricsDoc: text('lyrics_doc'),
   sortOrder: integer('sort_order', { mode: 'number' }),
   playCount: integer('play_count', { mode: 'number' }).notNull().default(0),
   skipCount: integer('skip_count', { mode: 'number' }).notNull().default(0),

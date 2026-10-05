@@ -1,10 +1,12 @@
+import type { LyricsDoc } from '@audoria/lyrics-core'
 import type { Ref } from 'vue'
 import type { Music, MusicDlSearchResult, MusicDlSource, MusicImportJob } from '../api/types.gen'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, ref } from 'vue'
 import { client } from '../api/client.gen'
-import { deleteMusicById, getMusicImportsById, postMusicImports, postMusicImportsSearch } from '../api/sdk.gen'
+import { deleteMusicById, getMusicImportsById, postMusicImports, postMusicImportsSearch, putMusicByIdLyrics } from '../api/sdk.gen'
 import { translate } from '../i18n'
+import { lyricsDocQueryKey } from './useLyrics'
 
 export const musicQueryKey = ['music'] as const
 export function buildDownloadUrl(id: string): string {
@@ -229,6 +231,13 @@ export interface UpdateMusicPayload {
   lyrics?: string | null
 }
 
+/** Puts a track the API returned after an edit into every cached track list. */
+function applyUpdatedTrack(queryClient: ReturnType<typeof useQueryClient>, updated: Music): void {
+  queryClient.setQueriesData<Music[]>({ queryKey: musicQueryKey, exact: false }, current =>
+    current?.map(track => track.id === updated.id ? updated : track) ?? current)
+  queryClient.invalidateQueries({ queryKey: musicQueryKey }).catch(() => {})
+}
+
 async function parseJsonError(response: Response, fallback: string): Promise<never> {
   const payload = await response.json().catch(() => null) as unknown
   const message = payload && typeof payload === 'object' && 'message' in payload && typeof (payload as { message: unknown }).message === 'string'
@@ -252,10 +261,24 @@ export function useUpdateMusic() {
       }
       return await response.json() as Music
     },
-    onSuccess: (updated) => {
-      queryClient.setQueriesData<Music[]>({ queryKey: musicQueryKey, exact: false }, current =>
-        current?.map(track => track.id === updated.id ? updated : track) ?? current)
-      queryClient.invalidateQueries({ queryKey: musicQueryKey }).catch(() => {})
+    onSuccess: updated => applyUpdatedTrack(queryClient, updated),
+  })
+}
+
+export function useUpdateLyrics() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, doc }: { id: string, doc: LyricsDoc | null }): Promise<Music> => {
+      const { data, error, response } = await putMusicByIdLyrics({ path: { id }, body: { doc } })
+      if (!data) {
+        throw new Error(error?.message ?? translate('errors.updateFailedStatus', { status: response.status }))
+      }
+      return data
+    },
+    onSuccess: (updated, { doc }) => {
+      // The saved document is what the API would return, so the player needn't refetch it.
+      queryClient.setQueryData(lyricsDocQueryKey(updated.id, updated.lyrics), doc)
+      applyUpdatedTrack(queryClient, updated)
     },
   })
 }

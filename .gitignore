@@ -6,3 +6,4 @@ __pycache__/
 api/data/
 
 .claude/
+packages/*/dist/

@@ -4,6 +4,8 @@ trustPolicy: no-downgrade
 packages:
   - api
   - web
+  - packages/*
+  - apps/*
 
 onlyBuiltDependencies:
   - better-sqlite3

@@ -65,6 +65,11 @@ const router = createRouter({
       name: 'player',
       component: () => import('./pages/PlayerPage.vue'),
     },
+    {
+      path: '/lyrics-editor/:id',
+      name: 'lyrics-editor',
+      component: () => import('./pages/LyricsEditorPage.vue'),
+    },
     // The statistics page is hidden for now; StatsPage.vue is kept to bring it back.
     {
       path: '/stats',

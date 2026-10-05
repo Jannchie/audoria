@@ -1,104 +1,47 @@
+import type { LyricChunk as CoreLyricChunk, LyricsDoc, LyricsWord } from '@audoria/lyrics-core'
+import type { RubySegment } from '../api/types.gen'
+import { cueText, isWordTimedCue, layoutLine, lyricsDocFromText } from '@audoria/lyrics-core'
+import { useQuery } from '@tanstack/vue-query'
 import { computed } from 'vue'
+import { getMusicByIdLyrics } from '../api/sdk.gen'
 import { usePlayerState } from './usePlayerState'
 
 export interface LyricLine {
+  /** Id of the cue the line shows; keys furigana lookups and edits. */
+  id: string
+  /** Seconds. */
   time: number
-  /** Display text, with `漢字(よみ)` reading notation removed. */
   text: string
-  /** The line as written in the lyrics, reading notation included; keys furigana lookups and edits. */
-  source: string
-  /** Lines sharing this timestamp after the first, e.g. a translation under the original. */
+  words: LyricsWord[]
+  /** Backing vocals sung over the line. */
+  background: LyricsWord[]
+  /** Every word carries its own time, so the line can be highlighted word by word. */
+  wordTimed: boolean
+  /** The cue's translations, in track order. */
   translations: string[]
 }
 
-// Hand-written furigana inside lyrics: 運命(さだめ). Must match the API's notation in furigana.ts.
-const READING_NOTATION_RE = /([\p{Script=Han}〆ヶ]+)[(（][\p{Script=Hiragana}\p{Script=Katakana}ー]+[)）]/gu
-
-export function stripReadingNotation(text: string): string {
-  return text.replaceAll(READING_NOTATION_RE, '$1')
-}
-
-const LRC_TIMESTAMP_RE = /\[(\d{1,3}):(\d{2})(?:\.(\d{1,3}))?\]/g
-const LRC_LEADING_TIMESTAMPS_RE = /^(?:\[\d{1,3}:\d{2}(?:\.\d{1,3})?\])+/
-
-function formatLrcTimestamp(totalMs: number): string {
-  const clampedMs = Math.max(0, Math.round(totalMs))
-  const minutes = Math.floor(clampedMs / 60_000)
-  const seconds = Math.floor((clampedMs % 60_000) / 1000)
-  const milliseconds = clampedMs % 1000
-  return `[${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}]`
-}
-
-export function shiftLrcTimestamps(raw: string, offsetMs: number): string {
-  if (!Number.isFinite(offsetMs) || offsetMs === 0) {
-    return raw
+export function linesFromDoc(doc: LyricsDoc | null | undefined): LyricLine[] | null {
+  if (!doc || doc.timing === 'none') {
+    return null
   }
-  return raw.replaceAll(LRC_TIMESTAMP_RE, (_timestamp, minutesRaw: string, secondsRaw: string, msRaw?: string) => {
-    const minutes = Number.parseInt(minutesRaw, 10)
-    const seconds = Number.parseInt(secondsRaw, 10)
-    const milliseconds = msRaw ? Number.parseInt(msRaw.padEnd(3, '0'), 10) : 0
-    return formatLrcTimestamp(minutes * 60_000 + seconds * 1000 + milliseconds + offsetMs)
-  })
+  const translations = doc.tracks.filter(track => track.kind === 'translation')
+  return doc.cues.map(cue => ({
+    id: cue.id,
+    time: (cue.begin ?? 0) / 1000,
+    text: cueText(cue),
+    words: cue.words,
+    background: cue.background ?? [],
+    wordTimed: doc.timing === 'word' && isWordTimedCue(cue),
+    translations: translations.flatMap(track => track.lines[cue.id] ? [track.lines[cue.id]] : []),
+  }))
 }
 
-function parseLrcTimestamp(minutesRaw: string, secondsRaw: string, msRaw?: string): number {
-  const minutes = Number.parseInt(minutesRaw, 10)
-  const seconds = Number.parseInt(secondsRaw, 10)
-  const ms = msRaw ? Number.parseInt(msRaw.padEnd(3, '0'), 10) : 0
-  return minutes * 60 + seconds + ms / 1000
-}
+export type LyricChunk = CoreLyricChunk<RubySegment | { text: string, ruby?: undefined, explicit?: undefined }>
 
-/**
- * Parses LRC into one entry per timestamp. Lines repeating a timestamp (how multi-language
- * lyrics carry translations) fold into the first line's `translations`, and a line prefixed
- * with several timestamps (`[00:10][00:30]chorus`) is expanded to each of them.
- */
-export function parseLrc(raw: string): LyricLine[] {
-  const entries: Array<{ time: number, text: string }> = []
-  for (const line of raw.split('\n')) {
-    const trimmed = line.trim()
-    const prefix = LRC_LEADING_TIMESTAMPS_RE.exec(trimmed)?.[0]
-    if (!prefix) {
-      continue
-    }
-    const text = trimmed.slice(prefix.length).trim()
-    for (const match of prefix.matchAll(LRC_TIMESTAMP_RE)) {
-      entries.push({ time: parseLrcTimestamp(match[1], match[2], match[3]), text })
-    }
-  }
-  // Stable sort keeps file order within a timestamp, so the original stays ahead of its translations.
-  entries.sort((a, b) => a.time - b.time)
-
-  const lines: LyricLine[] = []
-  for (const entry of entries) {
-    const previous = lines.at(-1)
-    if (!previous || Math.abs(previous.time - entry.time) >= 0.001) {
-      lines.push({ time: entry.time, text: stripReadingNotation(entry.text), source: entry.text, translations: [] })
-      continue
-    }
-    if (!entry.text || entry.text === previous.source || previous.translations.includes(entry.text)) {
-      continue
-    }
-    if (previous.source) {
-      previous.translations.push(entry.text)
-    }
-    else {
-      previous.text = stripReadingNotation(entry.text)
-      previous.source = entry.text
-    }
-  }
-  return lines
-}
-
-export function isLrcFormat(raw: string): boolean {
-  const lines = raw.split('\n')
-  let timestampCount = 0
-  for (const line of lines.slice(0, 20)) {
-    if (LRC_LEADING_TIMESTAMPS_RE.test(line.trim())) {
-      timestampCount++
-    }
-  }
-  return timestampCount >= 2
+/** Lays a line out for display with its furigana; see `layoutLine`. */
+export function layoutLyricLine(words: LyricsWord[], segments?: RubySegment[]): LyricChunk[] {
+  return layoutLine(words, segments)
 }
 
 export function findLyricLineAtTime(lines: LyricLine[] | null | undefined, time: number): LyricLine | null {
@@ -118,32 +61,47 @@ export function findLyricLineAtTime(lines: LyricLine[] | null | undefined, time:
   return currentLine
 }
 
-export function useLyrics(lyricsRaw: () => string | null | undefined) {
+export function lyricsDocQueryKey(trackId: string | null | undefined, lyrics: string | null | undefined) {
+  return ['lyrics-doc', trackId, lyrics] as const
+}
+
+interface TrackLyrics {
+  id: string
+  lyrics?: string | null
+  hasLyricsDoc?: boolean
+}
+
+/**
+ * A track's lyrics document. Lyrics never edited in place are their `lyrics` text, read here
+ * without a request; edited ones are fetched. The text is part of the query key: the API keeps
+ * it in step with the document, so any edit to either refetches.
+ */
+export function useLyricsDoc(track: () => TrackLyrics | null | undefined) {
+  const hasLyrics = computed(() => Boolean(track()?.lyrics?.trim()))
+  const isEdited = computed(() => hasLyrics.value && Boolean(track()?.hasLyricsDoc))
+  const parsedText = computed(() => isEdited.value ? null : lyricsDocFromText(track()?.lyrics))
+  const query = useQuery({
+    queryKey: computed(() => lyricsDocQueryKey(track()?.id, track()?.lyrics)),
+    queryFn: async () => {
+      const { data } = await getMusicByIdLyrics({ path: { id: track()!.id }, throwOnError: true })
+      return data.doc
+    },
+    enabled: isEdited,
+    // After an edit, keep showing the same track's lyrics until the new document arrives.
+    placeholderData: (previous, previousQuery) => previousQuery?.queryKey[1] === track()?.id ? previous : undefined,
+    staleTime: Infinity,
+  })
+  return computed<LyricsDoc | null>(() => isEdited.value ? query.data.value ?? null : parsedText.value)
+}
+
+export function useLyrics(doc: () => LyricsDoc | null | undefined) {
   const { currentTime, lastSeekDelta } = usePlayerState()
 
-  const parsed = computed(() => {
-    const raw = lyricsRaw()
-    if (!raw?.trim()) {
-      return null
-    }
-    if (!isLrcFormat(raw)) {
-      return null
-    }
-    return parseLrc(raw)
-  })
+  const parsed = computed(() => linesFromDoc(doc()))
 
   const isTimeSynced = computed(() => parsed.value !== null && parsed.value.length > 0)
 
-  const plainText = computed(() => {
-    const raw = lyricsRaw()
-    if (!raw?.trim()) {
-      return ''
-    }
-    if (isTimeSynced.value && parsed.value) {
-      return parsed.value.flatMap(l => [l.text, ...l.translations]).filter(Boolean).join('\n')
-    }
-    return stripReadingNotation(raw.trim())
-  })
+  const plainText = computed(() => doc()?.cues.map(cueText).join('\n').trim() ?? '')
 
   // Level 2: compensate lyrics highlight for iOS seek imprecision
   const compensatedTime = computed(() => currentTime.value - lastSeekDelta.value)

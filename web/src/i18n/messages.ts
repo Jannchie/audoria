@@ -1,5 +1,16 @@
 export const messages = {
   'en-US': {
+    lyricsEditor: {
+      title: 'Word timing',
+      back: 'Back to player',
+      save: 'Save',
+      saving: 'Saving…',
+      saved: 'Saved',
+      unsaved: 'Unsaved changes',
+      draftRestored: 'Your unsaved draft for this song is back.',
+      incomplete: 'Line {line} isn’t fully timed ({count} lines left). Finish its words, or time it as a whole line.',
+      notFound: 'This track isn’t in the library.',
+    },
     auth: {
       loginPrompt: 'Enter your access token to continue',
       tokenPlaceholder: 'Access token',
@@ -376,6 +387,8 @@ export const messages = {
         saveFailed: 'Failed to save lyrics',
         furigana: 'Furigana',
         editFurigana: 'Edit readings',
+        exportTtml: 'Export TTML',
+        timing: 'Time words',
         editFuriganaHint: 'Click a word to correct its reading; Enter saves, Esc cancels, empty resets',
         readingFor: 'Reading for {text}',
       },
@@ -464,10 +477,11 @@ export const messages = {
       sourceNone: 'None',
       lyricsModes: {
         synced: 'Synced (LRC)',
+        ttml: 'TTML',
         plain: 'Plain text',
         empty: 'Empty',
       },
-      lyricsHint: 'LRC timestamps auto-enable synced highlighting. Plain text renders as-is.',
+      lyricsHint: 'LRC timestamps auto-enable synced highlighting; TTML (Apple Music / AMLL) also keeps word timing. Plain text renders as-is.',
       saveFailed: 'Save failed',
     },
     shader: {
@@ -496,6 +510,17 @@ export const messages = {
     },
   },
   'ja': {
+    lyricsEditor: {
+      title: '単語タイミング',
+      back: 'プレーヤーに戻る',
+      save: '保存',
+      saving: '保存中…',
+      saved: '保存しました',
+      unsaved: '未保存の変更があります',
+      draftRestored: 'この曲の未保存の下書きを復元しました。',
+      incomplete: '{line} 行目がまだ途中です（残り {count} 行）。語をすべて設定するか、行単位に切り替えてください。',
+      notFound: 'この曲はライブラリにありません。',
+    },
     auth: {
       loginPrompt: 'アクセストークンを入力してください',
       tokenPlaceholder: 'アクセストークン',
@@ -872,6 +897,8 @@ export const messages = {
         saveFailed: '歌詞の保存に失敗しました',
         furigana: 'ふりがな',
         editFurigana: '読みを編集',
+        exportTtml: 'TTML を書き出す',
+        timing: '単語タイミング',
         editFuriganaHint: '単語をクリックして読みを修正（Enter で保存、Esc で取消、空欄で自動に戻す）',
         readingFor: '{text} の読み',
       },
@@ -960,10 +987,11 @@ export const messages = {
       sourceNone: 'なし',
       lyricsModes: {
         synced: '同期歌詞（LRC）',
+        ttml: 'TTML',
         plain: 'プレーンテキスト',
         empty: '空',
       },
-      lyricsHint: 'タイムスタンプ付きLRCは自動で同期ハイライトが有効になります。プレーンテキストはそのまま表示されます。',
+      lyricsHint: 'タイムスタンプ付きLRCは自動で同期ハイライトが有効になります。TTML（Apple Music / AMLL）は単語ごとのタイミングも保持します。プレーンテキストはそのまま表示されます。',
       saveFailed: '保存に失敗しました',
     },
     shader: {
@@ -992,6 +1020,17 @@ export const messages = {
     },
   },
   'zh-CN': {
+    lyricsEditor: {
+      title: '逐字打轴',
+      back: '返回播放器',
+      save: '保存',
+      saving: '保存中…',
+      saved: '已保存',
+      unsaved: '有未保存的修改',
+      draftRestored: '已恢复这首歌上次没保存的草稿。',
+      incomplete: '第 {line} 行还没打完（一共还有 {count} 行）。把字打完，或把这一行改成按句。',
+      notFound: '曲库里没有这首歌。',
+    },
     auth: {
       loginPrompt: '请输入访问令牌以继续',
       tokenPlaceholder: '访问令牌',
@@ -1368,6 +1407,8 @@ export const messages = {
         saveFailed: '保存歌词失败',
         furigana: '注音',
         editFurigana: '编辑注音',
+        exportTtml: '导出 TTML',
+        timing: '逐字打轴',
         editFuriganaHint: '点击词语修正读音（Enter 保存，Esc 取消，留空恢复自动注音）',
         readingFor: '{text} 的读音',
       },
@@ -1456,10 +1497,11 @@ export const messages = {
       sourceNone: '无',
       lyricsModes: {
         synced: '同步歌词（LRC）',
+        ttml: 'TTML',
         plain: '纯文本',
         empty: '空',
       },
-      lyricsHint: '带时间戳的 LRC 会自动启用同步高亮。纯文本会按原样显示。',
+      lyricsHint: '带时间戳的 LRC 会自动启用同步高亮；TTML（Apple Music / AMLL）还会保留逐字时间。纯文本会按原样显示。',
       saveFailed: '保存失败',
     },
     shader: {

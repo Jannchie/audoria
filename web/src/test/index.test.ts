@@ -131,69 +131,101 @@ describe('useplayerstate', () => {
     expect(player.getNextTrackId(tracks)).toBe('track-c')
   })
 
-  it('shifts lrc timestamps in the lyrics text', async () => {
-    const { shiftLrcTimestamps } = await import('../composables/useLyrics')
+  it('turns a lyrics document into lines with their translations', async () => {
+    const { linesFromDoc } = await import('../composables/useLyrics')
 
-    expect(shiftLrcTimestamps('[00:10.00]First\n[00:00.05]Intro', -100))
-      .toBe('[00:09.900]First\n[00:00.000]Intro')
-    expect(shiftLrcTimestamps('[00:10][00:12.50]Echo', 250))
-      .toBe('[00:10.250][00:12.750]Echo')
-  })
-
-  it('folds lines sharing a timestamp into translations', async () => {
-    const { parseLrc } = await import('../composables/useLyrics')
-
-    const lines = parseLrc([
-      '[ti:机さする]',
-      '[00:07.88]外を見るともう明るいよね',
-      '[00:07.88]望向窗外发现天色已经亮了',
-      '[00:16.39]眠れなかったけどさ頭冴えてる',
-      '[00:16.39]',
-      '[00:16.39]眠れなかったけどさ頭冴えてる',
-    ].join('\n'))
-
-    expect(lines).toEqual([
-      { time: 7.88, text: '外を見るともう明るいよね', source: '外を見るともう明るいよね', translations: ['望向窗外发现天色已经亮了'] },
-      { time: 16.39, text: '眠れなかったけどさ頭冴えてる', source: '眠れなかったけどさ頭冴えてる', translations: [] },
+    expect(linesFromDoc({
+      version: 1,
+      timing: 'line',
+      cues: [
+        { id: 'c0', begin: 7880, words: [{ text: '外を見る' }], ruby: [{ start: 0, end: 1, reading: 'そと' }] },
+        { id: 'c1', begin: 16_390, words: [] },
+      ],
+      tracks: [{ lang: 'zh', kind: 'translation', lines: { c0: '望向窗外' } }],
+    })).toEqual([
+      { id: 'c0', time: 7.88, text: '外を見る', words: [{ text: '外を見る' }], background: [], wordTimed: false, translations: ['望向窗外'] },
+      { id: 'c1', time: 16.39, text: '', words: [], background: [], wordTimed: false, translations: [] },
     ])
+    expect(linesFromDoc({ version: 1, timing: 'none', cues: [], tracks: [] })).toBeNull()
   })
 
-  it('hides hand-written reading notation from displayed lyrics', async () => {
-    const { parseLrc } = await import('../composables/useLyrics')
+  it('cuts furigana segments at word boundaries and shares a cut word\'s time by length', async () => {
+    const { layoutLyricLine } = await import('../composables/useLyrics')
+    const words = [{ text: '運', begin: 0, end: 100 }, { text: '命の', begin: 100, end: 300 }]
 
-    const [line] = parseLrc('[00:01.00]運命(さだめ)を本気（マジ）で信じた (Live)')
-
-    expect(line.text).toBe('運命を本気で信じた (Live)')
-    expect(line.source).toBe('運命(さだめ)を本気（マジ）で信じた (Live)')
+    expect(layoutLyricLine(words, [{ text: '運命', ruby: 'さだめ' }, { text: 'の' }])).toEqual([
+      {
+        index: 0,
+        segment: { text: '運命', ruby: 'さだめ' },
+        pieces: [{ text: '運', begin: 0, end: 100 }, { text: '命', begin: 100, end: 200 }],
+        begin: 0,
+        end: 200,
+      },
+      { index: 1, segment: { text: 'の' }, pieces: [{ text: 'の', begin: 200, end: 300 }], begin: 200, end: 300 },
+    ])
+    // Readings for older text are ignored rather than misplaced.
+    expect(layoutLyricLine(words, [{ text: '別', ruby: 'べつ' }]).map(chunk => chunk.segment))
+      .toEqual([{ text: '運命の' }])
   })
 
-  it('writes a corrected reading back into every matching lyric line', async () => {
+  it('smooths stepped playback time without running ahead of a stall or stepping back', async () => {
+    const { createPlaybackClock } = await import('../composables/usePlaybackClock')
+    let now = 0
+    const clock = createPlaybackClock(() => now)
+
+    clock.report(10, true)
+    now = 200
+    expect(clock.read()).toBeCloseTo(10.2)
+    now = 2000
+    expect(clock.read()).toBeCloseTo(10.5)
+    clock.report(10.4, true)
+    expect(clock.read()).toBeCloseTo(10.5)
+    clock.report(3, true)
+    expect(clock.read()).toBe(3)
+    clock.report(3, false)
+    now = 5000
+    expect(clock.read()).toBe(3)
+  })
+
+  it('writes a corrected reading into every cue with the same text and readings', async () => {
     const { applyReadingCorrection } = await import('../composables/useFurigana')
-    const lyrics = '[ti:x]\n[00:01.00]運命(さだめ)の今\n[00:01.00]命运的现在\n[00:30.00]運命(さだめ)の今'
+    const ruby = [{ start: 0, end: 2, reading: 'さだめ' }]
+    const doc = {
+      version: 1 as const,
+      timing: 'line' as const,
+      cues: [
+        { id: 'c0', begin: 1000, words: [{ text: '運命の今' }], ruby },
+        { id: 'c1', begin: 30_000, words: [{ text: '運命の今' }], ruby },
+        { id: 'c2', begin: 40_000, words: [{ text: '運命の今' }] },
+      ],
+      tracks: [],
+    }
     const segments = [
       { text: '運命', ruby: 'さだめ', explicit: true },
       { text: 'の' },
       { text: '今', ruby: 'こん' },
     ]
 
-    expect(applyReadingCorrection(lyrics, '運命(さだめ)の今', segments, 2, 'いま'))
-      .toBe('[ti:x]\n[00:01.00]運命(さだめ)の今(いま)\n[00:01.00]命运的现在\n[00:30.00]運命(さだめ)の今(いま)')
-    expect(applyReadingCorrection(lyrics, '運命(さだめ)の今', segments, 0, ''))
-      .toBe('[ti:x]\n[00:01.00]運命の今\n[00:01.00]命运的现在\n[00:30.00]運命の今')
+    const corrected = applyReadingCorrection(doc, 'c0', segments, 2, ' いま ')
+    expect(corrected.cues.map(cue => cue.ruby)).toEqual([
+      [...ruby, { start: 3, end: 4, reading: 'いま' }],
+      [...ruby, { start: 3, end: 4, reading: 'いま' }],
+      undefined,
+    ])
+    expect(applyReadingCorrection(doc, 'c0', segments, 0, '').cues.map(cue => cue.ruby))
+      .toEqual([undefined, undefined, undefined])
   })
 
-  it('expands lines prefixed with several timestamps', async () => {
-    const { parseLrc } = await import('../composables/useLyrics')
-
-    expect(parseLrc('[00:30.00][00:10.00]Chorus\n[00:20.00]Verse').map(line => [line.time, line.text]))
-      .toEqual([[10, 'Chorus'], [20, 'Verse'], [30, 'Chorus']])
-  })
-
-  it('resolves the current lyric line from lrc timestamps', async () => {
+  it('resolves the current lyric line from cue times', async () => {
     const { usePlayerState } = await loadPlayerState()
     const { useLyrics } = await import('../composables/useLyrics')
     const player = usePlayerState()
-    const lyrics = useLyrics(() => '[00:10.00]First\n[00:12.00]Second')
+    const lyrics = useLyrics(() => ({
+      version: 1,
+      timing: 'line',
+      cues: [{ id: 'a', begin: 10_000, words: [{ text: 'First' }] }, { id: 'b', begin: 12_000, words: [{ text: 'Second' }] }],
+      tracks: [],
+    }))
 
     player.updateProgress(11, 120)
     expect(lyrics.currentLineIndex.value).toBe(0)

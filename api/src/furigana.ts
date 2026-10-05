@@ -1,21 +1,20 @@
+import type { LyricsDoc, LyricsRuby } from '@audoria/lyrics-core'
 import type { IpadicFeatures, Tokenizer } from 'kuromoji'
 import { createRequire } from 'node:module'
 import path from 'node:path'
+import { cueText, rubyRuns } from '@audoria/lyrics-core'
 import kuromoji from 'kuromoji'
 
 export interface RubySegment {
   text: string
   /** Hiragana reading shown above `text`; absent for segments that need none. */
   ruby?: string
-  /** The reading is written into the lyrics as `漢字(よみ)`, i.e. set by hand rather than analyzed. */
+  /** The reading was set by hand rather than analyzed. */
   explicit?: boolean
 }
 
 const KANJI_RE = /[\p{Script=Han}〆ヶ]/u
 const KANA_RE = /[\p{Script=Hiragana}\p{Script=Katakana}]/u
-// Readings written into the lyrics, e.g. 運命(さだめ), take precedence over the analyzer.
-const EXPLICIT_READING_SOURCE = String.raw`([\p{Script=Han}〆ヶ]+)[(（]([\p{Script=Hiragana}\p{Script=Katakana}ー]+)[)）]`
-const LRC_TAG_RE = /^(?:\[[^\]]*\])+/
 
 // Standalone words the IPA dictionary tends to misread as prefixes or on'yomi.
 const READING_OVERRIDES: Record<string, string> = {
@@ -121,45 +120,38 @@ function mergePlainSegments(segments: RubySegment[]): RubySegment[] {
   return merged
 }
 
-async function annotateLine(line: string): Promise<RubySegment[]> {
-  const cached = cache.get(line)
+async function annotateCue(text: string, ruby: LyricsRuby[]): Promise<RubySegment[]> {
+  const cacheKey = ruby.length > 0 ? `${text}\u0000${JSON.stringify(ruby)}` : text
+  const cached = cache.get(cacheKey)
   if (cached) {
     return cached
   }
 
+  // Hand-set readings take precedence; the analyzer reads the text between them.
   const tokenizer = await getTokenizer()
-  const segments: RubySegment[] = []
-  let cursor = 0
-  for (const match of line.matchAll(new RegExp(EXPLICIT_READING_SOURCE, 'gu'))) {
-    segments.push(...annotateWords(line.slice(cursor, match.index), tokenizer), { text: match[1], ruby: match[2], explicit: true })
-    cursor = match.index + match[0].length
-  }
-  segments.push(...annotateWords(line.slice(cursor), tokenizer))
+  const segments = rubyRuns({ words: [{ text }], ruby }).flatMap(run =>
+    run.reading ? [{ text: run.text, ruby: run.reading, explicit: true }] : annotateWords(run.text, tokenizer))
 
   const result = mergePlainSegments(segments)
   if (cache.size >= CACHE_LIMIT) {
     cache.delete(cache.keys().next().value!)
   }
-  cache.set(line, result)
+  cache.set(cacheKey, result)
   return result
 }
 
 /**
- * Annotates the Japanese lines of an LRC or plain-text lyric with furigana, keyed by the line's
- * raw text (timestamps stripped, `漢字(よみ)` notation kept). Lines without kana, such as
- * Chinese translations, and lines without kanji are left out.
+ * Annotates the Japanese cues of a lyrics document with furigana, keyed by cue id. Cues without
+ * kanji, and cues without kana or hand-set readings (such as Chinese lines), are left out.
  */
-export async function annotateLyricsFurigana(lyrics: string): Promise<Record<string, RubySegment[]>> {
-  const lines = new Set(
-    lyrics
-      .split('\n')
-      .map(line => line.trim().replace(LRC_TAG_RE, '').trim())
-      .filter(line => KANJI_RE.test(line) && (KANA_RE.test(line) || /[(（]/.test(line))),
-  )
-
+export async function annotateLyricsFurigana(doc: LyricsDoc): Promise<Record<string, RubySegment[]>> {
   const annotated: Record<string, RubySegment[]> = {}
-  for (const line of lines) {
-    annotated[line] = await annotateLine(line)
+  for (const cue of doc.cues) {
+    const text = cueText(cue)
+    const ruby = cue.ruby ?? []
+    if (KANJI_RE.test(text) && (KANA_RE.test(text) || ruby.length > 0)) {
+      annotated[cue.id] = await annotateCue(text, ruby)
+    }
   }
   return annotated
 }

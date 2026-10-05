@@ -1,18 +1,19 @@
 {
   "type": "module",
   "scripts": {
-    "dev": "node --watch --import tsx src/index.ts",
-    "worker": "node --watch --import tsx src/worker.ts",
+    "dev": "node --watch --conditions=source --import tsx src/index.ts",
+    "worker": "node --watch --conditions=source --import tsx src/worker.ts",
     "build": "tsc",
     "start": "node dist/index.js",
     "start:worker": "node dist/worker.js",
-    "test": "node --import tsx --import ./test/setup.ts --test test/*.test.ts",
+    "test": "node --conditions=source --import tsx --import ./test/setup.ts --test test/*.test.ts",
     "backfill:cover-masks": "tsx scripts/backfill-cover-masks.ts",
     "backfill:cover-thumbhashes": "tsx scripts/backfill-cover-thumbhashes.ts",
     "backfill:duration": "tsx scripts/backfill-duration.ts",
     "backfill:source-identifier": "tsx scripts/backfill-source-identifier.ts"
   },
   "dependencies": {
+    "@audoria/lyrics-core": "workspace:*",
     "@aws-sdk/client-s3": "^3.1031.0",
     "@hono/node-server": "^1.19.14",
     "@hono/swagger-ui": "^0.6.1",

@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import type { Music } from '../api/types.gen'
+import { isLrcFormat, looksLikeTtml } from '@audoria/lyrics-core'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useDialogFocus } from '../composables/useDialogFocus'
-import { isLrcFormat } from '../composables/useLyrics'
 import { resolveApiUrl, useDeleteCover, useUpdateCover, useUpdateMusic } from '../composables/useMusic'
 import { getSourceDisplay } from '../utils/source'
 import LazyCoverImage from './LazyCoverImage.vue'
@@ -49,10 +49,13 @@ const sourcePresets: string[] = [
   'Youtube',
 ]
 
-const lyricsMode = computed<'lrc' | 'plain' | 'empty'>(() => {
+const lyricsMode = computed<'lrc' | 'ttml' | 'plain' | 'empty'>(() => {
   const raw = lyrics.value.trim()
   if (!raw) {
     return 'empty'
+  }
+  if (looksLikeTtml(raw)) {
+    return 'ttml'
   }
   return isLrcFormat(raw) ? 'lrc' : 'plain'
 })
@@ -390,6 +393,7 @@ function applySourcePreset(value: string): void {
                     :data-mode="lyricsMode"
                   >
                     <template v-if="lyricsMode === 'lrc'">{{ t('metadata.lyricsModes.synced') }}</template>
+                    <template v-else-if="lyricsMode === 'ttml'">{{ t('metadata.lyricsModes.ttml') }}</template>
                     <template v-else-if="lyricsMode === 'plain'">{{ t('metadata.lyricsModes.plain') }}</template>
                     <template v-else>{{ t('metadata.lyricsModes.empty') }}</template>
                   </span>
@@ -592,7 +596,8 @@ function applySourcePreset(value: string): void {
   color: var(--text-tertiary);
 }
 
-.metadata-mode-tag[data-mode='lrc'] {
+.metadata-mode-tag[data-mode='lrc'],
+.metadata-mode-tag[data-mode='ttml'] {
   background: var(--accent-soft);
   color: var(--accent);
 }

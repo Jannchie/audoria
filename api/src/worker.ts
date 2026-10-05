@@ -1,4 +1,6 @@
 import type { ReadableStream } from 'node:stream/web'
+import type { Track } from './db/schema.js'
+import type { LyricsColumns } from './lyrics/store.js'
 import type { MusicDlSongInfo } from './musicdl.js'
 import { Readable } from 'node:stream'
 import { setTimeout as sleep } from 'node:timers/promises'
@@ -14,6 +16,7 @@ import {
   updateTrackImportedMetadata,
 } from './db/index.js'
 import { initRuntimeDb } from './db/runtime.js'
+import { lyricsColumnsFromText } from './lyrics/store.js'
 import { MusicDlBridgeError, MusicDlUnavailableError, openMusicDlStream } from './musicdl.js'
 import { migrateFlacTracksToMp4, repairTrackFormats, storeTrack, storeTrackCover, storeTrackCoverMask } from './storage.js'
 
@@ -42,6 +45,20 @@ function readContentLength(response: Response): number | null {
   }
   const value = Number(raw)
   return Number.isFinite(value) && value >= 0 ? value : null
+}
+
+/** Source lyrics replace the track's own; without any, whatever the track has is kept as is. */
+function importedLyrics(sourceLyrics: string | null | undefined, track: Track): LyricsColumns {
+  if (!sourceLyrics) {
+    return { lyrics: track.lyrics, lyricsDoc: track.lyricsDoc }
+  }
+  try {
+    return lyricsColumnsFromText(sourceLyrics)
+  }
+  catch {
+    // Malformed TTML from a source is still worth keeping as text.
+    return { lyrics: sourceLyrics, lyricsDoc: null }
+  }
 }
 
 async function readLimitedResponseBody(response: Response): Promise<Uint8Array> {
@@ -174,7 +191,7 @@ async function processNextJob(): Promise<boolean> {
       coverThumbContentType: storedCover?.thumb.contentType ?? track.coverThumbContentType,
       coverThumbhash: storedCover?.thumbhash ?? track.coverThumbhash,
       coverMaskRequestedAt: storedCover ? Date.now() : track.coverMaskRequestedAt,
-      lyrics: songInfo.lyric ?? track.lyrics,
+      ...importedLyrics(songInfo.lyric, track),
       title: songInfo.song_name ?? track.title,
       artists: songInfo.singers ?? track.artists,
       album: songInfo.album ?? track.album,
