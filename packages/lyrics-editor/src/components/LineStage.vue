@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import type { LyricsCue } from '@audoria/lyrics-core'
 import { cueText } from '@audoria/lyrics-core'
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { incompleteLines, isCreditLine, shiftCue, stampLine } from '../core/index.js'
-import { useSession } from '../session.js'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { incompleteLines, isCreditLine, lineAt, nextLine } from '../core/index.js'
+import { useSession, useStageKeys } from '../session.js'
 import { formatTimecode } from '../time.js'
 
 const session = useSession()
@@ -12,77 +12,37 @@ const { doc, now, playing, t, cursor } = session
 const target = computed(() => cursor.value.cue)
 const listEl = ref<HTMLElement | null>(null)
 
-/** Lines the space bar walks through: sung lines, not credits or blank lines. */
-function isStampable(cue: LyricsCue | undefined): boolean {
-  return Boolean(cue) && cue!.words.length > 0 && !isCreditLine(cue!)
-}
+/** Lines the space bar walks through: sung lines, not credits (blank lines have no words). */
+const isSung = (cue: LyricsCue): boolean => !isCreditLine(cue)
 
-function stepTarget(from: number, direction: 1 | -1, onlyStampable = true): number | null {
-  for (let i = from + direction; i >= 0 && i < doc.value.cues.length; i += direction) {
-    const cue = doc.value.cues[i]
-    if (onlyStampable ? isStampable(cue) : cue.words.length > 0) {
-      return i
-    }
-  }
-  return null
-}
-
-function setTarget(index: number): void {
-  cursor.value = { cue: index, word: 0 }
-}
-
-// The line being heard: the last one that has started.
-const playingIndex = computed(() => {
-  let found = -1
-  for (const [index, cue] of doc.value.cues.entries()) {
-    if (cue.words.length > 0 && cue.begin !== undefined && cue.begin <= now.value) {
-      found = index
-    }
-  }
-  return found
-})
-
+const playingIndex = computed(() => lineAt(doc.value, now.value))
 const remaining = computed(() => incompleteLines(doc.value).length)
 
-// Stamps made here, newest last, so Backspace can put a line back exactly as it was.
-const stamps = ref<Array<{ cue: number, before: LyricsCue, at: number }>>([])
+// Marks made here, newest last. Backspace takes the last one back through the history and
+// replays from just before it.
+const marks = ref<Array<{ cue: number, ms: number }>>([])
 
 function stamp(): void {
   const index = target.value
-  const cue = doc.value.cues[index]
-  if (!cue || cue.words.length === 0) {
+  if (!doc.value.cues[index]?.words.length) {
     return
   }
-  const at = session.currentMs()
-  stamps.value.push({ cue: index, before: cue, at })
-  session.apply(stampLine(doc.value, index, at))
-  session.markStamp(index)
-  const next = stepTarget(index, 1)
-  if (next !== null) {
-    setTarget(next)
-  }
+  session.stampLineNow(index, isSung)
+  marks.value.push({ cue: index, ms: session.lastStamp.value!.ms })
 }
 
 function undoStamp(): void {
-  const last = stamps.value.pop()
-  if (!last) {
-    return
-  }
-  session.apply({ ...doc.value, cues: doc.value.cues.map((cue, i) => i === last.cue ? last.before : cue) })
-  setTarget(last.cue)
-  session.seek(last.at - 3000)
-}
-
-function nudge(deltaMs: number): void {
-  if (doc.value.cues[target.value]?.begin !== undefined) {
-    session.apply(shiftCue(doc.value, target.value, deltaMs), `line-nudge:${target.value}`)
+  const last = marks.value.pop()
+  if (last) {
+    session.undo()
+    session.selectLine(last.cue)
+    session.seek(last.ms - 3000)
   }
 }
 
 function replayTarget(): void {
-  const begin = doc.value.cues[target.value]?.begin
-  const previous = stepTarget(target.value, -1, false)
-  const from = begin ?? (previous === null ? undefined : doc.value.cues[previous].begin)
+  const previous = nextLine(doc.value, target.value, -1)
+  const from = doc.value.cues[target.value]?.begin ?? (previous === null ? undefined : doc.value.cues[previous].begin)
   if (from !== undefined) {
     session.seek(from - 1000)
   }
@@ -101,9 +61,8 @@ function onKey(event: KeyboardEvent): boolean {
   if (event.ctrlKey || event.metaKey || event.altKey) {
     return false
   }
-  const key = event.key.toLowerCase()
   const step = event.shiftKey ? 250 : 50
-  switch (key) {
+  switch (event.key.toLowerCase()) {
     case ' ':
     case 'j': {
       if (session.isPlaying()) {
@@ -120,18 +79,18 @@ function onKey(event: KeyboardEvent): boolean {
     }
     case 'arrowup':
     case 'arrowdown': {
-      const next = stepTarget(target.value, key === 'arrowup' ? -1 : 1, false)
+      const next = nextLine(doc.value, target.value, event.key === 'ArrowUp' ? -1 : 1)
       if (next !== null) {
-        setTarget(next)
+        session.selectLine(next)
       }
       return true
     }
     case 'a': {
-      nudge(-step)
+      session.nudgeLine(target.value, -step)
       return true
     }
     case 'd': {
-      nudge(step)
+      session.nudgeLine(target.value, step)
       return true
     }
     case 'enter':
@@ -144,8 +103,7 @@ function onKey(event: KeyboardEvent): boolean {
     }
   }
 }
-
-const isFlashing = (index: number): boolean => session.lastStamp.value?.cue === index && session.lastStamp.value.word === undefined
+useStageKeys(session, onKey)
 
 watch(target, async () => {
   await nextTick()
@@ -153,23 +111,17 @@ watch(target, async () => {
 })
 
 onMounted(() => {
-  session.keyHandler.value = onKey
   // Pick up where marking left off: the first sung line without a time, unless the selected
   // line still needs one.
   const current = doc.value.cues[target.value]
-  if (!isStampable(current) || current!.begin !== undefined) {
-    const open = doc.value.cues.findIndex(cue => isStampable(cue) && cue.begin === undefined)
-    const next = open === -1 ? isStampable(current) ? target.value : stepTarget(-1, 1) : open
+  if (!current || current.words.length === 0 || !isSung(current) || current.begin !== undefined) {
+    const open = doc.value.cues.findIndex(cue => cue.words.length > 0 && isSung(cue) && cue.begin === undefined)
+    const next = open === -1 ? nextLine(doc.value, -1, 1, isSung) : open
     if (next !== null) {
-      setTarget(next)
+      session.selectLine(next)
     }
   }
   void nextTick(() => listEl.value?.querySelector('.ls-line--target')?.scrollIntoView({ block: 'center' }))
-})
-onBeforeUnmount(() => {
-  if (session.keyHandler.value === onKey) {
-    session.keyHandler.value = null
-  }
 })
 </script>
 
@@ -216,15 +168,15 @@ onBeforeUnmount(() => {
           'ls-line--timed': cue.begin !== undefined,
           'ls-line--past': playingIndex >= 0 && i < playingIndex,
         }"
-        @click="cue.words.length > 0 && setTarget(i)"
+        @click="cue.words.length > 0 && session.selectLine(i)"
         @dblclick="playFrom(i)"
       >
         <template v-if="cue.words.length > 0">
           <span class="ls-time">{{ cue.begin === undefined ? '—' : formatTimecode(cue.begin) }}</span>
           <span
-            :key="isFlashing(i) ? session.lastStamp.value!.at : 0"
+            :key="session.isFlashing(i) ? session.lastStamp.value!.at : 0"
             class="ls-text"
-            :class="{ 'ls-text--flash': isFlashing(i) }"
+            :class="{ 'ls-text--flash': session.isFlashing(i) }"
           >
             {{ cueText(cue) }}
             <span
@@ -244,7 +196,7 @@ onBeforeUnmount(() => {
       <button
         type="button"
         class="ls-undo"
-        :disabled="stamps.length === 0"
+        :disabled="marks.length === 0"
         @click="undoStamp"
       >
         <kbd>⌫</kbd> {{ t.lineUndo }}

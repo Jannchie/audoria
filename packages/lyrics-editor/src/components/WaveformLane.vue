@@ -34,7 +34,6 @@ const { now, peaks, peaksState, t } = session
 
 const root = ref<HTMLElement | null>(null)
 const canvas = ref<HTMLCanvasElement | null>(null)
-const width = ref(0)
 
 const pct = (ms: number): number => (ms - props.start) / props.span * 100
 
@@ -55,8 +54,6 @@ function draw(): void {
   const ratio = window.devicePixelRatio || 1
   const cssWidth = element.clientWidth
   const cssHeight = element.clientHeight
-  element.width = Math.round(cssWidth * ratio)
-  element.height = Math.round(cssHeight * ratio)
   const context = element.getContext('2d')
   if (!context) {
     return
@@ -88,14 +85,19 @@ function draw(): void {
 
 let observer: ResizeObserver | undefined
 onMounted(() => {
+  // Resizing the backing store clears it, so it happens only when the element's size changes.
   observer = new ResizeObserver(() => {
-    width.value = root.value?.clientWidth ?? 0
+    const element = canvas.value
+    if (element) {
+      const ratio = window.devicePixelRatio || 1
+      element.width = Math.round(element.clientWidth * ratio)
+      element.height = Math.round(element.clientHeight * ratio)
+    }
     draw()
   })
   if (root.value) {
     observer.observe(root.value)
   }
-  draw()
 })
 onBeforeUnmount(() => observer?.disconnect())
 watch(() => [props.start, props.span, peaks.value], draw)

@@ -1,14 +1,25 @@
-import type { LyricsDoc } from '@audoria/lyrics-core'
+import type { LyricsCue, LyricsDoc } from '@audoria/lyrics-core'
 import type { InjectionKey, Ref, ShallowRef } from 'vue'
-import type { AudioSource, LineStatus, Peaks, WordRef } from './core/index.js'
+import type { AudioSource, Peaks, WordRef } from './core/index.js'
 import type { EditorMessages } from './messages.js'
-import { inject, reactive, ref, shallowRef } from 'vue'
-import { decodePeaks, History, lineStatus, prepareForTiming, wordAt } from './core/index.js'
+import { inject, onBeforeUnmount, onMounted, reactive, ref, shallowRef } from 'vue'
+import { decodePeaks, firstOpenLine, History, nextLine, prepareForTiming, shiftLine, stampLine, wordAt } from './core/index.js'
 
 export type Stage = 'line' | 'word' | 'preview'
 
 /** A stage's keyboard handler; returns true when it handled the key. */
 export type KeyHandler = (event: KeyboardEvent) => boolean
+
+/** Where the last mark landed: the line, the word for word marks, and the playback time. */
+export interface Stamp {
+  cue: number
+  word?: number
+  ms: number
+  /** Wall-clock time, so the same mark made twice still flashes twice. */
+  at: number
+}
+
+export type PeaksState = 'idle' | 'loading' | 'ready' | 'failed' | 'unavailable'
 
 /**
  * State the editor's stages share: the document with its history, playback, the selected line
@@ -38,17 +49,22 @@ export interface EditorSession {
 
   stage: Ref<Stage>
   cursor: Ref<WordRef>
-  /** Lines switched to word timing before any of their words is timed. */
-  wordLines: Set<string>
+  selectLine: (cue: number) => void
   /** A line is timed word by word once a word is timed, or once switched to it. */
   isWordMode: (cue: number) => boolean
-  statusOf: (cue: number) => LineStatus
-  /** The last stamp, for a brief flash where it landed. */
-  lastStamp: Ref<{ cue: number, word?: number, at: number } | null>
-  markStamp: (cue: number, word?: number) => void
+  /** Switches a line to word timing before any of its words is timed, or back. */
+  setWordMode: (cue: number, on: boolean) => void
+
+  /** Marks the start of a whole line now, and moves on to the next line with words that `accept` takes. */
+  stampLineNow: (cue: number, accept?: (line: LyricsCue) => boolean) => void
+  /** Moves a whole line, grouped so a run of nudges undoes in one step. */
+  nudgeLine: (cue: number, deltaMs: number) => void
+  lastStamp: Ref<Stamp | null>
+  markStamp: (cue: number, word?: number, ms?: number) => void
+  isFlashing: (cue: number, word?: number) => boolean
 
   peaks: ShallowRef<Peaks | null>
-  peaksState: Ref<'idle' | 'loading' | 'ready' | 'failed' | 'unavailable'>
+  peaksState: Ref<PeaksState>
   loadPeaks: () => void
 
   keyHandler: ShallowRef<KeyHandler | null>
@@ -65,6 +81,18 @@ export function useSession(): EditorSession {
   return session
 }
 
+/** Routes keys to a stage while it is shown; the shell asks the stage first. */
+export function useStageKeys(session: EditorSession, handler: KeyHandler): void {
+  onMounted(() => {
+    session.keyHandler.value = handler
+  })
+  onBeforeUnmount(() => {
+    if (session.keyHandler.value === handler) {
+      session.keyHandler.value = null
+    }
+  })
+}
+
 export function createSession(options: {
   initial: LyricsDoc
   audio: () => AudioSource
@@ -72,60 +100,59 @@ export function createSession(options: {
   onChange: (doc: LyricsDoc) => void
   messages: Ref<EditorMessages>
 }): EditorSession {
+  const audio = options.audio
   const history = new History<LyricsDoc>(prepareForTiming(options.initial))
   const doc = shallowRef(history.present)
   const canUndo = ref(false)
   const canRedo = ref(false)
-  const cursor = ref<WordRef>({ cue: 0, word: 0 })
+  const cursor = ref<WordRef>({ cue: firstOpenLine(doc.value), word: 0 })
+  // Lines switched to word timing before any word is timed: an editing intent, not document data.
   const wordLines = reactive(new Set<string>())
-
-  function firstOpenLine(value: LyricsDoc): number {
-    const index = value.cues.findIndex(cue => cue.words.length > 0 && lineStatus(cue) !== 'word' && lineStatus(cue) !== 'line')
-    return Math.max(0, index === -1 ? value.cues.findIndex(cue => cue.words.length > 0) : index)
-  }
-  cursor.value = { cue: firstOpenLine(doc.value), word: 0 }
-
-  function sync(): void {
-    doc.value = history.present
-    canUndo.value = history.canUndo
-    canRedo.value = history.canRedo
-    if (!wordAt(doc.value, cursor.value)) {
-      const cue = Math.min(cursor.value.cue, doc.value.cues.length - 1)
-      cursor.value = { cue: Math.max(0, cue), word: 0 }
-    }
-    options.onChange(doc.value)
-  }
-
-  const audio = options.audio
   const now = ref(0)
   const playing = ref(false)
   const duration = ref(0)
   const rate = ref(1)
   const peaks = shallowRef<Peaks | null>(null)
-  const peaksState = ref<'idle' | 'loading' | 'ready' | 'failed' | 'unavailable'>(options.loadAudioData ? 'idle' : 'unavailable')
-  const lastStamp = ref<{ cue: number, word?: number, at: number } | null>(null)
+  const peaksState = ref<PeaksState>(options.loadAudioData ? 'idle' : 'unavailable')
+  const lastStamp = ref<Stamp | null>(null)
+
+  function refresh(): void {
+    doc.value = history.present
+    canUndo.value = history.canUndo
+    canRedo.value = history.canRedo
+    if (!wordAt(doc.value, cursor.value)) {
+      cursor.value = { cue: Math.max(0, Math.min(cursor.value.cue, doc.value.cues.length - 1)), word: 0 }
+    }
+  }
+
+  function apply(next: LyricsDoc, group?: string): void {
+    history.record(next, group)
+    refresh()
+    options.onChange(doc.value)
+  }
+
+  function markStamp(cue: number, word?: number, ms = audio().currentTime * 1000): void {
+    lastStamp.value = { cue, word, ms, at: performance.now() }
+  }
 
   return {
     doc,
     canUndo,
     canRedo,
-    apply(next, group) {
-      history.record(next, group)
-      sync()
-    },
+    apply,
     undo() {
       history.undo()
-      sync()
+      refresh()
+      options.onChange(doc.value)
     },
     redo() {
       history.redo()
-      sync()
+      refresh()
+      options.onChange(doc.value)
     },
     reset(value) {
       history.reset(prepareForTiming(value))
-      doc.value = history.present
-      canUndo.value = false
-      canRedo.value = false
+      refresh()
       wordLines.clear()
       cursor.value = { cue: firstOpenLine(doc.value), word: 0 }
     },
@@ -158,18 +185,43 @@ export function createSession(options: {
 
     stage: ref<Stage>('line'),
     cursor,
-    wordLines,
+    selectLine(cue) {
+      cursor.value = { cue, word: 0 }
+    },
     isWordMode(index) {
       const cue = doc.value.cues[index]
       return Boolean(cue) && (cue.words.some(word => word.begin !== undefined) || wordLines.has(cue.id))
     },
-    statusOf(index) {
-      const cue = doc.value.cues[index]
-      return cue ? lineStatus(cue) : 'empty'
+    setWordMode(index, on) {
+      const id = doc.value.cues[index]?.id
+      if (id !== undefined) {
+        if (on) {
+          wordLines.add(id)
+        }
+        else {
+          wordLines.delete(id)
+        }
+      }
+    },
+
+    stampLineNow(index, accept) {
+      const ms = audio().currentTime * 1000
+      apply(stampLine(doc.value, index, ms))
+      markStamp(index, undefined, ms)
+      const next = nextLine(doc.value, index, 1, accept)
+      if (next !== null) {
+        cursor.value = { cue: next, word: 0 }
+      }
+    },
+    nudgeLine(index, deltaMs) {
+      if (doc.value.cues[index]?.begin !== undefined) {
+        apply(shiftLine(doc.value, index, deltaMs), `nudge-line:${index}`)
+      }
     },
     lastStamp,
-    markStamp(cue, word) {
-      lastStamp.value = { cue, word, at: performance.now() }
+    markStamp,
+    isFlashing(cue, word) {
+      return lastStamp.value?.cue === cue && lastStamp.value.word === word
     },
 
     peaks,

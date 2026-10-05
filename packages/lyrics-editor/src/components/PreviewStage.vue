@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useSession } from '../session.js'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { lineAt } from '../core/index.js'
+import { useSession, useStageKeys } from '../session.js'
 import PreviewLine from './PreviewLine.vue'
 
 const session = useSession()
@@ -8,24 +9,14 @@ const { doc, now, t } = session
 const listEl = ref<HTMLElement | null>(null)
 
 const translation = computed(() => doc.value.tracks.find(track => track.kind === 'translation'))
-
-const activeIndex = computed(() => {
-  let found = -1
-  for (const [index, cue] of doc.value.cues.entries()) {
-    const begin = cue.words[0]?.begin ?? cue.begin
-    if (cue.words.length > 0 && begin !== undefined && begin <= now.value) {
-      found = index
-    }
-  }
-  return found
-})
+const activeIndex = computed(() => lineAt(doc.value, now.value))
 
 function stateOf(index: number): 'past' | 'active' | 'future' {
   return index === activeIndex.value ? 'active' : index < activeIndex.value ? 'past' : 'future'
 }
 
 function refine(index: number): void {
-  session.cursor.value = { cue: index, word: 0 }
+  session.selectLine(index)
   session.stage.value = 'word'
 }
 
@@ -39,18 +30,10 @@ watch(activeIndex, async () => {
 })
 
 // Space only plays and pauses here; there is nothing to mark.
-function onKey(event: KeyboardEvent): boolean {
-  return event.key === 'j' || event.key === 'k'
-}
+useStageKeys(session, event => event.key === 'j' || event.key === 'k')
 
 onMounted(() => {
-  session.keyHandler.value = onKey
   void nextTick(() => scrollToActive('auto'))
-})
-onBeforeUnmount(() => {
-  if (session.keyHandler.value === onKey) {
-    session.keyHandler.value = null
-  }
 })
 </script>
 
@@ -73,7 +56,6 @@ onBeforeUnmount(() => {
           :class="{ 'pv-line--active': i === activeIndex }"
           :cue="cue"
           :state="stateOf(i)"
-          :time="i === activeIndex ? now : 0"
           :translation="translation?.lines[cue.id]"
           @click="refine(i)"
         />

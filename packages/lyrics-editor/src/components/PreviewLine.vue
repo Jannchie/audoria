@@ -2,15 +2,15 @@
 import type { LyricsCue } from '@audoria/lyrics-core'
 import { isWordTimedCue, layoutLine, rubyRuns } from '@audoria/lyrics-core'
 import { computed } from 'vue'
+import { useSession } from '../session.js'
 
 const props = defineProps<{
   cue: LyricsCue
   state: 'past' | 'active' | 'future'
-  /** Playback time in ms; only the active line follows it. */
-  time: number
   translation?: string
 }>()
 
+const { now } = useSession()
 const chunks = computed(() => layoutLine(props.cue.words, rubyRuns(props.cue).map(run => ({ text: run.text, ruby: run.reading }))))
 const wordTimed = computed(() => isWordTimedCue(props.cue))
 
@@ -21,7 +21,8 @@ function progress(begin?: number, end?: number): number {
   if (props.state === 'future' || begin === undefined || end === undefined) {
     return 0
   }
-  return Math.min(1, Math.max(0, (props.time - begin) / Math.max(1, end - begin)))
+  // Only the active line reads the clock, so only it re-renders as playback moves.
+  return Math.min(1, Math.max(0, (now.value - begin) / Math.max(1, end - begin)))
 }
 </script>
 

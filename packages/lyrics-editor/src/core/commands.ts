@@ -1,5 +1,5 @@
 import type { LyricsCue, LyricsDoc, LyricsWord } from '@audoria/lyrics-core'
-import { cueText, isWordTimedCue, wordTimeAt } from '@audoria/lyrics-core'
+import { cueText, isWordTimedCue, shiftCue as shiftCueTimes, validateLyricsDoc, wordTimeAt } from '@audoria/lyrics-core'
 import { splitCueIntoWords } from './split.js'
 
 // Edits to a lyrics document while timing it. Each takes a document and returns a new one,
@@ -47,18 +47,40 @@ export function nextWord(doc: LyricsDoc, ref: WordRef): WordRef | null {
   return null
 }
 
-/** The word before `ref`, moving back to the previous cue with words; null before the first. */
-export function previousWord(doc: LyricsDoc, ref: WordRef): WordRef | null {
-  if (ref.word > 0) {
-    return { cue: ref.cue, word: ref.word - 1 }
+/** When a line starts: its first timed word, or the line's own begin. */
+export function cueStart(cue: LyricsCue): number | undefined {
+  return cue.words.find(word => word.begin !== undefined)?.begin ?? cue.begin
+}
+
+/** The line being heard at `ms`: the last line with words that has started; -1 before any. */
+export function lineAt(doc: LyricsDoc, ms: number): number {
+  let found = -1
+  for (const [index, cue] of doc.cues.entries()) {
+    const start = cueStart(cue)
+    if (cue.words.length > 0 && start !== undefined && start <= ms) {
+      found = index
+    }
   }
-  for (let cue = ref.cue - 1; cue >= 0; cue--) {
-    const count = doc.cues[cue].words.length
-    if (count > 0) {
-      return { cue, word: count - 1 }
+  return found
+}
+
+/** The next line after `from` (or before, going back) that has words and passes `accept`. */
+export function nextLine(doc: LyricsDoc, from: number, direction: 1 | -1, accept: (cue: LyricsCue) => boolean = () => true): number | null {
+  for (let i = from + direction; i >= 0 && i < doc.cues.length; i += direction) {
+    if (doc.cues[i].words.length > 0 && accept(doc.cues[i])) {
+      return i
     }
   }
   return null
+}
+
+/** Where timing picks up: the first line with words still to time, else the first line with words. */
+export function firstOpenLine(doc: LyricsDoc): number {
+  const open = doc.cues.findIndex((cue) => {
+    const status = lineStatus(cue)
+    return status === 'untimed' || status === 'partial'
+  })
+  return Math.max(0, open === -1 ? doc.cues.findIndex(cue => cue.words.length > 0) : open)
 }
 
 export function wordAt(doc: LyricsDoc, ref: WordRef): LyricsWord | undefined {
@@ -169,16 +191,8 @@ export function setCueText(doc: LyricsDoc, index: number, text: string): LyricsD
 }
 
 /** Shifts a whole line, its words and backing vocals included, by `deltaMs`. */
-export function shiftCue(doc: LyricsDoc, index: number, deltaMs: number): LyricsDoc {
-  const move = (time: number | undefined): number | undefined => time === undefined ? undefined : Math.max(0, Math.round(time + deltaMs))
-  const moveWords = (words: LyricsWord[]): LyricsWord[] => words.map(word => ({ ...word, begin: move(word.begin), end: move(word.end) }))
-  return updateCue(doc, index, cue => ({
-    ...cue,
-    begin: move(cue.begin),
-    end: move(cue.end),
-    words: moveWords(cue.words),
-    ...(cue.background ? { background: moveWords(cue.background) } : {}),
-  }))
+export function shiftLine(doc: LyricsDoc, index: number, deltaMs: number): LyricsDoc {
+  return updateCue(doc, index, cue => shiftCueTimes(cue, deltaMs))
 }
 
 /**
@@ -192,7 +206,7 @@ export function stampLine(doc: LyricsDoc, index: number, at: number): LyricsDoc 
     return doc
   }
   if (isWordTimedCue(cue) && cue.begin !== undefined) {
-    return shiftCue(doc, index, time - cue.begin)
+    return shiftLine(doc, index, time - cue.begin)
   }
   return setLineBegin(doc, index, time)
 }
@@ -215,7 +229,7 @@ export function setLineBegin(doc: LyricsDoc, index: number, begin: number | unde
 export function toWholeLine(doc: LyricsDoc, index: number): LyricsDoc {
   return updateCue(doc, index, cue => ({
     ...cue,
-    begin: cue.begin ?? cue.words.find(word => word.begin !== undefined)?.begin,
+    begin: cueStart(cue),
     words: cue.words.map(word => ({ text: word.text })),
     ...(cue.background ? { background: cue.background.map(word => ({ text: word.text })) } : {}),
   }))
@@ -311,4 +325,23 @@ export function finishTiming(doc: LyricsDoc, maxHoldMs = 3000): LyricsDoc {
 
   const wordTimed = cues.some(cue => isWordTimedCue(cue))
   return { ...doc, timing: wordTimed ? 'word' : firstTimed >= 0 ? 'line' : 'none', cues }
+}
+
+export type SaveCheck
+  = | { ok: true, doc: LyricsDoc }
+    | { ok: false, incomplete: number[] }
+    | { ok: false, problem: string }
+
+/**
+ * Turns a draft into the document to save: every sung line timed, implied times filled in,
+ * and the result valid. Otherwise says which lines are unfinished, or what is wrong.
+ */
+export function prepareSave(doc: LyricsDoc): SaveCheck {
+  const incomplete = incompleteLines(doc)
+  if (incomplete.length > 0) {
+    return { ok: false, incomplete }
+  }
+  const finished = finishTiming(doc)
+  const problem = validateLyricsDoc(finished)
+  return problem ? { ok: false, problem } : { ok: true, doc: finished }
 }

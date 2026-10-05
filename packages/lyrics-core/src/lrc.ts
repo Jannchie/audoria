@@ -1,9 +1,8 @@
 import type { LyricsCue, LyricsDoc, LyricsRuby, LyricsTrack } from './doc.js'
-import { isLrcFormat } from './detect.js'
+import { isLrcFormat, LRC_LEADING_TIMESTAMPS_RE } from './detect.js'
 import { cueText, detectLang, rubyRuns } from './doc.js'
 
 const LRC_TIMESTAMP_RE = /\[(\d{1,3}):(\d{2})(?:\.(\d{1,3}))?\]/g
-const LRC_LEADING_TIMESTAMPS_RE = /^(?:\[\d{1,3}:\d{2}(?:\.\d{1,3})?\])+/
 // Hand-written furigana inside lyrics: 運命(さだめ).
 const READING_NOTATION_RE = /([\p{Script=Han}〆ヶ]+)[(（]([\p{Script=Hiragana}\p{Script=Katakana}ー]+)[)）]/gu
 const KANJI_ONLY_RE = /^[\p{Script=Han}〆ヶ]+$/u

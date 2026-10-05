@@ -227,6 +227,11 @@ const en: EditorMessages = {
   keyWordClear: 'Clear the word’s timing',
 }
 
+/** The editor locale for a BCP 47 language tag, falling back to English. */
+export function toEditorLocale(tag: string): EditorLocale {
+  return tag.startsWith('zh') ? 'zh' : tag.startsWith('ja') ? 'ja' : 'en'
+}
+
 export function editorMessages(locale: EditorLocale): EditorMessages {
   return { zh, ja, en }[locale] ?? en
 }

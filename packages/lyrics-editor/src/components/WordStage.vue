@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import type { LaneBlock } from './WaveformLane.vue'
 import { cueText } from '@audoria/lyrics-core'
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { clearTiming, incompleteLines, isCreditLine, mergeWithNext, nextWord, nudgeWord, setCueText, setLineBegin, shiftCue, splitWord, stampLine, stampWordEnd, stampWordStart, toWholeLine, wordAt } from '../core/index.js'
-import { useSession } from '../session.js'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { clearTiming, cueStart, incompleteLines, isCreditLine, lineStatus, mergeWithNext, nextLine, nudgeWord, setCueText, setLineBegin, shiftLine, splitWord, stampWordEnd, stampWordStart, toWholeLine, wordAt } from '../core/index.js'
+import { useSession, useStageKeys } from '../session.js'
 import { formatTimecode, parseTimecode } from '../time.js'
 import WaveformLane from './WaveformLane.vue'
 
@@ -26,7 +26,7 @@ const visibleLines = computed(() => doc.value.cues.flatMap((item, index) => {
   if (item.words.length === 0) {
     return []
   }
-  const status = session.statusOf(index)
+  const status = lineStatus(item)
   const show = filter.value === 'all'
     || (filter.value === 'word' && (status === 'word' || status === 'partial'))
     || (filter.value === 'line' && status === 'line')
@@ -34,25 +34,28 @@ const visibleLines = computed(() => doc.value.cues.flatMap((item, index) => {
   return show ? [{ index, cue: item, status }] : []
 }))
 
-function selectLine(index: number): void {
-  cursor.value = { cue: index, word: 0 }
-}
-
 function selectWord(index: number): void {
-  cursor.value = { cue: cueIndex.value, word: index }
+  if (index >= 0 && index < (cue.value?.words.length ?? 0)) {
+    cursor.value = { cue: cueIndex.value, word: index }
+  }
 }
 
-function nextLineBegin(index: number): number | undefined {
-  for (let i = index + 1; i < doc.value.cues.length; i++) {
-    const begin = doc.value.cues[i].words[0]?.begin ?? doc.value.cues[i].begin
-    if (begin !== undefined) {
-      return begin
+/** When the next line starts, for where an untimed or whole line's block ends. */
+function followingStart(index: number): number | undefined {
+  for (let next = nextLine(doc.value, index, 1); next !== null; next = nextLine(doc.value, next, 1)) {
+    const start = cueStart(doc.value.cues[next])
+    if (start !== undefined) {
+      return start
     }
   }
   return undefined
 }
 
 // ── Lane window: the selected line with some air around it, zoomable ──
+
+// An untimed line is shown around where playback was when it was picked, not where it is now:
+// following the playhead would move the window, and redraw the waveform, every frame.
+const anchor = ref(now.value)
 
 const fitWindow = computed(() => {
   const line = cue.value
@@ -62,9 +65,8 @@ const fitWindow = computed(() => {
   const times = wordMode.value
     ? line.words.flatMap(item => [item.begin, item.end]).filter((time): time is number => time !== undefined)
     : []
-  const lineEnd = line.end ?? nextLineBegin(cueIndex.value)
-  const low = times.length > 0 ? Math.min(...times) : line.begin ?? now.value
-  const high = Math.max(times.length > 0 ? Math.max(...times) : lineEnd ?? low + 3000, low + 2500)
+  const low = times.length > 0 ? Math.min(...times) : line.begin ?? anchor.value
+  const high = Math.max(times.length > 0 ? Math.max(...times) : line.end ?? followingStart(cueIndex.value) ?? low + 3000, low + 2500)
   const pad = (high - low) * 0.12 + 400
   const span = (high - low + pad * 2) / zoom.value
   return { start: Math.max(0, (low + high) / 2 - span / 2), span }
@@ -86,7 +88,7 @@ const blocks = computed<LaneBlock[]>(() => {
   if (!wordMode.value) {
     return line.begin === undefined
       ? []
-      : [{ key: -1, label: cueText(line), begin: line.begin, end: line.end ?? nextLineBegin(cueIndex.value), kind: 'line', selected: true }]
+      : [{ key: -1, label: cueText(line), begin: line.begin, end: line.end ?? followingStart(cueIndex.value), kind: 'line', selected: true }]
   }
   return line.words.flatMap((item, index) => item.begin === undefined
     ? []
@@ -95,18 +97,11 @@ const blocks = computed<LaneBlock[]>(() => {
 
 function onDrag(key: number, edge: 'begin' | 'end' | 'both', deltaMs: number): void {
   const group = `drag:${cueIndex.value}:${key}:${edge}`
-  if (key < 0) {
-    if (edge !== 'end') {
-      session.apply(shiftCue(doc.value, cueIndex.value, deltaMs), group)
-    }
-    return
-  }
-  session.apply(nudgeWord(doc.value, { cue: cueIndex.value, word: key }, edge, deltaMs), group)
-}
-
-function onSelectBlock(key: number): void {
   if (key >= 0) {
-    cursor.value = { cue: cueIndex.value, word: key }
+    session.apply(nudgeWord(doc.value, { cue: cueIndex.value, word: key }, edge, deltaMs), group)
+  }
+  else if (edge !== 'end') {
+    session.apply(shiftLine(doc.value, cueIndex.value, deltaMs), group)
   }
 }
 
@@ -117,63 +112,54 @@ function toggleMode(): void {
   if (!line) {
     return
   }
-  if (wordMode.value) {
-    session.wordLines.delete(line.id)
-    if (line.words.some(item => item.begin !== undefined)) {
-      session.apply(toWholeLine(doc.value, cueIndex.value))
-    }
+  const toWords = !wordMode.value
+  session.setWordMode(cueIndex.value, toWords)
+  if (!toWords && line.words.some(item => item.begin !== undefined)) {
+    session.apply(toWholeLine(doc.value, cueIndex.value))
   }
-  else {
-    session.wordLines.add(line.id)
-    cursor.value = { cue: cueIndex.value, word: 0 }
-  }
+  selectWord(0)
 }
 
 function stamp(): void {
-  if (!cue.value || cue.value.words.length === 0) {
+  if (!cue.value?.words.length) {
     return
   }
   if (!wordMode.value) {
-    session.apply(stampLine(doc.value, cueIndex.value, session.currentMs()))
-    session.markStamp(cueIndex.value)
-    const next = doc.value.cues.findIndex((item, i) => i > cueIndex.value && item.words.length > 0)
-    if (next !== -1) {
-      selectLine(next)
-    }
+    session.stampLineNow(cueIndex.value)
     return
   }
-  const ref_ = cursor.value
-  const result = stampWordStart(doc.value, ref_, session.currentMs())
+  const at = cursor.value
+  const ms = session.currentMs()
+  const result = stampWordStart(doc.value, at, ms)
   session.apply(result.doc)
-  session.markStamp(ref_.cue, ref_.word)
+  session.markStamp(at.cue, at.word, ms)
   // Carry on into the next line only when it is being timed word by word too.
-  if (result.next && (result.next.cue === ref_.cue || session.isWordMode(result.next.cue))) {
+  if (result.next && (result.next.cue === at.cue || session.isWordMode(result.next.cue))) {
     cursor.value = result.next
   }
 }
 
 function stampEnd(): void {
   const last = session.lastStamp.value
-  const target = last && last.word !== undefined && last.cue === cueIndex.value
+  const target = last?.word !== undefined && last.cue === cueIndex.value
     ? { cue: last.cue, word: last.word }
     : { cue: cueIndex.value, word: Math.max(0, cursor.value.word - 1) }
   session.apply(stampWordEnd(doc.value, target, session.currentMs()))
 }
 
 function nudge(edge: 'begin' | 'end', deltaMs: number): void {
-  if (!wordMode.value) {
-    if (edge === 'begin' && cue.value?.begin !== undefined) {
-      session.apply(shiftCue(doc.value, cueIndex.value, deltaMs), `nudge-line:${cueIndex.value}`)
-    }
-    return
+  if (wordMode.value) {
+    session.apply(nudgeWord(doc.value, cursor.value, edge, deltaMs), `nudge:${cursor.value.cue}:${cursor.value.word}:${edge}`)
   }
-  session.apply(nudgeWord(doc.value, cursor.value, edge, deltaMs), `nudge:${cursor.value.cue}:${cursor.value.word}:${edge}`)
+  else if (edge === 'begin') {
+    session.nudgeLine(cueIndex.value, deltaMs)
+  }
 }
 
 function replayLine(): void {
-  const begin = cue.value?.words.find(item => item.begin !== undefined)?.begin ?? cue.value?.begin
-  if (begin !== undefined) {
-    session.seek(begin - 600)
+  const start = cue.value && cueStart(cue.value)
+  if (start !== undefined) {
+    session.seek(start - 600)
   }
   session.play()
 }
@@ -202,24 +188,16 @@ function setLineStart(text: string): void {
 function editText(text: string): void {
   if (cue.value && text !== cueText(cue.value)) {
     session.apply(setCueText(doc.value, cueIndex.value, text))
-    cursor.value = { cue: cueIndex.value, word: 0 }
+    selectWord(0)
   }
 }
 
 function moveLine(direction: 1 | -1): void {
   const list = visibleLines.value
   const position = list.findIndex(item => item.index === cueIndex.value)
-  const next = list[position + direction] ?? (position < 0 ? list[0] : undefined)
+  const next = list[position + direction] ?? (position === -1 ? list[0] : undefined)
   if (next) {
-    selectLine(next.index)
-  }
-}
-
-function moveWord(direction: 1 | -1): void {
-  const count = cue.value?.words.length ?? 0
-  const next = cursor.value.word + direction
-  if (next >= 0 && next < count) {
-    cursor.value = { cue: cueIndex.value, word: next }
+    session.selectLine(next.index)
   }
 }
 
@@ -227,54 +205,83 @@ function onKey(event: KeyboardEvent): boolean {
   if (event.ctrlKey || event.metaKey || event.altKey) {
     return false
   }
-  const key = event.key.toLowerCase()
   const step = event.shiftKey ? 100 : 10
-  const actions: Record<string, () => void> = {
-    ' ': () => session.isPlaying() ? stamp() : session.play(),
-    'j': () => session.isPlaying() ? stamp() : session.play(),
-    'k': stampEnd,
-    'l': toggleMode,
-    'r': replayLine,
-    'm': () => session.apply(mergeWithNext(doc.value, cursor.value)),
-    'backspace': () => session.apply(clearTiming(doc.value, cursor.value)),
-    'delete': () => session.apply(clearTiming(doc.value, cursor.value)),
-    'a': () => nudge('begin', -step),
-    'd': () => nudge('begin', step),
-    'z': () => nudge('end', -step),
-    'c': () => nudge('end', step),
-    'arrowup': () => moveLine(-1),
-    'arrowdown': () => moveLine(1),
+  switch (event.key.toLowerCase()) {
+    case ' ':
+    case 'j': {
+      if (session.isPlaying()) {
+        stamp()
+      }
+      else {
+        session.play()
+      }
+      return true
+    }
+    case 'k': {
+      stampEnd()
+      return true
+    }
+    case 'l': {
+      toggleMode()
+      return true
+    }
+    case 'r': {
+      replayLine()
+      return true
+    }
+    case 'm': {
+      session.apply(mergeWithNext(doc.value, cursor.value))
+      return true
+    }
+    case 'backspace':
+    case 'delete': {
+      session.apply(clearTiming(doc.value, cursor.value))
+      return true
+    }
+    case 'a':
+    case 'd': {
+      nudge('begin', event.key.toLowerCase() === 'a' ? -step : step)
+      return true
+    }
+    case 'z':
+    case 'c': {
+      nudge('end', event.key.toLowerCase() === 'z' ? -step : step)
+      return true
+    }
+    case 'arrowup':
+    case 'arrowdown': {
+      moveLine(event.key === 'ArrowUp' ? -1 : 1)
+      return true
+    }
+    case 'arrowleft':
+    case 'arrowright': {
+      if (event.shiftKey) {
+        return false
+      }
+      selectWord(cursor.value.word + (event.key === 'ArrowLeft' ? -1 : 1))
+      return true
+    }
+    default: {
+      return false
+    }
   }
-  if (!event.shiftKey) {
-    actions.arrowleft = () => moveWord(-1)
-    actions.arrowright = () => moveWord(1)
-  }
-  const action = actions[key]
-  action?.()
-  return Boolean(action)
 }
-
-const isFlashing = (cueAt: number, wordAt_: number): boolean => session.lastStamp.value?.cue === cueAt && session.lastStamp.value.word === wordAt_
+useStageKeys(session, onKey)
 
 watch(cueIndex, async () => {
   zoom.value = 1
+  anchor.value = now.value
   await nextTick()
   listEl.value?.querySelector('.ws-item--on')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
 })
 
 onMounted(() => {
-  session.keyHandler.value = onKey
   session.loadPeaks()
-  if (!cue.value || cue.value.words.length === 0) {
-    const first = nextWord(doc.value, { cue: -1, word: 0 })
-    if (first) {
-      selectLine(first.cue)
+  if (!cue.value?.words.length) {
+    const first = nextLine(doc.value, -1, 1)
+    if (first !== null) {
+      session.selectLine(first)
     }
-  }
-})
-onBeforeUnmount(() => {
-  if (session.keyHandler.value === onKey) {
-    session.keyHandler.value = null
   }
 })
 </script>
@@ -316,7 +323,7 @@ onBeforeUnmount(() => {
             type="button"
             class="ws-item"
             :class="{ 'ws-item--on': item.index === cueIndex }"
-            @click="selectLine(item.index)"
+            @click="session.selectLine(item.index)"
           >
             <span
               class="ws-status"
@@ -380,7 +387,7 @@ onBeforeUnmount(() => {
           :start="window_.start"
           :span="window_.span"
           :blocks="blocks"
-          @select="onSelectBlock"
+          @select="selectWord"
           @drag="onDrag"
           @dragging="onDragging"
           @seek="session.seek"
@@ -430,7 +437,7 @@ onBeforeUnmount(() => {
               @dblclick="item.begin !== undefined && session.seek(item.begin)"
             >
               <span
-                v-if="isFlashing(cueIndex, w)"
+                v-if="session.isFlashing(cueIndex, w)"
                 :key="session.lastStamp.value!.at"
                 class="ws-flash"
               />

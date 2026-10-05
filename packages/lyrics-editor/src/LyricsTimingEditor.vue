@@ -1,16 +1,17 @@
 <script setup lang="ts">
 import type { LyricsDoc } from '@audoria/lyrics-core'
-import type { AudioSource } from './core/index.js'
+import type { AudioSource, LineStatus } from './core/index.js'
 import type { EditorLocale } from './messages.js'
 import type { Stage } from './session.js'
 import { computed, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
 import LineStage from './components/LineStage.vue'
 import PreviewStage from './components/PreviewStage.vue'
 import ShortcutsOverlay from './components/ShortcutsOverlay.vue'
+import TransportBar from './components/TransportBar.vue'
 import WordStage from './components/WordStage.vue'
+import { lineStatus } from './core/index.js'
 import { editorMessages } from './messages.js'
 import { createSession, SESSION_KEY } from './session.js'
-import { formatTimecode } from './time.js'
 
 const props = withDefaults(defineProps<{
   /** The document being timed. Edits come back through `update:doc` as drafts. */
@@ -57,20 +58,14 @@ function stageLabel(id: Stage): string {
 
 // ── Completion: one segment per sung line ──
 
-const segments = computed(() => doc.value.cues.flatMap((cue, index) => cue.words.length === 0 ? [] : [{ index, status: session.statusOf(index) }]))
+const segments = computed(() => doc.value.cues.flatMap((cue, index) => cue.words.length === 0 ? [] : [{ index, status: lineStatus(cue) }]))
 const counts = computed(() => {
-  const result = { word: 0, line: 0, partial: 0, untimed: 0 }
+  const result: Record<LineStatus, number> = { word: 0, line: 0, partial: 0, untimed: 0, empty: 0 }
   for (const segment of segments.value) {
-    if (segment.status !== 'empty') {
-      result[segment.status]++
-    }
+    result[segment.status]++
   }
   return result
 })
-
-function openLine(index: number): void {
-  session.cursor.value = { cue: index, word: 0 }
-}
 
 // ── Transport ──
 
@@ -82,24 +77,6 @@ function tick(): void {
   rate.value = props.audio.playbackRate || 1
   frame = requestAnimationFrame(tick)
 }
-
-const scrub = ref<HTMLElement | null>(null)
-function seekFromPointer(event: PointerEvent): void {
-  const rect = scrub.value!.getBoundingClientRect()
-  session.seek(Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width)) * duration.value)
-}
-function onScrubDown(event: PointerEvent): void {
-  scrub.value?.setPointerCapture(event.pointerId)
-  seekFromPointer(event)
-}
-function onScrubMove(event: PointerEvent): void {
-  if (scrub.value?.hasPointerCapture(event.pointerId)) {
-    seekFromPointer(event)
-  }
-}
-const lineMarks = computed(() => duration.value > 0
-  ? doc.value.cues.flatMap(cue => cue.begin === undefined || cue.words.length === 0 ? [] : [cue.begin / duration.value * 100])
-  : [])
 
 function stepRate(direction: -1 | 1): void {
   const index = RATES.indexOf(rate.value)
@@ -153,11 +130,14 @@ function onKeydown(event: KeyboardEvent): void {
   else if (key === '?') {
     helpOpen.value = true
   }
-  else if (STAGES.some(item => item.key === key)) {
-    stage.value = STAGES.find(item => item.key === key)!.id
-  }
   else {
-    handled = false
+    const target = STAGES.find(item => item.key === key)
+    if (target) {
+      stage.value = target.id
+    }
+    else {
+      handled = false
+    }
   }
   if (handled) {
     event.preventDefault()
@@ -207,7 +187,7 @@ onBeforeUnmount(() => {
             class="lte-strip-cell"
             :class="[`lte-strip-cell--${segment.status}`, { 'lte-strip-cell--on': segment.index === session.cursor.value.cue }]"
             :aria-label="`${segment.index + 1}`"
-            @click="openLine(segment.index)"
+            @click="session.selectLine(segment.index)"
           />
         </div>
         <div class="lte-legend">
@@ -256,69 +236,7 @@ onBeforeUnmount(() => {
       <PreviewStage v-else />
     </main>
 
-    <footer class="lte-transport">
-      <button
-        type="button"
-        class="lte-play"
-        :aria-label="playing ? t.pause : t.play"
-        @click="session.togglePlay()"
-      >
-        <svg
-          v-if="playing"
-          viewBox="0 0 16 16"
-        ><rect
-          x="3.5"
-          y="2.5"
-          width="3"
-          height="11"
-          rx="1"
-        /><rect
-          x="9.5"
-          y="2.5"
-          width="3"
-          height="11"
-          rx="1"
-        /></svg>
-        <svg
-          v-else
-          viewBox="0 0 16 16"
-        ><path d="M4.5 2.8v10.4a.6.6 0 0 0 .9.5l8.2-5.2a.6.6 0 0 0 0-1L5.4 2.3a.6.6 0 0 0-.9.5Z" /></svg>
-      </button>
-      <span class="lte-clock">{{ formatTimecode(now) }}</span>
-      <div
-        ref="scrub"
-        class="lte-scrub"
-        @pointerdown="onScrubDown"
-        @pointermove="onScrubMove"
-      >
-        <span
-          v-for="(mark, i) in lineMarks"
-          :key="i"
-          class="lte-scrub-mark"
-          :style="{ left: `${mark}%` }"
-        />
-        <span
-          class="lte-scrub-fill"
-          :style="{ width: `${duration ? now / duration * 100 : 0}%` }"
-        />
-      </div>
-      <span class="lte-clock lte-clock--total">{{ formatTimecode(duration) }}</span>
-      <div
-        class="lte-rates"
-        role="group"
-        :aria-label="t.rate"
-      >
-        <button
-          v-for="value in RATES"
-          :key="value"
-          type="button"
-          :class="{ 'lte-rate--on': rate === value }"
-          @click="session.setRate(value)"
-        >
-          {{ value }}×
-        </button>
-      </div>
-    </footer>
+    <TransportBar />
 
     <ShortcutsOverlay
       v-if="helpOpen"
@@ -517,112 +435,6 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
-/* ── Transport ── */
-
-.lte-transport {
-  display: flex;
-  align-items: center;
-  gap: 0.9rem;
-  padding: 0.6rem 1rem;
-  border-top: 1px solid var(--lte-line);
-  background: var(--lte-panel);
-}
-.lte-play {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 2.4rem;
-  height: 2.4rem;
-  border: none;
-  border-radius: 50%;
-  background: var(--lte-accent);
-  box-shadow: 0 0 0 4px var(--lte-accent-soft);
-  transition: transform 120ms ease;
-}
-.lte-play:active {
-  transform: scale(0.94);
-}
-.lte-play svg {
-  width: 0.95rem;
-  height: 0.95rem;
-  fill: #fff;
-}
-.lte-clock {
-  min-width: 8.5ch;
-  font-size: 1.05rem;
-  font-variant-numeric: tabular-nums;
-}
-.lte-clock--total {
-  min-width: 0;
-  color: var(--lte-muted);
-  font-size: 0.8125rem;
-}
-.lte-scrub {
-  position: relative;
-  flex: 1;
-  height: 1.75rem;
-  cursor: pointer;
-  touch-action: none;
-}
-.lte-scrub::before {
-  content: '';
-  position: absolute;
-  inset: 50% 0 auto;
-  height: 4px;
-  margin-top: -2px;
-  border-radius: 2px;
-  background: var(--lte-line-strong);
-}
-.lte-scrub-fill {
-  position: absolute;
-  top: 50%;
-  left: 0;
-  height: 4px;
-  margin-top: -2px;
-  border-radius: 2px;
-  background: var(--lte-accent);
-  pointer-events: none;
-}
-.lte-scrub-fill::after {
-  content: '';
-  position: absolute;
-  top: -4px;
-  right: -6px;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 0 0 3px var(--lte-accent-soft);
-}
-.lte-scrub-mark {
-  position: absolute;
-  top: 0.35rem;
-  bottom: 0.35rem;
-  width: 1px;
-  background: var(--lte-faint);
-  pointer-events: none;
-}
-.lte-rates {
-  display: flex;
-  overflow: hidden;
-  border: 1px solid var(--lte-line-strong);
-  border-radius: var(--lte-radius);
-}
-.lte-rates button {
-  padding: 0.3rem 0.5rem;
-  border: none;
-  background: none;
-  color: var(--lte-muted);
-  font-size: 0.75rem;
-}
-.lte-rates button + button {
-  border-left: 1px solid var(--lte-line-strong);
-}
-.lte-rates .lte-rate--on {
-  background: var(--lte-raised);
-  color: var(--lte-text);
-}
-
 @media (max-width: 720px) {
   .lte-head {
     flex-wrap: wrap;
@@ -632,9 +444,7 @@ onBeforeUnmount(() => {
     flex-basis: 100%;
     order: 3;
   }
-  .lte-legend,
-  .lte-clock--total,
-  .lte-rates {
+  .lte-legend {
     display: none;
   }
 }

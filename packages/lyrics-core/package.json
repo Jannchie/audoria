@@ -8,7 +8,7 @@
   "exports": {
     ".": {
       "types": "./src/index.ts",
-      "development": "./src/index.ts",
+      "source": "./src/index.ts",
       "default": "./dist/index.js"
     }
   },
@@ -17,7 +17,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "test": "node --conditions=development --import tsx --test test/*.test.ts",
+    "test": "node --conditions=source --import tsx --test test/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

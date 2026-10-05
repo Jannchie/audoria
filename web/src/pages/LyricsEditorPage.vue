@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import type { LyricsDoc } from '@audoria/lyrics-core'
 import type { AudioSource, EditorLocale } from '@audoria/lyrics-editor'
-import { finishTiming, incompleteLines, LyricsTimingEditor, mediaElementSource } from '@audoria/lyrics-editor'
-import { useEventListener } from '@vueuse/core'
+import { LyricsTimingEditor, mediaElementSource, prepareSave, toEditorLocale } from '@audoria/lyrics-editor'
+import { useEventListener, watchDebounced } from '@vueuse/core'
 import { computed, onMounted, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
@@ -19,7 +19,7 @@ const serverDoc = useLyricsDoc(() => track.value)
 const updateLyrics = useUpdateLyrics()
 const { setPlaying } = usePlayerState()
 
-const editorLocale = computed<EditorLocale>(() => locale.value.startsWith('zh') ? 'zh' : locale.value === 'ja' ? 'ja' : 'en')
+const editorLocale = computed<EditorLocale>(() => toEditorLocale(locale.value))
 const draftKey = computed(() => `audoria.lyrics-draft.${trackId.value}`)
 
 // The draft being edited, and the document it was last saved as (or loaded from).
@@ -64,7 +64,8 @@ watch([track, serverDoc], ([current, loaded]) => {
   }
 }, { immediate: true })
 
-watch(doc, (value) => {
+// Debounced: a drag on the waveform edits the draft on every pointer move.
+watchDebounced(doc, (value) => {
   try {
     if (value && isDirty.value) {
       localStorage.setItem(draftKey.value, JSON.stringify({ baseLyrics: track.value?.lyrics ?? null, doc: value } satisfies StoredDraft))
@@ -76,21 +77,23 @@ watch(doc, (value) => {
   catch {
     // Storage may be full or blocked; the draft just isn't kept across reloads.
   }
-})
+}, { debounce: 400 })
 
 async function save(): Promise<void> {
   if (!doc.value || !isDirty.value || updateLyrics.isPending.value) {
     return
   }
-  const incomplete = incompleteLines(doc.value)
-  if (incomplete.length > 0) {
-    message.value = t('lyricsEditor.incomplete', { line: incomplete[0] + 1, count: incomplete.length })
+  const check = prepareSave(doc.value)
+  if (!check.ok) {
+    message.value = 'incomplete' in check
+      ? t('lyricsEditor.incomplete', { line: check.incomplete[0] + 1, count: check.incomplete.length })
+      : check.problem
     return
   }
   message.value = ''
   const draft = doc.value
   try {
-    await updateLyrics.mutateAsync({ id: trackId.value, doc: finishTiming(draft) })
+    await updateLyrics.mutateAsync({ id: trackId.value, doc: check.doc })
     saved.value = draft
     justSaved.value = true
     restoredDraft.value = false

@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import type { LyricsDoc } from '@audoria/lyrics-core'
 import type { AudioSource, EditorLocale } from '@audoria/lyrics-editor'
-import { looksLikeTtml, lyricsDocFromText, lyricsDocFromTtml, lyricsDocToText, lyricsDocToTtml, validateLyricsDoc } from '@audoria/lyrics-core'
-import { finishTiming, incompleteLines, LyricsTimingEditor, mediaElementSource } from '@audoria/lyrics-editor'
+import { looksLikeTtml, lyricsDocFromText, lyricsDocFromTtml, lyricsDocToText, lyricsDocToTtml } from '@audoria/lyrics-core'
+import { LyricsTimingEditor, mediaElementSource, prepareSave, toEditorLocale } from '@audoria/lyrics-editor'
 import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 
 const DRAFT_KEY = 'lyrics-editor:draft'
 
-const locale: EditorLocale = navigator.language.startsWith('ja') ? 'ja' : navigator.language.startsWith('zh') ? 'zh' : 'en'
+const locale: EditorLocale = toEditorLocale(navigator.language)
 const text = {
   zh: {
     title: '逐字打轴',
@@ -175,17 +175,12 @@ function exportAs(format: 'ttml' | 'lrc'): void {
   if (!doc.value) {
     return
   }
-  const incomplete = incompleteLines(doc.value)
-  if (incomplete.length > 0) {
-    error.value = text.invalid + text.incomplete(incomplete[0] + 1, incomplete.length)
+  const check = prepareSave(doc.value)
+  if (!check.ok) {
+    error.value = text.invalid + ('incomplete' in check ? text.incomplete(check.incomplete[0] + 1, check.incomplete.length) : check.problem)
     return
   }
-  const finished = finishTiming(doc.value)
-  const problem = validateLyricsDoc(finished)
-  if (problem) {
-    error.value = text.invalid + problem
-    return
-  }
+  const finished = check.doc
   error.value = ''
   if (format === 'ttml') {
     download(lyricsDocToTtml(finished, { title: baseName() }), 'ttml', 'application/ttml+xml')

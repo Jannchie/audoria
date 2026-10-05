@@ -1,7 +1,7 @@
 import type { LyricsDoc } from '@audoria/lyrics-core'
 import { validateLyricsDoc } from '@audoria/lyrics-core'
 import { describe, expect, it } from 'vitest'
-import { clearTiming, computePeaks, finishTiming, History, incompleteLines, isCreditLine, lineStatus, mergeWithNext, nextWord, nudgeWord, prepareForTiming, previousWord, setCueText, shiftCue, splitWord, stampLine, stampWordEnd, stampWordStart, toWholeLine, wordBreaks, wordsAt } from '../src/core'
+import { clearTiming, computePeaks, finishTiming, History, incompleteLines, isCreditLine, lineStatus, mergeWithNext, nextWord, nudgeWord, prepareForTiming, prepareSave, setCueText, shiftLine, splitWord, stampLine, stampWordEnd, stampWordStart, toWholeLine, wordBreaks, wordsAt } from '../src/core'
 
 function lineDoc(...lines: Array<[number, string]>): LyricsDoc {
   return { version: 1, timing: 'line', cues: lines.map(([begin, text], i) => ({ id: `c${i}`, begin, words: [{ text }] })), tracks: [] }
@@ -74,7 +74,6 @@ describe('timing commands', () => {
   it('walks words across lines, skipping empty ones', () => {
     const doc = prepareForTiming(lineDoc([0, 'あい'], [0, ''], [0, 'う']))
     expect(nextWord(doc, { cue: 0, word: 1 })).toEqual({ cue: 2, word: 0 })
-    expect(previousWord(doc, { cue: 2, word: 0 })).toEqual({ cue: 0, word: 1 })
     expect(nextWord(doc, { cue: 2, word: 0 })).toBeNull()
   })
 
@@ -120,7 +119,7 @@ describe('line timing', () => {
     doc = stampWordEnd(doc, { cue: 2, word: 2 }, 1600)
     const moved = stampLine(doc, 2, 2000)
     expect(moved.cues[2].words.map(word => [word.begin, word.end])).toEqual([[2000, 2200], [2200, 2400], [2400, 2600]])
-    expect(shiftCue(moved, 2, -2500).cues[2].begin).toBe(0)
+    expect(shiftLine(moved, 2, -2500).cues[2].begin).toBe(0)
   })
 
   it('reports line status and what keeps a draft from saving', () => {
@@ -145,6 +144,13 @@ describe('line timing', () => {
       [9000, [{ text: 'えお' }]],
     ])
     expect(validateLyricsDoc(finished)).toBeNull()
+  })
+
+  it('checks a draft before saving: unfinished lines first, then the finished document', () => {
+    const draft = stampLine(plain(), 2, 6000)
+    expect(prepareSave(draft)).toEqual({ ok: false, incomplete: [4] })
+    const check = prepareSave(stampLine(draft, 4, 9000))
+    expect(check.ok && check.doc.timing).toBe('line')
   })
 
   it('keeps a mix of word-timed and whole lines as word timing', () => {

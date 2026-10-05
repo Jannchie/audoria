@@ -4,7 +4,7 @@ import vue from '@vitejs/plugin-vue'
 import UnoCSS from 'unocss/vite'
 import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
-import { defineConfig } from 'vite'
+import { defaultClientConditions, defaultServerConditions, defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -100,8 +100,13 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, 'src'),
-      // Bundled from source, so the web build never waits on the package's own build.
-      '@audoria/lyrics-core': path.resolve(__dirname, '../packages/lyrics-core/src/index.ts'),
+    },
+    // Workspace packages are bundled from their source, so the build never waits on theirs.
+    conditions: ['source', ...defaultClientConditions],
+  },
+  ssr: {
+    resolve: {
+      conditions: ['source', ...defaultServerConditions],
     },
   },
   server: {
