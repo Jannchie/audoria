@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@audoria/lyrics-core": "workspace:*",
+    "@audoria/lyrics-editor": "workspace:*",
     "@floating-ui/vue": "^1.1.11",
     "@shader-gradient/vue": "^0.2.0",
     "@tanstack/vue-query": "^5.99.0",

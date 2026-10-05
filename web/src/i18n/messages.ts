@@ -1,5 +1,16 @@
 export const messages = {
   'en-US': {
+    lyricsEditor: {
+      title: 'Word timing',
+      back: 'Back to player',
+      save: 'Save',
+      saving: 'Saving…',
+      saved: 'Saved',
+      unsaved: 'Unsaved changes',
+      draftRestored: 'Your unsaved draft for this song is back.',
+      untimed: 'Line {line} still has {count} untimed words. Time every word before saving.',
+      notFound: 'This track isn’t in the library.',
+    },
     auth: {
       loginPrompt: 'Enter your access token to continue',
       tokenPlaceholder: 'Access token',
@@ -377,6 +388,7 @@ export const messages = {
         furigana: 'Furigana',
         editFurigana: 'Edit readings',
         exportTtml: 'Export TTML',
+        timing: 'Time words',
         editFuriganaHint: 'Click a word to correct its reading; Enter saves, Esc cancels, empty resets',
         readingFor: 'Reading for {text}',
       },
@@ -498,6 +510,17 @@ export const messages = {
     },
   },
   'ja': {
+    lyricsEditor: {
+      title: '単語タイミング',
+      back: 'プレーヤーに戻る',
+      save: '保存',
+      saving: '保存中…',
+      saved: '保存しました',
+      unsaved: '未保存の変更があります',
+      draftRestored: 'この曲の未保存の下書きを復元しました。',
+      untimed: '{line} 行目にタイミング未設定の語が {count} 個あります。すべて設定してから保存してください。',
+      notFound: 'この曲はライブラリにありません。',
+    },
     auth: {
       loginPrompt: 'アクセストークンを入力してください',
       tokenPlaceholder: 'アクセストークン',
@@ -875,6 +898,7 @@ export const messages = {
         furigana: 'ふりがな',
         editFurigana: '読みを編集',
         exportTtml: 'TTML を書き出す',
+        timing: '単語タイミング',
         editFuriganaHint: '単語をクリックして読みを修正（Enter で保存、Esc で取消、空欄で自動に戻す）',
         readingFor: '{text} の読み',
       },
@@ -996,6 +1020,17 @@ export const messages = {
     },
   },
   'zh-CN': {
+    lyricsEditor: {
+      title: '逐字打轴',
+      back: '返回播放器',
+      save: '保存',
+      saving: '保存中…',
+      saved: '已保存',
+      unsaved: '有未保存的修改',
+      draftRestored: '已恢复这首歌上次没保存的草稿。',
+      untimed: '第 {line} 行还有 {count} 个字没打点，全部打完才能保存。',
+      notFound: '曲库里没有这首歌。',
+    },
     auth: {
       loginPrompt: '请输入访问令牌以继续',
       tokenPlaceholder: '访问令牌',
@@ -1373,6 +1408,7 @@ export const messages = {
         furigana: '注音',
         editFurigana: '编辑注音',
         exportTtml: '导出 TTML',
+        timing: '逐字打轴',
         editFuriganaHint: '点击词语修正读音（Enter 保存，Esc 取消，留空恢复自动注音）',
         readingFor: '{text} 的读音',
       },

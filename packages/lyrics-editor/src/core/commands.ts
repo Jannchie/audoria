@@ -89,7 +89,9 @@ export function toWordTiming(doc: LyricsDoc): LyricsDoc {
  * `finishTiming`, since the next line often follows a breath or a break. Returns the document
  * and the word to mark next.
  */
-export function stampWordStart(doc: LyricsDoc, ref: WordRef, time: number): { doc: LyricsDoc, next: WordRef | null } {
+export function stampWordStart(doc: LyricsDoc, ref: WordRef, at: number): { doc: LyricsDoc, next: WordRef | null } {
+  // Documents hold whole milliseconds; playback clocks don't.
+  const time = Math.round(at)
   let next = updateWord(doc, ref, word => ({ ...word, begin: time, ...(word.end !== undefined && word.end < time ? { end: undefined } : {}) }))
   const before = { cue: ref.cue, word: ref.word - 1 }
   const previous = wordAt(next, before)
@@ -100,14 +102,15 @@ export function stampWordStart(doc: LyricsDoc, ref: WordRef, time: number): { do
 }
 
 /** Ends the word at `ref` at `time`, for a pause before the next word starts. */
-export function stampWordEnd(doc: LyricsDoc, ref: WordRef, time: number): LyricsDoc {
+export function stampWordEnd(doc: LyricsDoc, ref: WordRef, at: number): LyricsDoc {
+  const time = Math.round(at)
   return updateWord(doc, ref, word => word.begin !== undefined && word.begin < time ? { ...word, end: time } : word)
 }
 
 /** Moves one edge of a word, or the whole word, by `deltaMs`; never below zero or past its other edge. */
 export function nudgeWord(doc: LyricsDoc, ref: WordRef, edge: 'begin' | 'end' | 'both', deltaMs: number): LyricsDoc {
   return updateWord(doc, ref, (word) => {
-    const move = (time: number | undefined): number | undefined => time === undefined ? undefined : Math.max(0, time + deltaMs)
+    const move = (time: number | undefined): number | undefined => time === undefined ? undefined : Math.max(0, Math.round(time + deltaMs))
     if (edge === 'both') {
       return { ...word, begin: move(word.begin), end: move(word.end) }
     }

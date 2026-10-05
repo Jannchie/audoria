@@ -3,7 +3,7 @@ import { client } from '../api/client.gen'
 
 export type AuthStatus = 'loading' | 'authenticated' | 'guest'
 
-export const GUEST_RESTRICTED_PATHS = ['/upload', '/import', '/parse'] as const
+export const GUEST_RESTRICTED_PATHS = ['/upload', '/import', '/parse', '/lyrics-editor'] as const
 
 export const authStatus = ref<AuthStatus>('loading')
 

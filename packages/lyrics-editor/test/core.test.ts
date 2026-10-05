@@ -43,6 +43,12 @@ describe('timing commands', () => {
     ])
   })
 
+  it('stamps whole milliseconds from a fractional playback clock', () => {
+    const doc = toWordTiming(lineDoc([0, 'あい']))
+    expect(stampWordStart(doc, { cue: 0, word: 0 }, 1234.56).doc.cues[0].words[0].begin).toBe(1235)
+    expect(stampWordEnd(doc, { cue: 0, word: 0 }, 99.4).cues[0].words[0].end).toBe(99)
+  })
+
   it('keeps an end stamped for a pause when the next word starts later', () => {
     let doc = toWordTiming(lineDoc([0, 'あい']))
     doc = stampWordStart(doc, { cue: 0, word: 0 }, 100).doc

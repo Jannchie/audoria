@@ -74,6 +74,8 @@ const mobileNavItems = computed(() => {
 
 const currentPath = computed(() => route.path)
 const isPlayerPage = computed(() => route.path === '/player')
+// Pages that fill the window and bring their own playback controls.
+const isFullBleedPage = computed(() => isPlayerPage.value || route.path.startsWith('/lyrics-editor/'))
 const isLoginPage = computed(() => route.path === '/login')
 const isLocked = useScrollLock(document.body)
 
@@ -166,7 +168,7 @@ watchEffect(() => {
     <!-- Main content -->
     <main
       class="main-content"
-      :class="{ 'main-content--player': isPlayerPage }"
+      :class="{ 'main-content--player': isFullBleedPage }"
     >
       <RouterView />
     </main>
@@ -176,7 +178,7 @@ watchEffect(() => {
          On desktop the wrapper is a pass-through; PlayerBar uses its own
          position:fixed via media query. -->
     <div
-      v-show="!isPlayerPage && !isKeyboardOpen"
+      v-show="!isFullBleedPage && !isKeyboardOpen"
       class="bottom-area"
     >
       <PlayerBar />

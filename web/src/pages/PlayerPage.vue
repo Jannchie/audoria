@@ -817,6 +817,17 @@ onUnmounted(() => {
                 {{ t('player.lyrics.editFurigana') }}
               </button>
             </div>
+            <RouterLink
+              v-if="currentTrack"
+              class="lyrics-tool-btn"
+              :to="`/lyrics-editor/${currentTrack.id}`"
+            >
+              <span
+                class="i-tabler-clock-edit"
+                aria-hidden="true"
+              />
+              {{ t('player.lyrics.timing') }}
+            </RouterLink>
             <a
               class="lyrics-tool-btn"
               :href="ttmlExportUrl"
