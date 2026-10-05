@@ -118,7 +118,7 @@ export type PlaylistReorderRequest = {
 
 export type LyricsFurigana = {
     /**
-     * Furigana segments keyed by lyric line text (timestamps stripped)
+     * Furigana segments keyed by cue id
      */
     lines: {
         [key: string]: Array<RubySegment>;
@@ -129,9 +129,63 @@ export type RubySegment = {
     text: string;
     ruby?: string;
     /**
-     * The reading is written into the lyrics as 漢字(よみ)
+     * The reading was set by hand rather than analyzed
      */
     explicit?: boolean;
+};
+
+export type Lyrics = {
+    doc: LyricsDoc | null;
+};
+
+export type LyricsDoc = {
+    version: 1;
+    timing: 'none' | 'line' | 'word';
+    lang?: string;
+    cues: Array<LyricsCue>;
+    tracks: Array<LyricsTrack>;
+};
+
+export type LyricsCue = {
+    id: string;
+    begin?: number;
+    end?: number;
+    /**
+     * Singer for duets, as TTML ttm:agent (v1, v2, …)
+     */
+    agent?: string;
+    words: Array<LyricsWord>;
+    /**
+     * Backing vocals sung over this cue
+     */
+    background?: Array<LyricsWord>;
+    ruby?: Array<LyricsRuby>;
+};
+
+export type LyricsWord = {
+    text: string;
+    begin?: number;
+    end?: number;
+};
+
+/**
+ * A hand-set reading over cue text [start, end); unset ranges are read by the analyzer
+ */
+export type LyricsRuby = {
+    start: number;
+    end: number;
+    reading: string;
+};
+
+export type LyricsTrack = {
+    lang: string;
+    kind: 'translation' | 'transliteration';
+    /**
+     * Text keyed by cue id
+     */
+    lines: {
+        [key: string]: string;
+    };
 };
 
 export type UpdateMusicRequest = {
@@ -139,6 +193,9 @@ export type UpdateMusicRequest = {
     artists?: string | null;
     album?: string | null;
     source?: string | null;
+    /**
+     * LRC, plain text, or TTML, which is stored as a lyrics document
+     */
     lyrics?: string | null;
 };
 
@@ -347,6 +404,136 @@ export type PostMusicResponses = {
 };
 
 export type PostMusicResponse = PostMusicResponses[keyof PostMusicResponses];
+
+export type PostMusicUploadsData = {
+    body?: {
+        filename: string;
+        contentType?: string | null;
+        size: number;
+    };
+    path?: never;
+    query?: never;
+    url: '/music/uploads';
+};
+
+export type PostMusicUploadsErrors = {
+    /**
+     * Invalid request
+     */
+    400: {
+        message: string;
+    };
+    /**
+     * File too large
+     */
+    413: {
+        message: string;
+    };
+};
+
+export type PostMusicUploadsError = PostMusicUploadsErrors[keyof PostMusicUploadsErrors];
+
+export type PostMusicUploadsResponses = {
+    /**
+     * Upload session
+     */
+    201: {
+        id: string;
+        chunkSize: number;
+        chunkCount: number;
+    };
+};
+
+export type PostMusicUploadsResponse = PostMusicUploadsResponses[keyof PostMusicUploadsResponses];
+
+export type PutMusicUploadsByIdChunksByIndexData = {
+    body?: Blob | File;
+    path: {
+        id: string;
+        index?: number | null;
+    };
+    query?: never;
+    url: '/music/uploads/{id}/chunks/{index}';
+};
+
+export type PutMusicUploadsByIdChunksByIndexErrors = {
+    /**
+     * Invalid chunk
+     */
+    400: {
+        message: string;
+    };
+    /**
+     * Upload session not found
+     */
+    404: {
+        message: string;
+    };
+};
+
+export type PutMusicUploadsByIdChunksByIndexError = PutMusicUploadsByIdChunksByIndexErrors[keyof PutMusicUploadsByIdChunksByIndexErrors];
+
+export type PutMusicUploadsByIdChunksByIndexResponses = {
+    /**
+     * Chunk stored
+     */
+    204: void;
+};
+
+export type PutMusicUploadsByIdChunksByIndexResponse = PutMusicUploadsByIdChunksByIndexResponses[keyof PutMusicUploadsByIdChunksByIndexResponses];
+
+export type PostMusicUploadsByIdCompleteData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/music/uploads/{id}/complete';
+};
+
+export type PostMusicUploadsByIdCompleteErrors = {
+    /**
+     * Upload session not found
+     */
+    404: {
+        message: string;
+    };
+    /**
+     * Chunks are missing
+     */
+    409: {
+        message: string;
+    };
+};
+
+export type PostMusicUploadsByIdCompleteError = PostMusicUploadsByIdCompleteErrors[keyof PostMusicUploadsByIdCompleteErrors];
+
+export type PostMusicUploadsByIdCompleteResponses = {
+    /**
+     * Created
+     */
+    201: Music;
+};
+
+export type PostMusicUploadsByIdCompleteResponse = PostMusicUploadsByIdCompleteResponses[keyof PostMusicUploadsByIdCompleteResponses];
+
+export type DeleteMusicUploadsByIdData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/music/uploads/{id}';
+};
+
+export type DeleteMusicUploadsByIdResponses = {
+    /**
+     * Aborted
+     */
+    204: void;
+};
+
+export type DeleteMusicUploadsByIdResponse = DeleteMusicUploadsByIdResponses[keyof DeleteMusicUploadsByIdResponses];
 
 export type PostMusicImportsSearchData = {
     body?: MusicDlSearchRequest;
@@ -904,6 +1091,99 @@ export type GetMusicByIdLyricsFuriganaResponses = {
 
 export type GetMusicByIdLyricsFuriganaResponse = GetMusicByIdLyricsFuriganaResponses[keyof GetMusicByIdLyricsFuriganaResponses];
 
+export type GetMusicByIdLyricsData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/music/{id}/lyrics';
+};
+
+export type GetMusicByIdLyricsErrors = {
+    /**
+     * Not found
+     */
+    404: {
+        message: string;
+    };
+};
+
+export type GetMusicByIdLyricsError = GetMusicByIdLyricsErrors[keyof GetMusicByIdLyricsErrors];
+
+export type GetMusicByIdLyricsResponses = {
+    /**
+     * The lyrics document, or null when the track has no lyrics
+     */
+    200: Lyrics;
+};
+
+export type GetMusicByIdLyricsResponse = GetMusicByIdLyricsResponses[keyof GetMusicByIdLyricsResponses];
+
+export type PutMusicByIdLyricsData = {
+    body?: Lyrics;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/music/{id}/lyrics';
+};
+
+export type PutMusicByIdLyricsErrors = {
+    /**
+     * Invalid lyrics document
+     */
+    400: {
+        message: string;
+    };
+    /**
+     * Not found
+     */
+    404: {
+        message: string;
+    };
+};
+
+export type PutMusicByIdLyricsError = PutMusicByIdLyricsErrors[keyof PutMusicByIdLyricsErrors];
+
+export type PutMusicByIdLyricsResponses = {
+    /**
+     * Updated
+     */
+    200: Music;
+};
+
+export type PutMusicByIdLyricsResponse = PutMusicByIdLyricsResponses[keyof PutMusicByIdLyricsResponses];
+
+export type GetMusicByIdLyricsTtmlData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/music/{id}/lyrics/ttml';
+};
+
+export type GetMusicByIdLyricsTtmlErrors = {
+    /**
+     * Not found, or the track has no lyrics
+     */
+    404: {
+        message: string;
+    };
+};
+
+export type GetMusicByIdLyricsTtmlError = GetMusicByIdLyricsTtmlErrors[keyof GetMusicByIdLyricsTtmlErrors];
+
+export type GetMusicByIdLyricsTtmlResponses = {
+    /**
+     * TTML document
+     */
+    200: string;
+};
+
+export type GetMusicByIdLyricsTtmlResponse = GetMusicByIdLyricsTtmlResponses[keyof GetMusicByIdLyricsTtmlResponses];
+
 export type GetMusicByIdDownloadData = {
     body?: never;
     path: {
@@ -972,6 +1252,12 @@ export type PatchMusicByIdData = {
 };
 
 export type PatchMusicByIdErrors = {
+    /**
+     * Invalid TTML lyrics
+     */
+    400: {
+        message: string;
+    };
     /**
      * Not found
      */

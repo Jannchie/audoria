@@ -2,7 +2,7 @@
 
 import { type Client, formDataBodySerializer, type Options as Options2, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { DeleteMusicByIdCoverData, DeleteMusicByIdCoverErrors, DeleteMusicByIdCoverResponses, DeleteMusicByIdData, DeleteMusicByIdErrors, DeleteMusicByIdResponses, DeletePlaylistsByIdData, DeletePlaylistsByIdErrors, DeletePlaylistsByIdResponses, DeletePlaylistsByIdTracksByTrackIdData, DeletePlaylistsByIdTracksByTrackIdErrors, DeletePlaylistsByIdTracksByTrackIdResponses, GetAppConfigData, GetAppConfigResponses, GetMusicByIdCoverData, GetMusicByIdCoverErrors, GetMusicByIdCoverMaskData, GetMusicByIdCoverMaskErrors, GetMusicByIdCoverMaskResponses, GetMusicByIdCoverResponses, GetMusicByIdCoverThumbData, GetMusicByIdCoverThumbErrors, GetMusicByIdCoverThumbResponses, GetMusicByIdDownloadData, GetMusicByIdDownloadErrors, GetMusicByIdDownloadResponses, GetMusicByIdLyricsFuriganaData, GetMusicByIdLyricsFuriganaErrors, GetMusicByIdLyricsFuriganaResponses, GetMusicData, GetMusicImportsByIdData, GetMusicImportsByIdErrors, GetMusicImportsByIdResponses, GetMusicResponses, GetPlaylistsByIdData, GetPlaylistsByIdErrors, GetPlaylistsByIdResponses, GetPlaylistsData, GetPlaylistsResponses, GetStatsData, GetStatsResponses, PatchAppConfigData, PatchAppConfigErrors, PatchAppConfigResponses, PatchMusicByIdData, PatchMusicByIdErrors, PatchMusicByIdResponses, PatchMusicReorderData, PatchMusicReorderErrors, PatchMusicReorderResponses, PatchPlaylistsByIdData, PatchPlaylistsByIdErrors, PatchPlaylistsByIdResponses, PatchPlaylistsByIdTracksReorderData, PatchPlaylistsByIdTracksReorderErrors, PatchPlaylistsByIdTracksReorderResponses, PostMusicByIdCoverData, PostMusicByIdCoverErrors, PostMusicByIdCoverResponses, PostMusicByIdPlaysData, PostMusicByIdPlaysErrors, PostMusicByIdPlaysResponses, PostMusicData, PostMusicErrors, PostMusicImportsData, PostMusicImportsErrors, PostMusicImportsParseUrlData, PostMusicImportsParseUrlErrors, PostMusicImportsParseUrlResponses, PostMusicImportsResponses, PostMusicImportsSearchData, PostMusicImportsSearchErrors, PostMusicImportsSearchResponses, PostMusicResponses, PostPlaylistsByIdTracksData, PostPlaylistsByIdTracksErrors, PostPlaylistsByIdTracksResponses, PostPlaylistsData, PostPlaylistsResponses } from './types.gen';
+import type { DeleteMusicByIdCoverData, DeleteMusicByIdCoverErrors, DeleteMusicByIdCoverResponses, DeleteMusicByIdData, DeleteMusicByIdErrors, DeleteMusicByIdResponses, DeleteMusicUploadsByIdData, DeleteMusicUploadsByIdResponses, DeletePlaylistsByIdData, DeletePlaylistsByIdErrors, DeletePlaylistsByIdResponses, DeletePlaylistsByIdTracksByTrackIdData, DeletePlaylistsByIdTracksByTrackIdErrors, DeletePlaylistsByIdTracksByTrackIdResponses, GetAppConfigData, GetAppConfigResponses, GetMusicByIdCoverData, GetMusicByIdCoverErrors, GetMusicByIdCoverMaskData, GetMusicByIdCoverMaskErrors, GetMusicByIdCoverMaskResponses, GetMusicByIdCoverResponses, GetMusicByIdCoverThumbData, GetMusicByIdCoverThumbErrors, GetMusicByIdCoverThumbResponses, GetMusicByIdDownloadData, GetMusicByIdDownloadErrors, GetMusicByIdDownloadResponses, GetMusicByIdLyricsData, GetMusicByIdLyricsErrors, GetMusicByIdLyricsFuriganaData, GetMusicByIdLyricsFuriganaErrors, GetMusicByIdLyricsFuriganaResponses, GetMusicByIdLyricsResponses, GetMusicByIdLyricsTtmlData, GetMusicByIdLyricsTtmlErrors, GetMusicByIdLyricsTtmlResponses, GetMusicData, GetMusicImportsByIdData, GetMusicImportsByIdErrors, GetMusicImportsByIdResponses, GetMusicResponses, GetPlaylistsByIdData, GetPlaylistsByIdErrors, GetPlaylistsByIdResponses, GetPlaylistsData, GetPlaylistsResponses, GetStatsData, GetStatsResponses, PatchAppConfigData, PatchAppConfigErrors, PatchAppConfigResponses, PatchMusicByIdData, PatchMusicByIdErrors, PatchMusicByIdResponses, PatchMusicReorderData, PatchMusicReorderErrors, PatchMusicReorderResponses, PatchPlaylistsByIdData, PatchPlaylistsByIdErrors, PatchPlaylistsByIdResponses, PatchPlaylistsByIdTracksReorderData, PatchPlaylistsByIdTracksReorderErrors, PatchPlaylistsByIdTracksReorderResponses, PostMusicByIdCoverData, PostMusicByIdCoverErrors, PostMusicByIdCoverResponses, PostMusicByIdPlaysData, PostMusicByIdPlaysErrors, PostMusicByIdPlaysResponses, PostMusicData, PostMusicErrors, PostMusicImportsData, PostMusicImportsErrors, PostMusicImportsParseUrlData, PostMusicImportsParseUrlErrors, PostMusicImportsParseUrlResponses, PostMusicImportsResponses, PostMusicImportsSearchData, PostMusicImportsSearchErrors, PostMusicImportsSearchResponses, PostMusicResponses, PostMusicUploadsByIdCompleteData, PostMusicUploadsByIdCompleteErrors, PostMusicUploadsByIdCompleteResponses, PostMusicUploadsData, PostMusicUploadsErrors, PostMusicUploadsResponses, PostPlaylistsByIdTracksData, PostPlaylistsByIdTracksErrors, PostPlaylistsByIdTracksResponses, PostPlaylistsData, PostPlaylistsResponses, PutMusicByIdLyricsData, PutMusicByIdLyricsErrors, PutMusicByIdLyricsResponses, PutMusicUploadsByIdChunksByIndexData, PutMusicUploadsByIdChunksByIndexErrors, PutMusicUploadsByIdChunksByIndexResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -35,6 +35,41 @@ export const postMusic = <ThrowOnError extends boolean = false>(options?: Option
         ...options?.headers
     }
 });
+
+/**
+ * Start a chunked music upload
+ */
+export const postMusicUploads = <ThrowOnError extends boolean = false>(options?: Options<PostMusicUploadsData, ThrowOnError>) => (options?.client ?? client).post<PostMusicUploadsResponses, PostMusicUploadsErrors, ThrowOnError>({
+    url: '/music/uploads',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers
+    }
+});
+
+/**
+ * Upload one chunk of a chunked music upload
+ */
+export const putMusicUploadsByIdChunksByIndex = <ThrowOnError extends boolean = false>(options: Options<PutMusicUploadsByIdChunksByIndexData, ThrowOnError>) => (options.client ?? client).put<PutMusicUploadsByIdChunksByIndexResponses, PutMusicUploadsByIdChunksByIndexErrors, ThrowOnError>({
+    bodySerializer: null,
+    url: '/music/uploads/{id}/chunks/{index}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/octet-stream',
+        ...options.headers
+    }
+});
+
+/**
+ * Finish a chunked music upload and store the track
+ */
+export const postMusicUploadsByIdComplete = <ThrowOnError extends boolean = false>(options: Options<PostMusicUploadsByIdCompleteData, ThrowOnError>) => (options.client ?? client).post<PostMusicUploadsByIdCompleteResponses, PostMusicUploadsByIdCompleteErrors, ThrowOnError>({ url: '/music/uploads/{id}/complete', ...options });
+
+/**
+ * Abort a chunked music upload
+ */
+export const deleteMusicUploadsById = <ThrowOnError extends boolean = false>(options: Options<DeleteMusicUploadsByIdData, ThrowOnError>) => (options.client ?? client).delete<DeleteMusicUploadsByIdResponses, unknown, ThrowOnError>({ url: '/music/uploads/{id}', ...options });
 
 /**
  * Search tracks through musicdl
@@ -182,6 +217,30 @@ export const getMusicByIdCoverMask = <ThrowOnError extends boolean = false>(opti
  * Annotate the Japanese lines of a track's lyrics with furigana
  */
 export const getMusicByIdLyricsFurigana = <ThrowOnError extends boolean = false>(options: Options<GetMusicByIdLyricsFuriganaData, ThrowOnError>) => (options.client ?? client).get<GetMusicByIdLyricsFuriganaResponses, GetMusicByIdLyricsFuriganaErrors, ThrowOnError>({ url: '/music/{id}/lyrics/furigana', ...options });
+
+/**
+ * Get a track's lyrics as a structured document
+ */
+export const getMusicByIdLyrics = <ThrowOnError extends boolean = false>(options: Options<GetMusicByIdLyricsData, ThrowOnError>) => (options.client ?? client).get<GetMusicByIdLyricsResponses, GetMusicByIdLyricsErrors, ThrowOnError>({ url: '/music/{id}/lyrics', ...options });
+
+/**
+ * Replace a track's lyrics document
+ *
+ * The track's `lyrics` text becomes the document's LRC rendering.
+ */
+export const putMusicByIdLyrics = <ThrowOnError extends boolean = false>(options: Options<PutMusicByIdLyricsData, ThrowOnError>) => (options.client ?? client).put<PutMusicByIdLyricsResponses, PutMusicByIdLyricsErrors, ThrowOnError>({
+    url: '/music/{id}/lyrics',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Download a track's lyrics as Apple Music / AMLL style TTML
+ */
+export const getMusicByIdLyricsTtml = <ThrowOnError extends boolean = false>(options: Options<GetMusicByIdLyricsTtmlData, ThrowOnError>) => (options.client ?? client).get<GetMusicByIdLyricsTtmlResponses, GetMusicByIdLyricsTtmlErrors, ThrowOnError>({ url: '/music/{id}/lyrics/ttml', ...options });
 
 /**
  * Download a music file by id

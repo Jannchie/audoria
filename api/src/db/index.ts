@@ -94,6 +94,7 @@ export async function updateTrackEditableMetadata(id: string, metadata: {
   album: string | null
   source: string | null
   lyrics: string | null
+  lyricsDoc: string | null
 }): Promise<void> {
   await queryRun(db.update(schema.tracks)
     .set({
@@ -102,7 +103,18 @@ export async function updateTrackEditableMetadata(id: string, metadata: {
       album: metadata.album,
       source: metadata.source,
       lyrics: metadata.lyrics,
+      lyricsDoc: metadata.lyricsDoc,
     })
+    .where(eq(schema.tracks.id, id)),
+  )
+}
+
+export async function updateTrackLyrics(id: string, lyrics: {
+  lyrics: string | null
+  lyricsDoc: string | null
+}): Promise<void> {
+  await queryRun(db.update(schema.tracks)
+    .set(lyrics)
     .where(eq(schema.tracks.id, id)),
   )
 }
@@ -166,6 +178,7 @@ export async function updateTrackImportedMetadata(id: string, metadata: {
   coverThumbContentType: string | null
   coverThumbhash: string | null
   lyrics: string | null
+  lyricsDoc: string | null
   title: string | null
   artists: string | null
   album: string | null
@@ -186,6 +199,7 @@ export async function updateTrackImportedMetadata(id: string, metadata: {
       coverThumbContentType: metadata.coverThumbContentType,
       coverThumbhash: metadata.coverThumbhash,
       lyrics: metadata.lyrics,
+      lyricsDoc: metadata.lyricsDoc,
       title: metadata.title,
       artists: metadata.artists,
       album: metadata.album,

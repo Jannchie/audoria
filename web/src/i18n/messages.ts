@@ -376,6 +376,7 @@ export const messages = {
         saveFailed: 'Failed to save lyrics',
         furigana: 'Furigana',
         editFurigana: 'Edit readings',
+        exportTtml: 'Export TTML',
         editFuriganaHint: 'Click a word to correct its reading; Enter saves, Esc cancels, empty resets',
         readingFor: 'Reading for {text}',
       },
@@ -464,10 +465,11 @@ export const messages = {
       sourceNone: 'None',
       lyricsModes: {
         synced: 'Synced (LRC)',
+        ttml: 'TTML',
         plain: 'Plain text',
         empty: 'Empty',
       },
-      lyricsHint: 'LRC timestamps auto-enable synced highlighting. Plain text renders as-is.',
+      lyricsHint: 'LRC timestamps auto-enable synced highlighting; TTML (Apple Music / AMLL) also keeps word timing. Plain text renders as-is.',
       saveFailed: 'Save failed',
     },
     shader: {
@@ -872,6 +874,7 @@ export const messages = {
         saveFailed: '歌詞の保存に失敗しました',
         furigana: 'ふりがな',
         editFurigana: '読みを編集',
+        exportTtml: 'TTML を書き出す',
         editFuriganaHint: '単語をクリックして読みを修正（Enter で保存、Esc で取消、空欄で自動に戻す）',
         readingFor: '{text} の読み',
       },
@@ -960,10 +963,11 @@ export const messages = {
       sourceNone: 'なし',
       lyricsModes: {
         synced: '同期歌詞（LRC）',
+        ttml: 'TTML',
         plain: 'プレーンテキスト',
         empty: '空',
       },
-      lyricsHint: 'タイムスタンプ付きLRCは自動で同期ハイライトが有効になります。プレーンテキストはそのまま表示されます。',
+      lyricsHint: 'タイムスタンプ付きLRCは自動で同期ハイライトが有効になります。TTML（Apple Music / AMLL）は単語ごとのタイミングも保持します。プレーンテキストはそのまま表示されます。',
       saveFailed: '保存に失敗しました',
     },
     shader: {
@@ -1368,6 +1372,7 @@ export const messages = {
         saveFailed: '保存歌词失败',
         furigana: '注音',
         editFurigana: '编辑注音',
+        exportTtml: '导出 TTML',
         editFuriganaHint: '点击词语修正读音（Enter 保存，Esc 取消，留空恢复自动注音）',
         readingFor: '{text} 的读音',
       },
@@ -1456,10 +1461,11 @@ export const messages = {
       sourceNone: '无',
       lyricsModes: {
         synced: '同步歌词（LRC）',
+        ttml: 'TTML',
         plain: '纯文本',
         empty: '空',
       },
-      lyricsHint: '带时间戳的 LRC 会自动启用同步高亮。纯文本会按原样显示。',
+      lyricsHint: '带时间戳的 LRC 会自动启用同步高亮；TTML（Apple Music / AMLL）还会保留逐字时间。纯文本会按原样显示。',
       saveFailed: '保存失败',
     },
     shader: {

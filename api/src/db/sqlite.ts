@@ -114,6 +114,7 @@ export function initSqlite(dbPath: string): void {
       size INTEGER NOT NULL,
       content_type TEXT,
       lyrics TEXT,
+      lyrics_doc TEXT,
       sort_order INTEGER,
       play_count INTEGER NOT NULL DEFAULT 0,
       skip_count INTEGER NOT NULL DEFAULT 0,
@@ -310,6 +311,9 @@ export function initSqlite(dbPath: string): void {
   }
   if (!statColumns.has('cover_mask_requested_at')) {
     sqlite.exec('ALTER TABLE tracks ADD COLUMN cover_mask_requested_at INTEGER')
+  }
+  if (!statColumns.has('lyrics_doc')) {
+    sqlite.exec('ALTER TABLE tracks ADD COLUMN lyrics_doc TEXT')
   }
 
   const importJobColumns = sqlite.prepare('PRAGMA table_info(music_import_jobs)').all() as Array<{ name: string }>

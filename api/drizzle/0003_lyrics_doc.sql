@@ -1,0 +1,1 @@
+ALTER TABLE `tracks` ADD `lyrics_doc` text;

@@ -41,6 +41,7 @@ function insertTrack(id: string, durationSeconds: number | null): Track {
     size: 1,
     contentType: 'audio/mpeg',
     lyrics: null,
+    lyricsDoc: null,
     sortOrder: null,
     playCount: 0,
     skipCount: 0,

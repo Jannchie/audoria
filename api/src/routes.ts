@@ -2,6 +2,7 @@ import type { Context } from 'hono'
 import type { ReadableStream } from 'node:stream/web'
 import type { ConfigOverrides } from './configOverrides.js'
 import type { MusicImportJob, MusicImportJobStatus, Playlist, PlaylistSummary, Track } from './db/schema.js'
+import type { LyricsColumns } from './lyrics/store.js'
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { env } from 'node:process'
 import { Readable } from 'node:stream'
@@ -36,9 +37,13 @@ import {
   updatePlaylist,
   updateTrackCover,
   updateTrackEditableMetadata,
+  updateTrackLyrics,
 } from './db/index.js'
 import { deletePlayEventsForTrack, getListeningStats, PlaySessionConflictError, recordPlayEvent } from './db/playStats.js'
 import { annotateLyricsFurigana } from './furigana.js'
+import { LyricsDocSchema, validateLyricsDoc } from './lyrics/doc.js'
+import { lyricsColumnsFromDoc, lyricsColumnsFromText, readLyricsDoc } from './lyrics/store.js'
+import { lyricsDocToTtml, TtmlParseError } from './lyrics/ttml.js'
 import { MusicDlBridgeError, MusicDlUnavailableError, resolveMusicDlSongInfo, resolveMusicUrl, searchMusicDl } from './musicdl.js'
 import { musicDlSources, musicDlUrlSources } from './musicSources.js'
 import {
@@ -84,6 +89,16 @@ function toMusicResponse(row: Track, playlistIds: string[] = []) {
     lastPlayedAt: row.lastPlayedAt ? new Date(row.lastPlayedAt).toISOString() : null,
     createdAt: new Date(row.createdAt).toISOString(),
   }
+}
+
+/** Reads a track back after a change, shaped for the response; undefined if it has gone. */
+async function loadMusicResponse(id: string) {
+  const record = await getTrackById(id)
+  if (!record) {
+    return
+  }
+  const playlistIds = await getPlaylistIdsForTracks([record.id])
+  return toMusicResponse(record, playlistIds.get(record.id) ?? [])
 }
 
 function toMusicImportJobResponse(job: MusicImportJob) {
@@ -254,7 +269,7 @@ const UpdateMusicRequestSchema = z.object({
   artists: z.string().max(512).nullable().optional(),
   album: z.string().max(512).nullable().optional(),
   source: z.string().max(128).nullable().optional(),
-  lyrics: z.string().max(200_000).nullable().optional(),
+  lyrics: z.string().max(1_000_000).nullable().optional().openapi({ description: 'LRC, plain text, or TTML, which is stored as a lyrics document' }),
 }).openapi('UpdateMusicRequest')
 
 const MusicDlParseUrlRequestSchema = z.object({
@@ -541,7 +556,7 @@ api.use(
   '*',
   cors({
     origin: origin => origin,
-    allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
   }),
@@ -1939,24 +1954,35 @@ api.openapi(coverMaskRoute, async (c) => {
 const RubySegmentSchema = z.object({
   text: z.string(),
   ruby: z.string().optional(),
-  explicit: z.boolean().optional().openapi({ description: 'The reading is written into the lyrics as 漢字(よみ)' }),
+  explicit: z.boolean().optional().openapi({ description: 'The reading was set by hand rather than analyzed' }),
 }).openapi('RubySegment')
 
 const LyricsFuriganaSchema = z.object({
   lines: z.record(z.string(), z.array(RubySegmentSchema)).openapi({
-    description: 'Furigana segments keyed by lyric line text (timestamps stripped)',
-    example: { 外を見る: [{ text: '外', ruby: 'そと' }, { text: 'を' }, { text: '見', ruby: 'み' }, { text: 'る' }] },
+    description: 'Furigana segments keyed by cue id',
+    example: { c0: [{ text: '外', ruby: 'そと' }, { text: 'を' }, { text: '見', ruby: 'み' }, { text: 'る' }] },
   }),
 }).openapi('LyricsFurigana')
+
+const trackParamsSchema = z.object({
+  id: z.string().min(1),
+})
+
+const trackNotFoundResponse = {
+  description: 'Not found',
+  content: {
+    'application/json': {
+      schema: ErrorSchema,
+    },
+  },
+}
 
 const lyricsFuriganaRoute = createRoute({
   method: 'get',
   path: '/music/{id}/lyrics/furigana',
   summary: 'Annotate the Japanese lines of a track\'s lyrics with furigana',
   request: {
-    params: z.object({
-      id: z.string().min(1),
-    }),
+    params: trackParamsSchema,
   },
   responses: {
     200: {
@@ -1967,14 +1993,7 @@ const lyricsFuriganaRoute = createRoute({
         },
       },
     },
-    404: {
-      description: 'Not found',
-      content: {
-        'application/json': {
-          schema: ErrorSchema,
-        },
-      },
-    },
+    404: trackNotFoundResponse,
   },
 })
 
@@ -1984,7 +2003,139 @@ api.openapi(lyricsFuriganaRoute, async (c) => {
   if (!record) {
     return c.json({ message: 'Music not found' }, 404)
   }
-  return c.json({ lines: record.lyrics ? await annotateLyricsFurigana(record.lyrics) : {} }, 200)
+  const doc = readLyricsDoc(record)
+  return c.json({ lines: doc ? await annotateLyricsFurigana(doc) : {} }, 200)
+})
+
+const LyricsSchema = z.object({
+  doc: z.union([LyricsDocSchema, z.null()]),
+}).openapi('Lyrics')
+
+const getLyricsRoute = createRoute({
+  method: 'get',
+  path: '/music/{id}/lyrics',
+  summary: 'Get a track\'s lyrics as a structured document',
+  request: {
+    params: trackParamsSchema,
+  },
+  responses: {
+    200: {
+      description: 'The lyrics document, or null when the track has no lyrics',
+      content: {
+        'application/json': {
+          schema: LyricsSchema,
+        },
+      },
+    },
+    404: trackNotFoundResponse,
+  },
+})
+
+api.openapi(getLyricsRoute, async (c) => {
+  const { id } = c.req.valid('param')
+  const record = await getTrackById(id)
+  if (!record) {
+    return c.json({ message: 'Music not found' }, 404)
+  }
+  return c.json({ doc: readLyricsDoc(record) }, 200)
+})
+
+const exportLyricsTtmlRoute = createRoute({
+  method: 'get',
+  path: '/music/{id}/lyrics/ttml',
+  summary: 'Download a track\'s lyrics as Apple Music / AMLL style TTML',
+  request: {
+    params: trackParamsSchema,
+  },
+  responses: {
+    200: {
+      description: 'TTML document',
+      content: {
+        'application/ttml+xml': {
+          schema: z.string(),
+        },
+      },
+    },
+    404: {
+      description: 'Not found, or the track has no lyrics',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+})
+
+api.openapi(exportLyricsTtmlRoute, async (c) => {
+  const { id } = c.req.valid('param')
+  const record = await getTrackById(id)
+  if (!record) {
+    return c.json({ message: 'Music not found' }, 404)
+  }
+  const doc = readLyricsDoc(record)
+  if (!doc) {
+    return c.json({ message: 'Lyrics not found' }, 404)
+  }
+  const name = (record.title || record.filename.replace(/\.[^.]+$/, '')).trim() || 'lyrics'
+  return c.body(lyricsDocToTtml(doc, record), 200, {
+    'Content-Type': 'application/ttml+xml; charset=utf-8',
+    'Content-Disposition': buildContentDisposition(`${name}.ttml`),
+  })
+})
+
+const putLyricsRoute = createRoute({
+  method: 'put',
+  path: '/music/{id}/lyrics',
+  summary: 'Replace a track\'s lyrics document',
+  description: 'The track\'s `lyrics` text becomes the document\'s LRC rendering.',
+  request: {
+    params: trackParamsSchema,
+    body: {
+      content: {
+        'application/json': {
+          schema: LyricsSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: 'Updated',
+      content: {
+        'application/json': {
+          schema: MusicSchema,
+        },
+      },
+    },
+    400: {
+      description: 'Invalid lyrics document',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+    404: trackNotFoundResponse,
+  },
+})
+
+api.openapi(putLyricsRoute, async (c) => {
+  const { id } = c.req.valid('param')
+  const { doc } = c.req.valid('json')
+  const problem = doc ? validateLyricsDoc(doc) : null
+  if (problem) {
+    return c.json({ message: problem }, 400)
+  }
+  if (!await getTrackById(id)) {
+    return c.json({ message: 'Music not found' }, 404)
+  }
+  await updateTrackLyrics(id, lyricsColumnsFromDoc(doc))
+  const updated = await loadMusicResponse(id)
+  if (!updated) {
+    return c.json({ message: 'Music not found' }, 404)
+  }
+  return c.json(updated, 200)
 })
 
 api.openapi(downloadRoute, async (c) => {
@@ -2098,6 +2249,14 @@ const updateMusicRoute = createRoute({
         },
       },
     },
+    400: {
+      description: 'Invalid TTML lyrics',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
     404: {
       description: 'Not found',
       content: {
@@ -2116,20 +2275,31 @@ api.openapi(updateMusicRoute, async (c) => {
     return c.json({ message: 'Music not found' }, 404)
   }
   const patch = c.req.valid('json')
-  const next = {
+  // Text unchanged from what is stored, as when the editor resaves other fields, keeps the document.
+  let lyrics: LyricsColumns = { lyrics: record.lyrics, lyricsDoc: record.lyricsDoc }
+  if (patch.lyrics !== undefined && patch.lyrics !== record.lyrics) {
+    try {
+      lyrics = lyricsColumnsFromText(patch.lyrics)
+    }
+    catch (error) {
+      if (error instanceof TtmlParseError) {
+        return c.json({ message: `Invalid TTML: ${error.message}` }, 400)
+      }
+      throw error
+    }
+  }
+  await updateTrackEditableMetadata(id, {
     title: patch.title === undefined ? record.title : patch.title,
     artists: patch.artists === undefined ? record.artists : patch.artists,
     album: patch.album === undefined ? record.album : patch.album,
     source: patch.source === undefined ? record.source : patch.source,
-    lyrics: patch.lyrics === undefined ? record.lyrics : patch.lyrics,
-  }
-  await updateTrackEditableMetadata(id, next)
-  const updated = await getTrackById(id)
+    ...lyrics,
+  })
+  const updated = await loadMusicResponse(id)
   if (!updated) {
     return c.json({ message: 'Music not found' }, 404)
   }
-  const playlistIds = await getPlaylistIdsForTracks([updated.id])
-  return c.json(toMusicResponse(updated, playlistIds.get(updated.id) ?? []), 200)
+  return c.json(updated, 200)
 })
 
 const MusicReorderRequestSchema = z.object({
@@ -2264,12 +2434,11 @@ api.openapi(updateCoverRoute, async (c) => {
     storedCover.cover,
     storedCover.thumb,
   ])
-  const updated = await getTrackById(id)
+  const updated = await loadMusicResponse(id)
   if (!updated) {
     return c.json({ message: 'Music not found' }, 404)
   }
-  const playlistIds = await getPlaylistIdsForTracks([updated.id])
-  return c.json(toMusicResponse(updated, playlistIds.get(updated.id) ?? []), 200)
+  return c.json(updated, 200)
 })
 
 const deleteCoverRoute = createRoute({
@@ -2319,12 +2488,11 @@ api.openapi(deleteCoverRoute, async (c) => {
       thumbhash: null,
     })
   }
-  const updated = await getTrackById(id)
+  const updated = await loadMusicResponse(id)
   if (!updated) {
     return c.json({ message: 'Music not found' }, 404)
   }
-  const playlistIds = await getPlaylistIdsForTracks([updated.id])
-  return c.json(toMusicResponse(updated, playlistIds.get(updated.id) ?? []), 200)
+  return c.json(updated, 200)
 })
 
 const getAppConfigRoute = createRoute({
