@@ -1,11 +1,11 @@
 <script setup lang="ts">
+import type { WordRef } from '../core/index.js'
 import type { LaneBlock } from './WaveformLane.vue'
 import { cueText } from '@audoria/lyrics-core'
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { clearTiming, cueStart, incompleteLines, isCreditLine, isSung, lineStatus, mergeWithNext, nextLine, nudgeWord, setCueText, splitWord, stampWordEnd, stampWordStart, wordAt } from '../core/index.js'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { clearTiming, cueStart, dragWord, incompleteLines, isCreditLine, isSung, lineStatus, mergeWithNext, nextLine, setCueText, splitWord, stampWordEnd, stampWordStart, wordAt } from '../core/index.js'
 import { scrollWithin } from '../scroll.js'
 import { useSession, useStageKeys } from '../session.js'
-import { formatTimecode, parseTimecode } from '../time.js'
 import WaveformLane from './WaveformLane.vue'
 
 type Filter = 'all' | 'word' | 'line' | 'todo'
@@ -51,50 +51,105 @@ function followingStart(index: number): number | undefined {
   return undefined
 }
 
-// ── Lane window: the selected line with some air around it, zoomable ──
+// ── Lane window: fitted to the selected line, then left where it is while that line stays in
+// view, so picking a word of a neighbouring line in the lane doesn't move it ──
 
 // An untimed line is shown around where playback was when it was picked, not where it is now:
 // following the playhead would move the window, and redraw the waveform, every frame.
 const anchor = ref(now.value)
 
-const fitWindow = computed(() => {
-  const line = cue.value
+/** Where a line's words lie, and the window that shows them with some air around. */
+function fitLine(index: number): { low: number, high: number, center: number, span: number } {
+  const line = doc.value.cues[index]
   if (!line) {
-    return { start: 0, span: 6000 }
+    return { low: 0, high: 6000, center: 3000, span: 6000 }
   }
   const times = line.words.flatMap(item => [item.begin, item.end]).filter((time): time is number => time !== undefined)
   const low = times.length > 0 ? Math.min(...times) : line.begin ?? anchor.value
-  const high = Math.max(times.length > 0 ? Math.max(...times) : line.end ?? followingStart(cueIndex.value) ?? low + 3000, low + 2500)
+  const high = Math.max(times.length > 0 ? Math.max(...times) : line.end ?? followingStart(index) ?? low + 3000, low + 2500)
   const pad = (high - low) * 0.12 + 400
-  const span = (high - low + pad * 2) / zoom.value
-  return { start: Math.max(0, (low + high) / 2 - span / 2), span }
-})
+  return { low, high, center: (low + high) / 2, span: high - low + pad * 2 }
+}
+
+// The window's middle, and its width before zooming.
+const initial = fitLine(cueIndex.value)
+const center = ref(initial.center)
+const baseSpan = ref(initial.span)
 
 // Held still while a block is dragged, so the pointer keeps its place on the time axis.
 const heldWindow = ref<{ start: number, span: number } | null>(null)
-// How far the lane has been panned from the fitted window; reset when another line is picked.
-const panOffset = ref(0)
-const window_ = computed(() => heldWindow.value ?? { start: Math.max(0, fitWindow.value.start + panOffset.value), span: fitWindow.value.span })
+const window_ = computed(() => {
+  if (heldWindow.value) {
+    return heldWindow.value
+  }
+  const span = baseSpan.value / zoom.value
+  return { start: Math.max(0, center.value - span / 2), span }
+})
+
+/**
+ * Fits the window to the selected line, unless the selected word (or, while untimed, the line)
+ * is in view already: a word picked in the lane, even of another line, is.
+ */
+function bringLineIntoView(index: number): void {
+  const fit = fitLine(index)
+  const { start, span } = window_.value
+  const at = doc.value.cues[index]?.words[cursor.value.word]?.begin
+  const visible = at === undefined
+    ? fit.low >= start && fit.high <= start + span
+    : at >= start && at <= start + span
+  if (!visible) {
+    center.value = fit.center
+    baseSpan.value = fit.span
+    zoom.value = 1
+  }
+}
 
 function onDragging(active: boolean): void {
   heldWindow.value = active ? { ...window_.value } : null
 }
 
+// Blocks are keyed by line and word, so the lane can show (and grab) the lines around this one.
+const WORDS_PER_LINE = 10_000
+const toKey = (ref: WordRef): number => ref.cue * WORDS_PER_LINE + ref.word
+const fromKey = (key: number): WordRef => ({ cue: Math.floor(key / WORDS_PER_LINE), word: key % WORDS_PER_LINE })
+
 const blocks = computed<LaneBlock[]>(() => {
-  const line = cue.value
-  if (!line) {
-    return []
-  }
-  return line.words.flatMap((item, index) => item.begin === undefined
-    ? []
-    : [{ key: index, label: item.text.trim() || '␣', begin: item.begin, end: item.end, kind: 'word' as const, selected: index === cursor.value.word }])
+  const { start, span } = window_.value
+  return doc.value.cues.flatMap((line, cueAt) => line.words.flatMap((item, index) => {
+    const end = item.end ?? item.begin
+    if (item.begin === undefined || item.begin > start + span || end! < start) {
+      return []
+    }
+    const own = cueAt === cueIndex.value
+    return [{ key: toKey({ cue: cueAt, word: index }), label: item.text.trim() || '␣', begin: item.begin, end: item.end, kind: 'word' as const, selected: own && index === cursor.value.word, muted: !own }]
+  }))
 })
 
-function onDrag(key: number, edge: 'begin' | 'end' | 'both', deltaMs: number): void {
-  session.apply(nudgeWord(doc.value, { cue: cueIndex.value, word: key }, edge, deltaMs), `drag:${cueIndex.value}:${key}:${edge}`)
+function onLaneSelect(key: number): void {
+  cursor.value = fromKey(key)
 }
 
+function onDrag(key: number, edge: 'begin' | 'end' | 'both', deltaMs: number, detach: boolean): void {
+  session.apply(dragWord(doc.value, fromKey(key), edge, deltaMs, { detach }), `drag:${key}:${edge}`)
+}
+
+// The lines either side of this one, shown faintly around its words.
+const previousLine = computed(() => nextLine(doc.value, cueIndex.value, -1))
+const followingLine = computed(() => nextLine(doc.value, cueIndex.value, 1))
+
 // ── Editing ──
+
+// ── Hold to time: [ goes down as a word starts and comes up as it ends ──
+
+// A press shorter than this is a tap, which leaves the word's end to the next word's start.
+const TAP_MS = 120
+// A press this soon after the last release is the next word sung straight on: the two words join.
+const JOIN_MS = 150
+
+// The word being held, and when its key went down (wall clock).
+const holding = ref<{ ref: WordRef, at: number, group: string } | null>(null)
+// The last word ended by a release, to join to the next one if it follows straight on.
+let released: { ref: WordRef, ms: number, at: number } | null = null
 
 function stamp(): void {
   if (!cue.value?.words.length) {
@@ -102,7 +157,14 @@ function stamp(): void {
   }
   const at = cursor.value
   const ms = session.currentMs()
-  session.apply(stampWordStart(doc.value, at, ms).doc)
+  const group = `hold:${at.cue}:${at.word}:${performance.now()}`
+  let next = stampWordStart(doc.value, at, ms).doc
+  if (released && released.ref.cue === at.cue && released.ref.word === at.word - 1 && performance.now() - released.at <= JOIN_MS) {
+    next = stampWordEnd(next, released.ref, ms)
+  }
+  released = null
+  session.apply(next, group)
+  holding.value = { ref: at, at: performance.now(), group }
   if (at.word + 1 < cue.value.words.length) {
     selectWord(at.word + 1)
   }
@@ -116,6 +178,24 @@ function stamp(): void {
   session.markStamp(at.cue, at.word, ms, cursor.value)
 }
 
+/** The held word ends where its key comes up, unless the press was only a tap. */
+function release(): void {
+  const held = holding.value
+  holding.value = null
+  if (!held || performance.now() - held.at < TAP_MS) {
+    return
+  }
+  const ms = session.currentMs()
+  session.apply(stampWordEnd(doc.value, held.ref, ms), held.group)
+  released = { ref: held.ref, ms, at: performance.now() }
+}
+
+function onKeyUp(event: KeyboardEvent): void {
+  if (event.key === '[' && holding.value) {
+    release()
+  }
+}
+
 function stampEnd(): void {
   const last = session.lastStamp.value
   // The word just marked, as long as the cursor hasn't been moved since, even onto the next line.
@@ -126,7 +206,7 @@ function stampEnd(): void {
 }
 
 function nudge(edge: 'begin' | 'end', deltaMs: number): void {
-  session.apply(nudgeWord(doc.value, cursor.value, edge, deltaMs), `nudge:${cursor.value.cue}:${cursor.value.word}:${edge}`)
+  session.apply(dragWord(doc.value, cursor.value, edge, deltaMs), `nudge:${cursor.value.cue}:${cursor.value.word}:${edge}`)
 }
 
 function replayLine(): void {
@@ -135,20 +215,6 @@ function replayLine(): void {
     session.seek(start - 600)
   }
   session.play()
-}
-
-function setEdge(edge: 'begin' | 'end', text: string): void {
-  const time = parseTimecode(text)
-  const current = word.value?.[edge]
-  if (time === undefined || !word.value) {
-    return
-  }
-  if (current === undefined) {
-    session.apply(edge === 'begin' ? stampWordStart(doc.value, cursor.value, time).doc : stampWordEnd(doc.value, cursor.value, time))
-  }
-  else {
-    session.apply(nudgeWord(doc.value, cursor.value, edge, time - current))
-  }
 }
 
 function editText(text: string): void {
@@ -174,7 +240,10 @@ function onKey(event: KeyboardEvent): boolean {
   const step = event.shiftKey ? 100 : 10
   switch (event.key.toLowerCase()) {
     case '[': {
-      stamp()
+      // The key repeats while held; only its first press starts a word.
+      if (!event.repeat) {
+        stamp()
+      }
       return true
     }
     case ']': {
@@ -224,15 +293,17 @@ function onKey(event: KeyboardEvent): boolean {
 }
 useStageKeys(session, onKey)
 
-watch(cueIndex, async () => {
-  zoom.value = 1
-  panOffset.value = 0
+watch(cueIndex, async (index) => {
   anchor.value = now.value
+  bringLineIntoView(index)
   await nextTick()
   scrollWithin(listEl.value, listEl.value?.querySelector('.ws-item--on'), 'nearest', 'smooth')
 })
 
 onMounted(() => {
+  // Releases go straight to the stage: the shell routes only key presses.
+  globalThis.addEventListener('keyup', onKeyUp, true)
+  globalThis.addEventListener('blur', release)
   session.loadPeaks()
   if (!cue.value?.words.length) {
     const first = nextLine(doc.value, -1, 1)
@@ -240,6 +311,10 @@ onMounted(() => {
       session.selectLine(first)
     }
   }
+})
+onBeforeUnmount(() => {
+  globalThis.removeEventListener('keyup', onKeyUp, true)
+  globalThis.removeEventListener('blur', release)
 })
 </script>
 
@@ -325,17 +400,27 @@ onMounted(() => {
           :start="window_.start"
           :span="window_.span"
           :blocks="blocks"
-          @select="selectWord"
+          guides
+          @select="onLaneSelect"
           @drag="onDrag"
           @dragging="onDragging"
           @seek="session.seek"
-          @pan="panOffset += $event"
+          @pan="center += $event"
         />
       </div>
 
       <p class="ws-hint">
         {{ t.modeWordHint }}
       </p>
+      <button
+        v-if="previousLine !== null"
+        type="button"
+        class="ws-context"
+        @click="session.selectLine(previousLine)"
+      >
+        <span class="ws-context-num">{{ String(previousLine + 1).padStart(2, '0') }}</span>
+        {{ cueText(doc.cues[previousLine]) }}
+      </button>
       <div class="ws-words">
         <template
           v-for="(item, w) in cue.words"
@@ -354,6 +439,7 @@ onMounted(() => {
             :class="{
               'ws-word--timed': item.begin !== undefined,
               'ws-word--on': w === cursor.word,
+              'ws-word--held': holding?.ref.cue === cueIndex && holding.ref.word === w,
             }"
             @click="selectWord(w)"
             @dblclick="item.begin !== undefined && session.seek(item.begin)"
@@ -391,28 +477,16 @@ onMounted(() => {
             <span>{{ char === ' ' ? '␣' : char }}</span>
           </template>
         </p>
-        <label
-          v-for="edge in (['begin', 'end'] as const)"
-          :key="edge"
-          class="ws-field"
-        >
-          <span>{{ edge === 'begin' ? t.begin : t.end }}</span>
-          <input
-            :value="word[edge] === undefined ? '' : formatTimecode(word[edge])"
-            :placeholder="t.untimed"
-            spellcheck="false"
-            @change="setEdge(edge, ($event.target as HTMLInputElement).value)"
-          >
-        </label>
-        <button
-          type="button"
-          class="ws-ghost"
-          :disabled="word.begin === undefined"
-          @click="session.apply(clearTiming(doc, cursor))"
-        >
-          {{ t.clear }}
-        </button>
       </div>
+      <button
+        v-if="followingLine !== null"
+        type="button"
+        class="ws-context"
+        @click="session.selectLine(followingLine)"
+      >
+        <span class="ws-context-num">{{ String(followingLine + 1).padStart(2, '0') }}</span>
+        {{ cueText(doc.cues[followingLine]) }}
+      </button>
     </section>
     <p
       v-else
@@ -594,6 +668,25 @@ onMounted(() => {
   border-left: none;
   border-radius: 0;
 }
+.ws-context {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.2rem 0;
+  border: none;
+  background: none;
+  color: var(--lte-faint) !important;
+  font-family: var(--lte-sans) !important;
+  font-size: 0.9375rem !important;
+  text-align: left;
+}
+.ws-context:hover {
+  color: var(--lte-muted) !important;
+}
+.ws-context-num {
+  font-family: var(--lte-mono);
+  font-size: 0.75rem;
+}
 .ws-hint {
   margin: 0;
   color: var(--lte-muted);
@@ -641,6 +734,12 @@ onMounted(() => {
 }
 .ws-word--timed .ws-word-time {
   color: var(--lte-word);
+}
+/* Lit while its key is held down: the word being sung. */
+.ws-word--held {
+  border-color: var(--lte-word) !important;
+  background: var(--lte-word-soft) !important;
+  box-shadow: 0 0 0 1px var(--lte-word), 0 0 14px -2px var(--lte-word);
 }
 .ws-word--on {
   border-color: var(--lte-accent);

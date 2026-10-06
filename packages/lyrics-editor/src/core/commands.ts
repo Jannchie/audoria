@@ -141,6 +141,70 @@ export function nudgeWord(doc: LyricsDoc, ref: WordRef, edge: 'begin' | 'end' | 
   })
 }
 
+/**
+ * Drags one edge of a word, or the whole word, by `deltaMs`, as one would on a timeline: an edge
+ * shared with the neighbouring word (one ends where the next begins) moves for both of them, and
+ * a word never runs into a neighbour it doesn't share an edge with. Neighbours are the timed words
+ * either side, across lines too; every word keeps at least `minMs`. With `detach`, a shared edge
+ * moves for this word alone, so it can only pull away from its neighbour and leave a gap.
+ */
+export function dragWord(doc: LyricsDoc, ref: WordRef, edge: 'begin' | 'end' | 'both', deltaMs: number, options: { detach?: boolean, minMs?: number } = {}): LyricsDoc {
+  const { detach = false, minMs = 30 } = options
+  const word = wordAt(doc, ref)
+  if (word?.begin === undefined) {
+    return doc
+  }
+  const timed: WordRef[] = doc.cues.flatMap((cue, c) => cue.words.flatMap((item, w) => item.begin === undefined ? [] : [{ cue: c, word: w }]))
+  const at = timed.findIndex(item => item.cue === ref.cue && item.word === ref.word)
+  const before = timed[at - 1] ? { ref: timed[at - 1], word: wordAt(doc, timed[at - 1])! } : undefined
+  const after = timed[at + 1] ? { ref: timed[at + 1], word: wordAt(doc, timed[at + 1])! } : undefined
+  const begin = word.begin
+  const end = word.end
+  const gluedBefore = !detach && before?.word.end !== undefined && Math.abs(before.word.end - begin) <= 1
+  const gluedAfter = !detach && after !== undefined && end !== undefined && Math.abs(after.word.begin! - end) <= 1
+
+  // How far the start may go: down to the word before's start when they share an edge, else to
+  // its end; up to this word's own end, unless the whole word moves.
+  const beginLow = before === undefined ? 0 : gluedBefore ? before.word.begin! + minMs : (before.word.end ?? before.word.begin! + minMs)
+  const endHigh = after === undefined
+    ? Infinity
+    : gluedAfter ? (after.word.end === undefined ? Infinity : after.word.end - minMs) : after.word.begin!
+  let low: number
+  let high: number
+  if (edge === 'begin') {
+    low = beginLow - begin
+    high = (end === undefined ? (after ? after.word.begin! - minMs : Infinity) : end - minMs) - begin
+  }
+  else if (edge === 'end') {
+    if (end === undefined) {
+      return doc
+    }
+    low = begin + minMs - end
+    high = endHigh - end
+  }
+  else {
+    low = beginLow - begin
+    high = end === undefined ? (after ? after.word.begin! - minMs : Infinity) - begin : endHigh - end
+  }
+  const delta = Math.round(Math.min(Math.max(deltaMs, low), Math.max(low, high)))
+  if (delta === 0) {
+    return doc
+  }
+
+  let next = updateWord(doc, ref, item => ({
+    ...item,
+    ...(edge === 'end' ? {} : { begin: begin + delta }),
+    ...(edge !== 'begin' && end !== undefined ? { end: end + delta } : {}),
+  }))
+  if (edge !== 'end' && gluedBefore) {
+    next = updateWord(next, before!.ref, item => ({ ...item, end: begin + delta }))
+  }
+  if (edge !== 'begin' && gluedAfter) {
+    next = updateWord(next, after!.ref, item => ({ ...item, begin: end! + delta }))
+  }
+  return next
+}
+
 /** Removes the times of a word, or with `ref.word` omitted, of every word of a cue. */
 export function clearTiming(doc: LyricsDoc, ref: { cue: number, word?: number }): LyricsDoc {
   return updateCue(doc, ref.cue, cue => ({

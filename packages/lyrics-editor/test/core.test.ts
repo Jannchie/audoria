@@ -1,7 +1,7 @@
 import type { LyricsDoc } from '@audoria/lyrics-core'
 import { validateLyricsDoc } from '@audoria/lyrics-core'
 import { describe, expect, it } from 'vitest'
-import { clearTiming, computePeaks, finishTiming, History, incompleteLines, isCreditLine, lineStatus, mergeWithNext, nextWord, nudgeWord, prepareForTiming, prepareSave, setCueText, shiftLine, splitWord, stampLine, stampWordEnd, stampWordStart, toWholeLine, wordBreaks, wordsAt } from '../src/core'
+import { clearTiming, computePeaks, dragWord, finishTiming, History, incompleteLines, isCreditLine, lineStatus, mergeWithNext, nextWord, nudgeWord, prepareForTiming, prepareSave, setCueText, shiftLine, splitWord, stampLine, stampWordEnd, stampWordStart, toWholeLine, wordBreaks, wordsAt } from '../src/core'
 
 function lineDoc(...lines: Array<[number, string]>): LyricsDoc {
   return { version: 1, timing: 'line', cues: lines.map(([begin, text], i) => ({ id: `c${i}`, begin, words: [{ text }] })), tracks: [] }
@@ -191,5 +191,54 @@ describe('history', () => {
     history.undo()
     history.record(5)
     expect(history.canRedo).toBe(false)
+  })
+})
+
+/** x and y share an edge, z stands apart, and w (next line) starts where z ends. */
+function gluedWords(): LyricsDoc {
+  return {
+    version: 1,
+    timing: 'word',
+    tracks: [],
+    cues: [
+      { id: 'a', words: [{ text: 'x', begin: 1000, end: 1500 }, { text: 'y', begin: 1500, end: 2000 }, { text: 'z', begin: 2400, end: 3000 }] },
+      { id: 'b', words: [{ text: 'w', begin: 3000, end: 3500 }] },
+    ],
+  }
+}
+
+function wordTimes(value: LyricsDoc): number[][] {
+  return value.cues.flatMap(cue => cue.words.map(word => [word.begin!, word.end!]))
+}
+
+describe('dragword', () => {
+  const doc = gluedWords
+  const times = wordTimes
+
+  it('moves a shared edge for both words', () => {
+    expect(times(dragWord(doc(), { cue: 0, word: 0 }, 'end', 200)).slice(0, 2)).toEqual([[1000, 1700], [1700, 2000]])
+    expect(times(dragWord(doc(), { cue: 0, word: 1 }, 'begin', -200)).slice(0, 2)).toEqual([[1000, 1300], [1300, 2000]])
+  })
+
+  it('stops at a neighbour it doesn\u2019t share an edge with, and keeps every word some length', () => {
+    expect(times(dragWord(doc(), { cue: 0, word: 1 }, 'end', 1000))[1]).toEqual([1500, 2400])
+    expect(times(dragWord(doc(), { cue: 0, word: 0 }, 'end', 5000)).slice(0, 2)).toEqual([[1000, 1970], [1970, 2000]])
+    expect(times(dragWord(doc(), { cue: 0, word: 0 }, 'begin', 5000))[0]).toEqual([1470, 1500])
+  })
+
+  it('moves a whole word, stretching glued neighbours and stopping at others', () => {
+    expect(times(dragWord(doc(), { cue: 0, word: 2 }, 'both', -1000))[2]).toEqual([2000, 2600])
+    expect(times(dragWord(doc(), { cue: 0, word: 2 }, 'both', 1000)).slice(2)).toEqual([[2870, 3470], [3470, 3500]])
+  })
+
+  it('pulls a shared edge apart when detached, leaving a gap but never an overlap', () => {
+    expect(times(dragWord(doc(), { cue: 0, word: 0 }, 'end', -200, { detach: true })).slice(0, 2)).toEqual([[1000, 1300], [1500, 2000]])
+    expect(times(dragWord(doc(), { cue: 0, word: 0 }, 'end', 200, { detach: true })).slice(0, 2)).toEqual([[1000, 1500], [1500, 2000]])
+  })
+
+  it('treats lines alike: the last word of a line is glued to the next line\u2019s first', () => {
+    const moved = dragWord(doc(), { cue: 1, word: 0 }, 'begin', -100)
+    expect(times(moved).slice(2)).toEqual([[2400, 2900], [2900, 3500]])
+    expect(moved.cues[1].begin).toBe(2900)
   })
 })

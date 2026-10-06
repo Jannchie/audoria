@@ -206,14 +206,6 @@ onBeforeUnmount(() => {
             @click="session.selectLine(segment.index)"
           />
         </div>
-        <div class="lte-legend">
-          <span class="lte-dot lte-dot--word" />{{ t.statusWord }} {{ counts.word }}
-          <span class="lte-dot lte-dot--line" />{{ t.statusLine }} {{ counts.line }}
-          <template v-if="counts.partial">
-            <span class="lte-dot lte-dot--partial" />{{ t.statusPartial }} {{ counts.partial }}
-          </template>
-          <span class="lte-dot lte-dot--untimed" />{{ t.statusUntimed }} {{ counts.untimed }}
-        </div>
       </div>
 
       <div class="lte-tools">

@@ -18,6 +18,8 @@ export interface LaneBlock {
   end?: number
   kind: 'word' | 'line'
   selected: boolean
+  /** Another line's block: drawn faintly, still there to grab. */
+  muted?: boolean
 }
 
 const props = defineProps<{
@@ -27,12 +29,15 @@ const props = defineProps<{
   blocks: LaneBlock[]
   /** Suggested times to preview, drawn as dashed lines; `on` ones are about to be applied. */
   markers?: LaneMarker[]
+  /** Draws a line up from each block's start through the waveform, to see where words split. */
+  guides?: boolean
 }>()
 
 const emit = defineEmits<{
   select: [key: number]
   /** A drag step: the block's edge (or the whole block) moved by `deltaMs` since the last step. */
-  drag: [key: number, edge: 'begin' | 'end' | 'both', deltaMs: number]
+  /** `detach`: Alt was held, to pull an edge apart from the neighbour it is shared with. */
+  drag: [key: number, edge: 'begin' | 'end' | 'both', deltaMs: number, detach: boolean]
   seek: [ms: number]
   /** The lane was dragged or scrolled sideways: move the window by `deltaMs`. */
   pan: [deltaMs: number]
@@ -147,7 +152,7 @@ function moveDrag(event: PointerEvent): void {
   if (deltaMs !== 0) {
     drag.lastX = event.clientX
     drag.moved = true
-    emit('drag', drag.key, drag.edge, deltaMs)
+    emit('drag', drag.key, drag.edge, deltaMs, event.altKey)
   }
 }
 
@@ -270,7 +275,7 @@ function cancelPan(): void {
         v-for="block in blocks"
         :key="block.key"
         class="wl-block"
-        :class="[`wl-block--${block.kind}`, { 'wl-block--selected': block.selected, 'wl-block--open': block.end === undefined }]"
+        :class="[`wl-block--${block.kind}`, { 'wl-block--selected': block.selected, 'wl-block--open': block.end === undefined, 'wl-block--muted': block.muted }]"
         :style="{
           left: `${pct(block.begin)}%`,
           width: `${Math.max(0.6, ((block.end ?? block.begin + 300) - block.begin) / span * 100)}%`,
@@ -297,6 +302,15 @@ function cancelPan(): void {
         />
       </div>
     </div>
+    <template v-if="guides">
+      <span
+        v-for="block in blocks"
+        :key="`guide:${block.key}`"
+        class="wl-guide"
+        :class="{ 'wl-guide--selected': block.selected, 'wl-guide--muted': block.muted }"
+        :style="{ left: `${pct(block.begin)}%` }"
+      />
+    </template>
     <span
       v-for="marker in visibleMarkers"
       :key="marker.key"
@@ -317,7 +331,6 @@ function cancelPan(): void {
   height: 11rem;
   overflow: hidden;
   border: 1px solid var(--lte-line);
-  border-radius: calc(var(--lte-radius) + 2px);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 40%),
     var(--lte-bg);
@@ -415,7 +428,6 @@ function cancelPan(): void {
   align-items: center;
   min-width: 4px;
   border: 1px solid;
-  border-radius: 4px;
   cursor: grab;
   touch-action: none;
 }
@@ -476,6 +488,28 @@ function cancelPan(): void {
 }
 .wl-edge--end {
   right: -5px;
+}
+.wl-block--muted {
+  opacity: 0.4;
+}
+.wl-block--muted:hover {
+  opacity: 0.7;
+}
+/* From the ruler down to the blocks, through the waveform, at each word's start. */
+.wl-guide {
+  position: absolute;
+  top: 1.5rem;
+  bottom: 3.2rem;
+  width: 0;
+  border-left: 1px solid rgba(127, 209, 185, 0.45);
+  pointer-events: none;
+  z-index: 1;
+}
+.wl-guide--muted {
+  border-left-color: rgba(255, 255, 255, 0.12);
+}
+.wl-guide--selected {
+  border-left-color: var(--lte-accent);
 }
 .wl-marker {
   position: absolute;

@@ -641,7 +641,7 @@ onMounted(() => {
 .ls-line {
   display: grid;
   grid-template-columns: 7.5rem minmax(0, 1fr);
-  align-items: baseline;
+  align-items: center;
   gap: 1.25rem;
   max-width: 54rem;
   margin: 0 auto;
