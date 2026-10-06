@@ -50,3 +50,12 @@ describe('lyrics columns', () => {
     assert.deepEqual(lyricsColumnsFromEdit('plain text', row), { lyrics: 'plain text', lyricsDoc: null })
   })
 })
+
+describe('annotateLyricsFurigana with spaces', () => {
+  it('keeps the spaces, so the readings still spell the line', async () => {
+    const doc = lyricsDocFromText('[00:01.00]外を見るともう 明るいよね\n[00:05.00]ね')!
+    const lines = await annotateLyricsFurigana(doc)
+    assert.equal(lines.c0.map(segment => segment.text).join(''), '外を見るともう 明るいよね')
+    assert.deepEqual(lines.c0.find(segment => segment.text === '外'), { text: '外', ruby: 'そと' })
+  })
+})

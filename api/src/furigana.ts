@@ -96,6 +96,11 @@ function annotateTokens(text: string, tokenizer: Tokenizer<IpadicFeatures>): Rub
   if (!text) {
     return []
   }
+  // The tokenizer drops whitespace, and segments must spell the line exactly to be used; spaces
+  // go back in as plain segments between the runs tokenized on their own.
+  if (/\s/u.test(text)) {
+    return text.split(/(\s+)/u).flatMap(part => /^\s+$/u.test(part) ? [{ text: part }] : annotateTokens(part, tokenizer))
+  }
   return tokenizer.tokenize(text).flatMap((token) => {
     const surface = token.surface_form
     if (!KANJI_RE.test(surface)) {
