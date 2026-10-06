@@ -1,10 +1,22 @@
 // The lyrics document: what Audoria stores, edits and plays. Times are integer milliseconds;
 // text offsets are UTF-16 code units into the cue's text, i.e. the concatenation of its words.
 
+/** One beat of a word sung over several, like a mora of a kanji's reading: こ of 心(こころ). */
+export interface LyricsSyllable {
+  text: string
+  begin?: number
+  end?: number
+}
+
 export interface LyricsWord {
   text: string
   begin?: number
   end?: number
+  /**
+   * The beats a word is sung in, when timed one by one, such as the morae of its reading. The
+   * word spans them: it begins with the first and ends with the last.
+   */
+  syllables?: LyricsSyllable[]
 }
 
 /** A hand-set reading over cue text [start, end); unset ranges are left to an analyzer. */
@@ -54,15 +66,36 @@ export function isWordTimedCue(cue: Pick<LyricsCue, 'words'>): boolean {
   return cue.words.length > 0 && cue.words.every(word => word.begin !== undefined && word.end !== undefined)
 }
 
+/** When a word's beat ends: its own end, else where the next beat or the word itself ends. */
+export function syllableEnd(word: LyricsWord, index: number): number | undefined {
+  const syllables = word.syllables ?? []
+  return syllables[index]?.end ?? syllables[index + 1]?.begin ?? (index === syllables.length - 1 ? word.end : undefined)
+}
+
+/** Whether every beat of a word has a start, so its time can be told beat by beat. */
+export function hasTimedSyllables(word: LyricsWord): boolean {
+  return Boolean(word.syllables?.length) && word.syllables!.every(syllable => syllable.begin !== undefined)
+}
+
 /**
  * The time at `offset` characters into a word, sharing the word's time out by length; how a
- * word cut by a reading is timed. Undefined for untimed words.
+ * word cut by a reading is timed. A word timed beat by beat shares out each beat's time
+ * instead, so 運命 sung う・ん・め・い moves on with each mora. Undefined for untimed words.
  */
 export function wordTimeAt(word: LyricsWord, offset: number): number | undefined {
   if (word.begin === undefined || word.end === undefined) {
     return undefined
   }
-  return Math.round(word.begin + (word.end - word.begin) * offset / Math.max(1, word.text.length))
+  const fraction = offset / Math.max(1, word.text.length)
+  if (hasTimedSyllables(word)) {
+    const syllables = word.syllables!
+    const position = Math.min(fraction * syllables.length, syllables.length)
+    const index = Math.min(Math.floor(position), syllables.length - 1)
+    const begin = syllables[index].begin!
+    const end = syllableEnd(word, index) ?? begin
+    return Math.round(begin + (end - begin) * (position - index))
+  }
+  return Math.round(word.begin + (word.end - word.begin) * fraction)
 }
 
 export function sortedRuby(cue: Pick<LyricsCue, 'ruby'>): LyricsRuby[] {
@@ -139,6 +172,11 @@ export function validateLyricsDoc(doc: LyricsDoc): string | null {
     for (const word of [...cue.words, ...cue.background ?? []]) {
       if (word.begin !== undefined && word.end !== undefined && word.end < word.begin) {
         return `Cue ${cue.id} has a word that ends before it begins`
+      }
+      for (const syllable of word.syllables ?? []) {
+        if (syllable.begin !== undefined && syllable.end !== undefined && syllable.end < syllable.begin) {
+          return `Cue ${cue.id} has a beat that ends before it begins`
+        }
       }
     }
 

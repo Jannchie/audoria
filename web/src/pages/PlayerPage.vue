@@ -905,6 +905,15 @@ onUnmounted(() => {
                         :data-begin="piece.begin"
                         :data-end="piece.end"
                       >{{ piece.text }}</span><rt
+                        v-if="chunk.rubyPieces && !isEditingReading(line.id, chunk.index)"
+                      ><span
+                        v-for="(beat, k) in chunk.rubyPieces"
+                        :key="k"
+                        class="lyric-word"
+                        :data-begin="beat.begin"
+                        :data-end="beat.end"
+                      >{{ beat.text }}</span></rt><rt
+                        v-else
                         class="lyric-word"
                         :data-begin="chunk.begin"
                         :data-end="chunk.end"

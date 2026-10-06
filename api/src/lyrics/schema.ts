@@ -3,10 +3,17 @@ import { z } from '@hono/zod-openapi'
 
 // OpenAPI schema of @audoria/lyrics-core's LyricsDoc, for validating requests and documenting the API.
 
+export const LyricsSyllableSchema = z.object({
+  text: z.string().max(100),
+  begin: z.number().int().min(0).optional(),
+  end: z.number().int().min(0).optional(),
+}).openapi('LyricsSyllable', { description: 'One beat of a word sung over several, like a mora of a kanji\'s reading' })
+
 export const LyricsWordSchema = z.object({
   text: z.string().max(1000),
   begin: z.number().int().min(0).optional(),
   end: z.number().int().min(0).optional(),
+  syllables: z.array(LyricsSyllableSchema).max(100).optional().openapi({ description: 'The beats the word is sung in, timed one by one; the word spans them' }),
 }).openapi('LyricsWord')
 
 export const LyricsRubySchema = z.object({

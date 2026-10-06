@@ -1,11 +1,11 @@
 import type { LyricsCue, LyricsDoc } from '@audoria/lyrics-core'
 import type { InjectionKey, Ref, ShallowRef } from 'vue'
-import type { AudioSource, Peaks, WordRef } from './core/index.js'
+import type { AudioSource, Peaks, ReadingsOf, WordRef } from './core/index.js'
 import type { EditorMessages } from './messages.js'
 import type { VocalAnalysis } from './vocals/analysis.js'
 import type { SeparationProgress } from './vocals/separate.js'
 import { inject, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
-import { decodePeaks, firstOpenLine, History, nextLine, prepareForTiming, shiftLine, stampLine, wordAt } from './core/index.js'
+import { decodePeaks, firstOpenLine, firstUnit, History, nextLine, prepareForTiming, shiftLine, stampLine, wordAt } from './core/index.js'
 import { decodeVocalAnalysis, encodeVocalAnalysis } from './vocals/analysis.js'
 
 export type Stage = 'line' | 'word' | 'preview'
@@ -93,6 +93,8 @@ export interface EditorSession {
 
   keyHandler: ShallowRef<KeyHandler | null>
   t: Ref<EditorMessages>
+  /** Readings found for a cue's text beyond its own, where words get beats to time. */
+  readingsOf: ReadingsOf
 }
 
 export const SESSION_KEY: InjectionKey<EditorSession> = Symbol('lyrics-editor-session')
@@ -122,15 +124,17 @@ export function createSession(options: {
   audio: () => AudioSource
   loadAudioData?: () => Promise<ArrayBuffer>
   vocalsStore?: VocalsStore
+  readingsOf?: ReadingsOf
   onChange: (doc: LyricsDoc) => void
   messages: Ref<EditorMessages>
 }): EditorSession {
   const audio = options.audio
-  const history = new History<LyricsDoc>(prepareForTiming(options.initial))
+  const readingsOf: ReadingsOf = options.readingsOf ?? (() => [])
+  const history = new History<LyricsDoc>(prepareForTiming(options.initial, readingsOf))
   const doc = shallowRef(history.present)
   const canUndo = ref(false)
   const canRedo = ref(false)
-  const cursor = ref<WordRef>({ cue: firstOpenLine(doc.value), word: 0 })
+  const cursor = ref<WordRef>(firstUnit(doc.value, firstOpenLine(doc.value), 0))
   const now = ref(0)
   const playing = ref(false)
   const duration = ref(0)
@@ -162,7 +166,7 @@ export function createSession(options: {
     canUndo.value = history.canUndo
     canRedo.value = history.canRedo
     if (!wordAt(doc.value, cursor.value)) {
-      cursor.value = { cue: Math.max(0, Math.min(cursor.value.cue, doc.value.cues.length - 1)), word: 0 }
+      cursor.value = firstUnit(doc.value, Math.max(0, Math.min(cursor.value.cue, doc.value.cues.length - 1)), 0)
     }
   }
 
@@ -192,9 +196,9 @@ export function createSession(options: {
       options.onChange(doc.value)
     },
     reset(value) {
-      history.reset(prepareForTiming(value))
+      history.reset(prepareForTiming(value, readingsOf))
       refresh()
-      cursor.value = { cue: firstOpenLine(doc.value), word: 0 }
+      cursor.value = firstUnit(doc.value, firstOpenLine(doc.value), 0)
     },
 
     now,
@@ -226,7 +230,7 @@ export function createSession(options: {
     stage: ref<Stage>('line'),
     cursor,
     selectLine(cue) {
-      cursor.value = { cue, word: 0 }
+      cursor.value = firstUnit(doc.value, cue, 0)
     },
 
     stampLineNow(index, accept) {
@@ -235,7 +239,7 @@ export function createSession(options: {
       markStamp(index, undefined, ms)
       const next = nextLine(doc.value, index, 1, accept)
       if (next !== null) {
-        cursor.value = { cue: next, word: 0 }
+        cursor.value = firstUnit(doc.value, next, 0)
       }
     },
     nudgeLine(index, deltaMs) {
@@ -316,5 +320,6 @@ export function createSession(options: {
 
     keyHandler: shallowRef<KeyHandler | null>(null),
     t: options.messages,
+    readingsOf,
   }
 }

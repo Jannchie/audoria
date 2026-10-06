@@ -174,6 +174,19 @@ export type LyricsWord = {
     text: string;
     begin?: number;
     end?: number;
+    /**
+     * The beats the word is sung in, timed one by one; the word spans them
+     */
+    syllables?: Array<LyricsSyllable>;
+};
+
+/**
+ * One beat of a word sung over several, like a mora of a kanji's reading
+ */
+export type LyricsSyllable = {
+    text: string;
+    begin?: number;
+    end?: number;
 };
 
 /**

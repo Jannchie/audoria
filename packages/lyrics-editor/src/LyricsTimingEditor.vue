@@ -3,6 +3,7 @@ import type { LyricsDoc } from '@audoria/lyrics-core'
 import type { AudioSource, LineStatus } from './core/index.js'
 import type { EditorLocale } from './messages.js'
 import type { Stage, VocalsStore } from './session.js'
+import { cueText } from '@audoria/lyrics-core'
 import { computed, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
 import LineStage from './components/LineStage.vue'
 import PreviewStage from './components/PreviewStage.vue'
@@ -12,6 +13,7 @@ import VocalsControl from './components/VocalsControl.vue'
 import WordStage from './components/WordStage.vue'
 import { lineStatus } from './core/index.js'
 import { editorMessages } from './messages.js'
+import { readingRanges } from './readings.js'
 import { createSession, SESSION_KEY } from './session.js'
 
 const props = withDefaults(defineProps<{
@@ -22,8 +24,13 @@ const props = withDefaults(defineProps<{
   loadAudioData?: () => Promise<ArrayBuffer>
   /** Where separated vocals are kept, so a song is separated once; without it they last the session. */
   vocalsStore?: VocalsStore
+  /**
+   * Readings of the lyrics (furigana runs keyed by cue id, as an analyzer gives them), so words
+   * under a reading of several beats can be timed beat by beat. A cue's own readings come first.
+   */
+  readings?: Record<string, Array<{ text: string, ruby?: string }>>
   locale?: EditorLocale
-}>(), { locale: 'zh', loadAudioData: undefined, vocalsStore: undefined })
+}>(), { locale: 'zh', loadAudioData: undefined, vocalsStore: undefined, readings: undefined })
 
 const emit = defineEmits<{
   /** Every edit, as a draft: lines may be half timed. Pass it through `finishTiming` to save. */
@@ -39,6 +46,7 @@ const session = createSession({
   audio: () => props.audio,
   loadAudioData: props.loadAudioData,
   vocalsStore: props.vocalsStore,
+  readingsOf: cue => readingRanges(cueText(cue), props.readings?.[cue.id]),
   messages: t,
   onChange: doc => emit('update:doc', doc),
 })

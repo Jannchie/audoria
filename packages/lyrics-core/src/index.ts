@@ -1,6 +1,7 @@
 export { isLrcFormat, looksLikeTtml } from './detect.js'
 export * from './doc.js'
 export * from './edit.js'
+export * from './kana.js'
 export * from './layout.js'
 export * from './lrc.js'
 export * from './merge.js'

@@ -2,6 +2,7 @@
 import type { LyricsCue } from '@audoria/lyrics-core'
 import { isWordTimedCue, layoutLine, rubyRuns } from '@audoria/lyrics-core'
 import { computed } from 'vue'
+import { mergeReadings } from '../core/split.js'
 import { useSession } from '../session.js'
 
 const props = defineProps<{
@@ -10,8 +11,12 @@ const props = defineProps<{
   translation?: string
 }>()
 
-const { now } = useSession()
-const chunks = computed(() => layoutLine(props.cue.words, rubyRuns(props.cue).map(run => ({ text: run.text, ruby: run.reading }))))
+const { now, readingsOf } = useSession()
+// The line's own readings, and those found for it, as the player would show them.
+const chunks = computed(() => {
+  const ruby = mergeReadings(props.cue.ruby ?? [], readingsOf(props.cue))
+  return layoutLine(props.cue.words, rubyRuns({ words: props.cue.words, ruby }).map(run => ({ text: run.text, ruby: run.reading })))
+})
 const wordTimed = computed(() => isWordTimedCue(props.cue))
 
 function progress(begin?: number, end?: number): number {
@@ -41,7 +46,13 @@ function progress(begin?: number, end?: number): number {
           :key="k"
           class="pl-piece"
           :style="{ '--p': progress(piece.begin, piece.end) }"
-        >{{ piece.text }}</span><rt
+        >{{ piece.text }}</span><rt v-if="chunk.rubyPieces"><span
+          v-for="(beat, k) in chunk.rubyPieces"
+          :key="k"
+          class="pl-piece"
+          :style="{ '--p': progress(beat.begin, beat.end) }"
+        >{{ beat.text }}</span></rt><rt
+          v-else
           class="pl-piece"
           :style="{ '--p': progress(chunk.begin, chunk.end) }"
         >{{ chunk.segment.ruby }}</rt></ruby>

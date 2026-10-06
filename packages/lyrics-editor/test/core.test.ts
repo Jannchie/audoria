@@ -1,7 +1,7 @@
 import type { LyricsDoc } from '@audoria/lyrics-core'
 import { validateLyricsDoc } from '@audoria/lyrics-core'
 import { describe, expect, it } from 'vitest'
-import { clearTiming, computePeaks, dragWord, finishTiming, History, incompleteLines, isCreditLine, lineStatus, mergeWithNext, nextWord, nudgeWord, prepareForTiming, prepareSave, setCueText, shiftLine, splitWord, stampLine, stampWordEnd, stampWordStart, toWholeLine, wordBreaks, wordsAt } from '../src/core'
+import { clearTiming, computePeaks, dragWord, finishTiming, History, incompleteLines, isCreditLine, lineStatus, mergeWithNext, nextUnit, nextWord, nudgeWord, prepareForTiming, prepareSave, setCueText, shiftLine, splitWord, stampLine, stampWordEnd, stampWordStart, toWholeLine, wordBreaks, wordsAt } from '../src/core'
 
 function lineDoc(...lines: Array<[number, string]>): LyricsDoc {
   return { version: 1, timing: 'line', cues: lines.map(([begin, text], i) => ({ id: `c${i}`, begin, words: [{ text }] })), tracks: [] }
@@ -79,7 +79,9 @@ describe('timing commands', () => {
 
   it('re-cuts edited text, keeping readings over unchanged text', () => {
     const doc: LyricsDoc = { version: 1, timing: 'word', cues: [{ id: 'a', words: [{ text: '運命', begin: 0, end: 1 }, { text: 'の', begin: 1, end: 2 }], ruby: [{ start: 0, end: 2, reading: 'さだめ' }] }], tracks: [] }
-    expect(setCueText(doc, 0, '運命だ').cues[0]).toEqual({ id: 'a', words: [{ text: '運命' }, { text: 'だ' }], ruby: [{ start: 0, end: 2, reading: 'さだめ' }] })
+    // The reading kept over 運命 gives it its beats again.
+    const syllables = [{ text: 'さ' }, { text: 'だ' }, { text: 'め' }]
+    expect(setCueText(doc, 0, '運命だ').cues[0]).toEqual({ id: 'a', words: [{ text: '運命', syllables }, { text: 'だ' }], ruby: [{ start: 0, end: 2, reading: 'さだめ' }] })
     expect(setCueText(doc, 0, '宿命').cues[0].ruby).toBeUndefined()
   })
 
@@ -240,5 +242,65 @@ describe('dragword', () => {
     const moved = dragWord(doc(), { cue: 1, word: 0 }, 'begin', -100)
     expect(times(moved).slice(2)).toEqual([[2400, 2900], [2900, 3500]])
     expect(moved.cues[1].begin).toBe(2900)
+  })
+})
+
+/** 心の, with 心 read こころ by an analyzer: a word of three beats, then の on its own. */
+function heartDoc(): LyricsDoc {
+  return prepareForTiming(lineDoc([0, '心の']), () => [{ start: 0, end: 1, reading: 'こころ' }])
+}
+
+describe('words sung over several beats', () => {
+  const heart = heartDoc
+
+  it('cuts a word under a reading into its beats, and taps them one by one', () => {
+    let doc = heart()
+    expect(doc.cues[0].words).toEqual([{ text: '心', syllables: [{ text: 'こ' }, { text: 'こ' }, { text: 'ろ' }] }, { text: 'の' }])
+    let ref: { cue: number, word: number, syllable?: number } | null = { cue: 0, word: 0, syllable: 0 }
+    for (const time of [100, 200, 300, 500]) {
+      const result = stampWordStart(doc, ref!, time)
+      doc = result.doc
+      ref = result.next
+    }
+    const [word, after] = doc.cues[0].words
+    expect(word.syllables?.map(syllable => [syllable.begin, syllable.end])).toEqual([[100, 200], [200, 300], [300, 500]])
+    expect([word.begin, word.end, after.begin]).toEqual([100, 500, 500])
+    expect(doc.cues[0].begin).toBe(100)
+  })
+
+  it('moves on from a word’s last beat to the next word', () => {
+    expect(nextUnit(heart(), { cue: 0, word: 0, syllable: 2 })).toEqual({ cue: 0, word: 1 })
+  })
+
+  it('ends a beat, moves a word’s first beat with the word, and clears beats', () => {
+    let doc = heart()
+    doc = stampWordStart(doc, { cue: 0, word: 0, syllable: 0 }, 100).doc
+    doc = stampWordStart(doc, { cue: 0, word: 0, syllable: 1 }, 200).doc
+    doc = stampWordEnd(doc, { cue: 0, word: 0, syllable: 1 }, 250)
+    expect(doc.cues[0].words[0].syllables?.[1]).toEqual({ text: 'こ', begin: 200, end: 250 })
+    const shifted = shiftLine(doc, 0, 50)
+    expect(shifted.cues[0].words[0].syllables?.map(syllable => syllable.begin)).toEqual([150, 250, undefined])
+    expect(clearTiming(doc, { cue: 0, word: 0 }).cues[0].words[0]).toEqual({ text: '心', syllables: [{ text: 'こ' }, { text: 'こ' }, { text: 'ろ' }] })
+  })
+
+  it('drags a beat against its neighbours like a word', () => {
+    let doc = heart()
+    for (const [syllable, time] of [[0, 100], [1, 200], [2, 300]] as const) {
+      doc = stampWordStart(doc, { cue: 0, word: 0, syllable }, time).doc
+    }
+    const dragged = dragWord(doc, { cue: 0, word: 0, syllable: 1 }, 'begin', 50)
+    expect(dragged.cues[0].words[0].syllables?.map(syllable => [syllable.begin, syllable.end])).toEqual([[100, 250], [250, 300], [300, undefined]])
+  })
+
+  it('saves beats with ends filled in, and drops beats left untimed', () => {
+    let doc = heart()
+    for (const [ref, time] of [[{ cue: 0, word: 0, syllable: 0 }, 100], [{ cue: 0, word: 0, syllable: 1 }, 200], [{ cue: 0, word: 0, syllable: 2 }, 300], [{ cue: 0, word: 1 }, 400]] as const) {
+      doc = stampWordStart(doc, ref, time).doc
+    }
+    const finished = finishTiming(doc)
+    expect(finished.cues[0].words[0].syllables?.map(syllable => [syllable.begin, syllable.end])).toEqual([[100, 200], [200, 300], [300, 400]])
+    const partly = finishTiming(stampWordStart(heart(), { cue: 0, word: 0, syllable: 0 }, 100).doc)
+    expect(partly.cues[0].words[0].syllables).toBeUndefined()
+    expect(validateLyricsDoc(finished)).toBeNull()
   })
 })

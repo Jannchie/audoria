@@ -3,10 +3,12 @@ import type { LyricsDoc } from '@audoria/lyrics-core'
 import type { AudioSource, EditorLocale, Stage, VocalsStore } from '@audoria/lyrics-editor'
 
 import { LyricsTimingEditor, mediaElementSource, prepareSave, toEditorLocale } from '@audoria/lyrics-editor'
+import { useQuery } from '@tanstack/vue-query'
 import { useEventListener, watchDebounced } from '@vueuse/core'
 import { computed, onMounted, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
+import { getMusicByIdLyricsFurigana } from '../api/sdk.gen'
 import { useLyricsDoc } from '../composables/useLyrics'
 import { buildDownloadUrl, fetchVocals, useMusicQuery, useUpdateLyrics, useUploadVocals } from '../composables/useMusic'
 import { usePlayerState } from '../composables/usePlayerState'
@@ -137,6 +139,23 @@ async function loadAudioData(): Promise<ArrayBuffer> {
   return await response.arrayBuffer()
 }
 
+// Readings of Japanese lyrics, so a kanji sung over several kana is timed kana by kana. The
+// editor cuts words as it opens, so it waits for them; without them it times words whole.
+const KANA_RE = /[\p{Script=Hiragana}\p{Script=Katakana}]/u
+const needsReadings = computed(() => KANA_RE.test(track.value?.lyrics ?? ''))
+const readingsQuery = useQuery({
+  // The player's key: the readings are shared.
+  queryKey: computed(() => ['lyrics-furigana', trackId.value, track.value?.lyrics] as const),
+  queryFn: async () => {
+    const { data } = await getMusicByIdLyricsFurigana({ path: { id: trackId.value }, throwOnError: true })
+    return data.lines
+  },
+  enabled: needsReadings,
+  staleTime: Infinity,
+})
+const readings = computed(() => readingsQuery.data.value ?? {})
+const readingsSettled = computed(() => !needsReadings.value || readingsQuery.isSuccess.value || readingsQuery.isError.value)
+
 // Separated vocals are kept with the track, so each song is separated once.
 const uploadVocals = useUploadVocals()
 const vocalsStore: VocalsStore = {
@@ -194,13 +213,14 @@ const vocalsStore: VocalsStore = {
     </header>
 
     <LyricsTimingEditor
-      v-if="doc && audio"
+      v-if="doc && audio && readingsSettled"
       v-model:doc="doc"
       v-model:stage="stage"
       class="editor"
       :audio="audio"
       :load-audio-data="loadAudioData"
       :vocals-store="vocalsStore"
+      :readings="readings"
       :locale="editorLocale"
     />
     <p

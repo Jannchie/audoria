@@ -5,7 +5,12 @@ export function shiftCue(cue: LyricsCue, deltaMs: number): LyricsCue {
   const shift = (time: number | undefined): number | undefined =>
     time === undefined ? undefined : Math.max(0, Math.round(time + deltaMs))
   const shiftWords = (words: LyricsWord[]): LyricsWord[] =>
-    words.map(word => ({ ...word, begin: shift(word.begin), end: shift(word.end) }))
+    words.map(word => ({
+      ...word,
+      begin: shift(word.begin),
+      end: shift(word.end),
+      ...(word.syllables ? { syllables: word.syllables.map(syllable => ({ ...syllable, begin: shift(syllable.begin), end: shift(syllable.end) })) } : {}),
+    }))
   return {
     ...cue,
     begin: shift(cue.begin),

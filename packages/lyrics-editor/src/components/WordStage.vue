@@ -3,7 +3,7 @@ import type { WordRef } from '../core/index.js'
 import type { LaneBlock } from './WaveformLane.vue'
 import { cueText } from '@audoria/lyrics-core'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { clearTiming, cueStart, dragWord, incompleteLines, isCreditLine, isSung, lineStatus, mergeWithNext, nextLine, setCueText, splitWord, stampWordEnd, stampWordStart, wordAt } from '../core/index.js'
+import { clearTiming, cueStart, dragWord, firstUnit, incompleteLines, isCreditLine, isSung, lineStatus, mergeWithNext, nextLine, nextUnit, previousUnit, setCueText, splitWord, stampWordEnd, stampWordStart, wordAt } from '../core/index.js'
 import { scrollWithin } from '../scroll.js'
 import { useSession, useStageKeys } from '../session.js'
 import WaveformLane from './WaveformLane.vue'
@@ -34,9 +34,22 @@ const visibleLines = computed(() => doc.value.cues.flatMap((item, index) => {
   return show ? [{ index, cue: item, status }] : []
 }))
 
-function selectWord(index: number): void {
+/** Picks a word of this line, at its first beat, or at `syllable` if given. */
+function selectWord(index: number, syllable?: number): void {
   if (index >= 0 && index < (cue.value?.words.length ?? 0)) {
-    cursor.value = { cue: cueIndex.value, word: index }
+    cursor.value = syllable === undefined ? firstUnit(doc.value, cueIndex.value, index) : { cue: cueIndex.value, word: index, syllable }
+  }
+}
+
+function sameUnit(a: WordRef | null | undefined, b: WordRef | null | undefined): boolean {
+  return Boolean(a && b) && a!.cue === b!.cue && a!.word === b!.word && a!.syllable === b!.syllable
+}
+
+/** Moves the cursor a beat (or word) along this line. */
+function moveCursor(direction: 1 | -1): void {
+  const next = direction === 1 ? nextUnit(doc.value, cursor.value) : previousUnit(doc.value, cursor.value)
+  if (next?.cue === cueIndex.value) {
+    cursor.value = next
   }
 }
 
@@ -108,20 +121,31 @@ function onDragging(active: boolean): void {
   heldWindow.value = active ? { ...window_.value } : null
 }
 
-// Blocks are keyed by line and word, so the lane can show (and grab) the lines around this one.
-const WORDS_PER_LINE = 10_000
-const toKey = (ref: WordRef): number => ref.cue * WORDS_PER_LINE + ref.word
-const fromKey = (key: number): WordRef => ({ cue: Math.floor(key / WORDS_PER_LINE), word: key % WORDS_PER_LINE })
+// Blocks are keyed by line, word and beat, so the lane can show (and grab) the lines around this
+// one, and each beat of a word sung over several.
+const toKey = (ref: WordRef): number => ref.cue * 100_000 + ref.word * 100 + (ref.syllable === undefined ? 0 : ref.syllable + 1)
+function fromKey(key: number): WordRef {
+  const part = key % 100
+  const ref = { cue: Math.floor(key / 100_000), word: Math.floor(key / 100) % 1000 }
+  return part === 0 ? ref : { ...ref, syllable: part - 1 }
+}
 
 const blocks = computed<LaneBlock[]>(() => {
   const { start, span } = window_.value
   return doc.value.cues.flatMap((line, cueAt) => line.words.flatMap((item, index) => {
-    const end = item.end ?? item.begin
-    if (item.begin === undefined || item.begin > start + span || end! < start) {
-      return []
-    }
     const own = cueAt === cueIndex.value
-    return [{ key: toKey({ cue: cueAt, word: index }), label: item.text.trim() || '␣', begin: item.begin, end: item.end, kind: 'word' as const, selected: own && index === cursor.value.word, muted: !own }]
+    // A word timed beat by beat shows its beats.
+    const units = item.syllables?.some(syllable => syllable.begin !== undefined)
+      ? item.syllables.map((syllable, at) => ({ unit: syllable, ref: { cue: cueAt, word: index, syllable: at } }))
+      : [{ unit: item, ref: { cue: cueAt, word: index } as WordRef }]
+    return units.flatMap(({ unit, ref }) => {
+      const end = unit.end ?? unit.begin
+      if (unit.begin === undefined || unit.begin > start + span || end! < start) {
+        return []
+      }
+      const selected = own && ref.word === cursor.value.word && (ref.syllable === undefined || ref.syllable === cursor.value.syllable)
+      return [{ key: toKey(ref), label: unit.text.trim() || '␣', begin: unit.begin, end: unit.end, kind: 'word' as const, selected, muted: !own }]
+    })
   }))
 })
 
@@ -146,35 +170,40 @@ const TAP_MS = 120
 // A press this soon after the last release is the next word sung straight on: the two words join.
 const JOIN_MS = 150
 
-// The word being held, and when its key went down (wall clock).
+// The beat or word being held, and when its key went down (wall clock).
 const holding = ref<{ ref: WordRef, at: number, group: string } | null>(null)
-// The last word ended by a release, to join to the next one if it follows straight on.
+// The last one ended by a release, to join to the next if it follows straight on.
 let released: { ref: WordRef, ms: number, at: number } | null = null
+// The last one started, and where that left the cursor: ] ends it while the cursor is still there.
+let stamped: { ref: WordRef, after: WordRef } | null = null
 
 function stamp(): void {
   if (!cue.value?.words.length) {
     return
   }
-  const at = cursor.value
+  // A word with beats is tapped beat by beat, from its first.
+  const at = cursor.value.syllable === undefined ? firstUnit(doc.value, cursor.value.cue, cursor.value.word) : cursor.value
   const ms = session.currentMs()
-  const group = `hold:${at.cue}:${at.word}:${performance.now()}`
-  let next = stampWordStart(doc.value, at, ms).doc
-  if (released && released.ref.cue === at.cue && released.ref.word === at.word - 1 && performance.now() - released.at <= JOIN_MS) {
+  const group = `hold:${toKey(at)}:${performance.now()}`
+  const result = stampWordStart(doc.value, at, ms)
+  let next = result.doc
+  if (released && sameUnit(released.ref, previousUnit(next, at)) && performance.now() - released.at <= JOIN_MS) {
     next = stampWordEnd(next, released.ref, ms)
   }
   released = null
   session.apply(next, group)
   holding.value = { ref: at, at: performance.now(), group }
-  if (at.word + 1 < cue.value.words.length) {
-    selectWord(at.word + 1)
+  if (result.next?.cue === at.cue) {
+    cursor.value = result.next
   }
   else {
     // Past a line's last word, carry on into the next sung line.
     const following = nextLine(doc.value, at.cue, 1, isSung)
     if (following !== null) {
-      session.selectLine(following)
+      cursor.value = firstUnit(doc.value, following, 0)
     }
   }
+  stamped = { ref: at, after: cursor.value }
   session.markStamp(at.cue, at.word, ms, cursor.value)
 }
 
@@ -197,16 +226,13 @@ function onKeyUp(event: KeyboardEvent): void {
 }
 
 function stampEnd(): void {
-  const last = session.lastStamp.value
-  // The word just marked, as long as the cursor hasn't been moved since, even onto the next line.
-  const target = last?.word !== undefined && last.after?.cue === cursor.value.cue && last.after.word === cursor.value.word
-    ? { cue: last.cue, word: last.word }
-    : { cue: cueIndex.value, word: Math.max(0, cursor.value.word - 1) }
+  // The one just started, as long as the cursor hasn't been moved since, even onto the next line.
+  const target = stamped && sameUnit(stamped.after, cursor.value) ? stamped.ref : previousUnit(doc.value, cursor.value) ?? cursor.value
   session.apply(stampWordEnd(doc.value, target, session.currentMs()))
 }
 
 function nudge(edge: 'begin' | 'end', deltaMs: number): void {
-  session.apply(dragWord(doc.value, cursor.value, edge, deltaMs), `nudge:${cursor.value.cue}:${cursor.value.word}:${edge}`)
+  session.apply(dragWord(doc.value, cursor.value, edge, deltaMs), `nudge:${toKey(cursor.value)}:${edge}`)
 }
 
 function replayLine(): void {
@@ -219,7 +245,7 @@ function replayLine(): void {
 
 function editText(text: string): void {
   if (cue.value && text !== cueText(cue.value)) {
-    session.apply(setCueText(doc.value, cueIndex.value, text))
+    session.apply(setCueText(doc.value, cueIndex.value, text, session.readingsOf))
     selectWord(0)
   }
 }
@@ -283,7 +309,7 @@ function onKey(event: KeyboardEvent): boolean {
       if (event.shiftKey) {
         return false
       }
-      selectWord(cursor.value.word + (event.key === 'ArrowLeft' ? -1 : 1))
+      moveCursor(event.key === 'ArrowLeft' ? -1 : 1)
       return true
     }
     default: {
@@ -439,7 +465,8 @@ onBeforeUnmount(() => {
             :class="{
               'ws-word--timed': item.begin !== undefined,
               'ws-word--on': w === cursor.word,
-              'ws-word--held': holding?.ref.cue === cueIndex && holding.ref.word === w,
+              'ws-word--held': holding?.ref.cue === cueIndex && holding.ref.word === w && holding.ref.syllable === undefined,
+              'ws-word--beats': item.syllables?.length,
             }"
             @click="selectWord(w)"
             @dblclick="item.begin !== undefined && session.seek(item.begin)"
@@ -450,7 +477,30 @@ onBeforeUnmount(() => {
               class="ws-flash"
             />
             <span class="ws-word-text">{{ item.text.trim() || '␣' }}</span>
-            <span class="ws-word-time">{{ item.begin === undefined ? '·' : (item.begin / 1000).toFixed(2) }}</span>
+            <span
+              v-if="item.syllables?.length"
+              class="ws-beats"
+            >
+              <span
+                v-for="(beat, b) in item.syllables"
+                :key="b"
+                class="ws-beat"
+                :class="{
+                  'ws-beat--timed': beat.begin !== undefined,
+                  'ws-beat--on': w === cursor.word && b === cursor.syllable,
+                  'ws-beat--held': holding?.ref.cue === cueIndex && holding.ref.word === w && holding.ref.syllable === b,
+                }"
+                @click.stop="selectWord(w, b)"
+                @dblclick.stop="beat.begin !== undefined && session.seek(beat.begin)"
+              >
+                {{ beat.text }}
+                <small>{{ beat.begin === undefined ? '·' : (beat.begin / 1000).toFixed(2) }}</small>
+              </span>
+            </span>
+            <span
+              v-else
+              class="ws-word-time"
+            >{{ item.begin === undefined ? '·' : (item.begin / 1000).toFixed(2) }}</span>
           </button>
         </template>
       </div>
@@ -735,6 +785,44 @@ onBeforeUnmount(() => {
 .ws-word--timed .ws-word-time {
   color: var(--lte-word);
 }
+/* A word sung over several beats: its reading's beats sit under it, each timed on its own. */
+.ws-beats {
+  display: flex;
+  gap: 2px;
+  margin-top: 0.15rem;
+}
+.ws-beat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 1.6rem;
+  padding: 0.1rem 0.2rem;
+  border: 1px solid var(--lte-line-strong);
+  border-radius: 3px;
+  color: var(--lte-muted);
+  font-size: 0.8125rem;
+  line-height: 1.2;
+  cursor: pointer;
+}
+.ws-beat small {
+  color: var(--lte-faint);
+  font-family: var(--lte-mono);
+  font-size: 0.5625rem;
+}
+.ws-beat--timed {
+  border-color: rgba(127, 209, 185, 0.4);
+  color: var(--lte-text);
+}
+.ws-beat--on {
+  border-color: var(--lte-accent);
+  box-shadow: 0 0 0 1px var(--lte-accent);
+}
+.ws-beat--held {
+  border-color: var(--lte-word);
+  background: var(--lte-word-soft);
+  box-shadow: 0 0 0 1px var(--lte-word), 0 0 12px -2px var(--lte-word);
+}
+
 /* Lit while its key is held down: the word being sung. */
 .ws-word--held {
   border-color: var(--lte-word) !important;
