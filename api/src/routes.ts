@@ -43,7 +43,7 @@ import {
 import { deletePlayEventsForTrack, getListeningStats, PlaySessionConflictError, recordPlayEvent } from './db/playStats.js'
 import { annotateLyricsFurigana } from './furigana.js'
 import { LyricsDocSchema } from './lyrics/schema.js'
-import { lyricsColumnsFromDoc, lyricsColumnsFromText, readLyricsDoc } from './lyrics/store.js'
+import { lyricsColumnsFromDoc, lyricsColumnsFromEdit, readLyricsDoc } from './lyrics/store.js'
 import { MusicDlBridgeError, MusicDlUnavailableError, resolveMusicDlSongInfo, resolveMusicUrl, searchMusicDl } from './musicdl.js'
 import { musicDlSources, musicDlUrlSources } from './musicSources.js'
 import {
@@ -2281,7 +2281,7 @@ api.openapi(updateMusicRoute, async (c) => {
   let lyrics: LyricsColumns = { lyrics: record.lyrics, lyricsDoc: record.lyricsDoc }
   if (patch.lyrics !== undefined && patch.lyrics !== record.lyrics) {
     try {
-      lyrics = lyricsColumnsFromText(patch.lyrics)
+      lyrics = lyricsColumnsFromEdit(patch.lyrics, record)
     }
     catch (error) {
       if (error instanceof TtmlParseError) {

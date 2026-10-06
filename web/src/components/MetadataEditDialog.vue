@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import type { Music } from '../api/types.gen'
-import { isLrcFormat, looksLikeTtml } from '@audoria/lyrics-core'
+import { isLrcFormat, looksLikeTtml, lyricsDocToTtml } from '@audoria/lyrics-core'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useDialogFocus } from '../composables/useDialogFocus'
+import { useLyricsDoc } from '../composables/useLyrics'
 import { resolveApiUrl, useDeleteCover, useUpdateCover, useUpdateMusic } from '../composables/useMusic'
 import { getSourceDisplay } from '../utils/source'
 import LazyCoverImage from './LazyCoverImage.vue'
@@ -48,6 +49,24 @@ const sourcePresets: string[] = [
   'Bilibili',
   'Youtube',
 ]
+
+// Lyrics edited into a document show as TTML, which carries all of it; their LRC rendering
+// would lose the word timing. They are sent back only when changed, so a save of other fields
+// leaves them as they are.
+const lyricsDoc = useLyricsDoc(() => props.track)
+const initialLyrics = computed(() => {
+  const track = props.track
+  if (track?.hasLyricsDoc) {
+    return lyricsDoc.value ? lyricsDocToTtml(lyricsDoc.value, track) : ''
+  }
+  return track?.lyrics ?? ''
+})
+watch(initialLyrics, (value, previous) => {
+  // The document arrives after the dialog opens; don't overwrite what has been typed since.
+  if (lyrics.value === (previous ?? '')) {
+    lyrics.value = value
+  }
+})
 
 const lyricsMode = computed<'lrc' | 'ttml' | 'plain' | 'empty'>(() => {
   const raw = lyrics.value.trim()
@@ -95,7 +114,7 @@ watch(() => props.track, (track) => {
   artists.value = track.artists ?? ''
   album.value = track.album ?? ''
   source.value = track.source ?? ''
-  lyrics.value = track.lyrics ?? ''
+  lyrics.value = initialLyrics.value
   error.value = ''
   resetPendingCover()
 }, { immediate: true })
@@ -184,7 +203,7 @@ async function handleSave(): Promise<void> {
       artists: artists.value.trim() || null,
       album: album.value.trim() || null,
       source: source.value.trim() || null,
-      lyrics: lyrics.value.trim() ? lyrics.value : null,
+      ...(lyrics.value === initialLyrics.value ? {} : { lyrics: lyrics.value.trim() ? lyrics.value : null }),
     }
     let latest = await updateMutation.mutateAsync({ id, patch })
     if (pendingCoverFile.value) {

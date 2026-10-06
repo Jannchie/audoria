@@ -481,7 +481,7 @@ export const messages = {
         plain: 'Plain text',
         empty: 'Empty',
       },
-      lyricsHint: 'LRC timestamps auto-enable synced highlighting; TTML (Apple Music / AMLL) also keeps word timing. Plain text renders as-is.',
+      lyricsHint: 'LRC timestamps auto-enable synced highlighting; TTML (Apple Music / AMLL) also keeps word timing. Pasting LRC over word-timed lyrics keeps the word timing of every line whose text is unchanged. Plain text renders as-is.',
       saveFailed: 'Save failed',
     },
     shader: {
@@ -991,7 +991,7 @@ export const messages = {
         plain: 'プレーンテキスト',
         empty: '空',
       },
-      lyricsHint: 'タイムスタンプ付きLRCは自動で同期ハイライトが有効になります。TTML（Apple Music / AMLL）は単語ごとのタイミングも保持します。プレーンテキストはそのまま表示されます。',
+      lyricsHint: 'タイムスタンプ付きLRCは自動で同期ハイライトが有効になります。TTML（Apple Music / AMLL）は単語ごとのタイミングも保持します。単語タイミング付きの歌詞に LRC を貼り付けると、文字が変わっていない行はタイミングがそのまま残ります。プレーンテキストはそのまま表示されます。',
       saveFailed: '保存に失敗しました',
     },
     shader: {
@@ -1501,7 +1501,7 @@ export const messages = {
         plain: '纯文本',
         empty: '空',
       },
-      lyricsHint: '带时间戳的 LRC 会自动启用同步高亮；TTML（Apple Music / AMLL）还会保留逐字时间。纯文本会按原样显示。',
+      lyricsHint: '带时间戳的 LRC 会自动启用同步高亮；TTML（Apple Music / AMLL）还会保留逐字时间。在逐字歌词上粘贴 LRC 时，文字没变的行会保留原有的逐字时间。纯文本会按原样显示。',
       saveFailed: '保存失败',
     },
     shader: {

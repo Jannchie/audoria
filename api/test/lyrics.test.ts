@@ -1,10 +1,11 @@
+import type { LyricsDoc } from '@audoria/lyrics-core'
 import assert from 'node:assert/strict'
 // The api package has no vitest dependency; it runs on the built-in runner.
 // eslint-disable-next-line test/no-import-node-test
 import { describe, it } from 'node:test'
 import { lyricsDocFromText } from '@audoria/lyrics-core'
 import { annotateLyricsFurigana } from '../src/furigana.js'
-import { lyricsColumnsFromDoc, lyricsColumnsFromText, readLyricsDoc } from '../src/lyrics/store.js'
+import { lyricsColumnsFromDoc, lyricsColumnsFromEdit, lyricsColumnsFromText, readLyricsDoc } from '../src/lyrics/store.js'
 
 describe('annotateLyricsFurigana', () => {
   it('keys readings by cue id and puts hand-set readings ahead of the analyzer', async () => {
@@ -33,5 +34,19 @@ describe('lyrics columns', () => {
     const ttml = lyricsColumnsFromText('<tt xmlns="http://www.w3.org/ns/ttml"><body><div><p begin="1" end="2">a</p></div></body></tt>')
     assert.equal(ttml.lyrics, '[00:01.000]a')
     assert.equal(readLyricsDoc(ttml)?.cues[0].end, 2000)
+  })
+
+  it('merges LRC over a word-timed document, keeping unchanged lines', () => {
+    const doc: LyricsDoc = {
+      version: 1,
+      timing: 'word',
+      tracks: [],
+      cues: [{ id: 'a', begin: 1000, end: 2000, words: [{ text: 'x', begin: 1000, end: 1500 }, { text: 'y', begin: 1500, end: 2000 }] }],
+    }
+    const row = lyricsColumnsFromDoc(doc)
+    const merged = readLyricsDoc(lyricsColumnsFromEdit('[00:01.00]xy\n[00:05.00]new', row))!
+    assert.deepEqual(merged.cues[0], doc.cues[0])
+    assert.equal(merged.cues[1].begin, 5000)
+    assert.deepEqual(lyricsColumnsFromEdit('plain text', row), { lyrics: 'plain text', lyricsDoc: null })
   })
 })
