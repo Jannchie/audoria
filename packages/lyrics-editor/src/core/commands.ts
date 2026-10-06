@@ -246,6 +246,11 @@ export function isCreditLine(cue: Pick<LyricsCue, 'words'>): boolean {
   return text.length <= 60 && CREDIT_RE.test(text)
 }
 
+/** Lines the space bar walks through: sung lines, not credits (blank lines have no words). */
+export function isSung(cue: Pick<LyricsCue, 'words'>): boolean {
+  return !isCreditLine(cue)
+}
+
 export type LineStatus = 'empty' | 'untimed' | 'line' | 'partial' | 'word'
 
 /** How far a line is timed: not at all, as a whole line, some of its words, or every word. */

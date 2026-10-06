@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import type { LyricsCue } from '@audoria/lyrics-core'
 import { cueText } from '@audoria/lyrics-core'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { incompleteLines, isCreditLine, lineAt, nextLine } from '../core/index.js'
+import { incompleteLines, isCreditLine, isSung, lineAt, nextLine } from '../core/index.js'
 import { useSession, useStageKeys } from '../session.js'
 import { formatTimecode } from '../time.js'
 
@@ -11,9 +10,6 @@ const { doc, now, playing, t, cursor } = session
 
 const target = computed(() => cursor.value.cue)
 const listEl = ref<HTMLElement | null>(null)
-
-/** Lines the space bar walks through: sung lines, not credits (blank lines have no words). */
-const isSung = (cue: LyricsCue): boolean => !isCreditLine(cue)
 
 const playingIndex = computed(() => lineAt(doc.value, now.value))
 const remaining = computed(() => incompleteLines(doc.value).length)

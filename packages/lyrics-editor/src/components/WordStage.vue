@@ -2,7 +2,7 @@
 import type { LaneBlock } from './WaveformLane.vue'
 import { cueText } from '@audoria/lyrics-core'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { clearTiming, cueStart, incompleteLines, isCreditLine, lineStatus, mergeWithNext, nextLine, nudgeWord, setCueText, setLineBegin, shiftLine, splitWord, stampWordEnd, stampWordStart, toWholeLine, wordAt } from '../core/index.js'
+import { clearTiming, cueStart, incompleteLines, isCreditLine, isSung, lineStatus, mergeWithNext, nextLine, nudgeWord, setCueText, setLineBegin, shiftLine, splitWord, stampWordEnd, stampWordStart, toWholeLine, wordAt } from '../core/index.js'
 import { useSession, useStageKeys } from '../session.js'
 import { formatTimecode, parseTimecode } from '../time.js'
 import WaveformLane from './WaveformLane.vue'
@@ -130,18 +130,25 @@ function stamp(): void {
   }
   const at = cursor.value
   const ms = session.currentMs()
-  const result = stampWordStart(doc.value, at, ms)
-  session.apply(result.doc)
-  session.markStamp(at.cue, at.word, ms)
-  // Carry on into the next line only when it is being timed word by word too.
-  if (result.next && (result.next.cue === at.cue || session.isWordMode(result.next.cue))) {
-    cursor.value = result.next
+  session.apply(stampWordStart(doc.value, at, ms).doc)
+  if (at.word + 1 < cue.value.words.length) {
+    selectWord(at.word + 1)
   }
+  else {
+    // Past a line's last word, carry on into the next sung line, timing it word by word too.
+    const following = nextLine(doc.value, at.cue, 1, isSung)
+    if (following !== null) {
+      session.setWordMode(following, true)
+      session.selectLine(following)
+    }
+  }
+  session.markStamp(at.cue, at.word, ms, cursor.value)
 }
 
 function stampEnd(): void {
   const last = session.lastStamp.value
-  const target = last?.word !== undefined && last.cue === cueIndex.value
+  // The word just marked, as long as the cursor hasn't been moved since, even onto the next line.
+  const target = last?.word !== undefined && last.after?.cue === cursor.value.cue && last.after.word === cursor.value.word
     ? { cue: last.cue, word: last.word }
     : { cue: cueIndex.value, word: Math.max(0, cursor.value.word - 1) }
   session.apply(stampWordEnd(doc.value, target, session.currentMs()))

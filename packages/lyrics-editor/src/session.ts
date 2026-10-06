@@ -15,6 +15,8 @@ export interface Stamp {
   cue: number
   word?: number
   ms: number
+  /** Where a word mark left the cursor; the mark stays the one to end while the cursor is still there. */
+  after?: WordRef
   /** Wall-clock time, so the same mark made twice still flashes twice. */
   at: number
 }
@@ -60,7 +62,7 @@ export interface EditorSession {
   /** Moves a whole line, grouped so a run of nudges undoes in one step. */
   nudgeLine: (cue: number, deltaMs: number) => void
   lastStamp: Ref<Stamp | null>
-  markStamp: (cue: number, word?: number, ms?: number) => void
+  markStamp: (cue: number, word?: number, ms?: number, after?: WordRef) => void
   isFlashing: (cue: number, word?: number) => boolean
 
   peaks: ShallowRef<Peaks | null>
@@ -131,8 +133,8 @@ export function createSession(options: {
     options.onChange(doc.value)
   }
 
-  function markStamp(cue: number, word?: number, ms = audio().currentTime * 1000): void {
-    lastStamp.value = { cue, word, ms, at: performance.now() }
+  function markStamp(cue: number, word?: number, ms = audio().currentTime * 1000, after?: WordRef): void {
+    lastStamp.value = { cue, word, ms, after, at: performance.now() }
   }
 
   return {
