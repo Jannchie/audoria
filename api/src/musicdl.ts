@@ -28,6 +28,10 @@ export interface MusicDlSongInfo {
   duration_s: number | null
   duration: string | null
   lyric: string | null
+  /** Lyrics timed word by word, in the source's format (NetEase: YRC). */
+  word_lyric: string | null
+  /** A translation of the lyrics, as LRC timed like `lyric`. */
+  translated_lyric: string | null
   cover_url: string | null
   download_url: unknown
   download_url_status: unknown
@@ -145,6 +149,8 @@ function toMusicDlSongInfo(track: TrackSummary | TrackDetail): MusicDlSongInfo {
     duration_s: track.durationS ?? null,
     duration: track.duration ?? null,
     lyric: 'lyric' in track ? track.lyric ?? null : null,
+    word_lyric: 'wordLyric' in track ? track.wordLyric ?? null : null,
+    translated_lyric: 'translatedLyric' in track ? track.translatedLyric ?? null : null,
     cover_url: track.coverUrl ?? null,
     download_url: track.downloadUrl ?? null,
     download_url_status: null,

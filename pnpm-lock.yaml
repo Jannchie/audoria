@@ -51,8 +51,8 @@ importers:
         specifier: 0.5.0
         version: 0.5.0
       '@jannchie/mdl-sdk':
-        specifier: 0.5.0
-        version: 0.5.0
+        specifier: 0.6.0
+        version: 0.6.0
       '@scalar/hono-api-reference':
         specifier: ^0.10.8
         version: 0.10.8(hono@4.12.14)
@@ -2034,8 +2034,11 @@ packages:
   '@jannchie/mdl-core@0.5.0':
     resolution: {integrity: sha512-RTmS8WQqLFCpLaNH43Z1rDdN4OZG85IZOeeQc3OMvKe5xf4wE3lfnNvHQddE93sznmA3XYGdyCihMzeWjMjHew==}
 
-  '@jannchie/mdl-sdk@0.5.0':
-    resolution: {integrity: sha512-EflnAvoMkzmnWQpjkRbDxwHebcGn+1IFNhX5feVoFb6wA8Og7fomp4hYr8j6feaQiSy5y4Iw1B0Rl6SMdLi17g==}
+  '@jannchie/mdl-core@0.6.0':
+    resolution: {integrity: sha512-TdNX8+eV3ClbhhekYFbb4N0NYgQ5Be/fpN4WfAV2fwKtoL5o2x+nu1RjHec9/uFyl3dtz1toJpPWNPxNh9GPoA==}
+
+  '@jannchie/mdl-sdk@0.6.0':
+    resolution: {integrity: sha512-klaa1yNCjBe/jSetZb1JXF6cv89FRLgdx9O50j0xUfrE5TwN8HDOIu8k3i7kJjmQKo3dxknqo4sIhjEEongCqw==}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -8209,9 +8212,11 @@ snapshots:
 
   '@jannchie/mdl-core@0.5.0': {}
 
-  '@jannchie/mdl-sdk@0.5.0':
+  '@jannchie/mdl-core@0.6.0': {}
+
+  '@jannchie/mdl-sdk@0.6.0':
     dependencies:
-      '@jannchie/mdl-core': 0.5.0
+      '@jannchie/mdl-core': 0.6.0
       migu-music-api: 1.0.1
       netease-cloud-music-api: 0.1.8
       ytdlp-nodejs: 3.4.4

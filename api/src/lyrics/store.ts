@@ -1,6 +1,7 @@
 import type { LyricsDoc } from '@audoria/lyrics-core'
 import type { Track } from '../db/schema.js'
-import { isLrcFormat, looksLikeTtml, lyricsDocFromText, lyricsDocFromTtml, lyricsDocToText, mergeLyricsText } from '@audoria/lyrics-core'
+import type { MusicDlSongInfo } from '../musicdl.js'
+import { isLrcFormat, looksLikeTtml, lrcFromNetease, lyricsDocFromText, lyricsDocFromTtml, lyricsDocFromYrc, lyricsDocToText, mergeLyricsText } from '@audoria/lyrics-core'
 
 // How a track's lyrics live in its two columns. `lyrics_doc` is the source of truth once set,
 // with `lyrics` holding its LRC rendering; while it is null, the document is read from the
@@ -44,4 +45,33 @@ export function lyricsColumnsFromEdit(raw: string | null, row: Pick<Track, 'lyri
     }
   }
   return lyricsColumnsFromText(raw)
+}
+
+/** Lyrics text a source really has: sources write 'NULL' for what they couldn't read. */
+function present(value: string | null | undefined): string | undefined {
+  return value?.trim() && value.trim() !== 'NULL' ? value : undefined
+}
+
+/**
+ * Source lyrics replace the track's own; without any, whatever the track has is kept as is.
+ * Word-timed lyrics (NetEase YRC) are taken over plain ones, and a translation goes along.
+ */
+export function lyricsColumnsFromSource(songInfo: Pick<MusicDlSongInfo, 'lyric' | 'word_lyric' | 'translated_lyric'>, track: Pick<Track, 'lyrics' | 'lyricsDoc'>): LyricsColumns {
+  const lyric = present(songInfo.lyric)
+  const translation = present(songInfo.translated_lyric)
+  const wordLyric = present(songInfo.word_lyric)
+  const wordTimed = wordLyric ? lyricsDocFromYrc(wordLyric, { lrc: lyric, translation }) : null
+  if (wordTimed) {
+    return lyricsColumnsFromDoc(wordTimed)
+  }
+  if (!lyric) {
+    return { lyrics: track.lyrics, lyricsDoc: track.lyricsDoc }
+  }
+  try {
+    return lyricsColumnsFromText(looksLikeTtml(lyric) ? lyric : lrcFromNetease(lyric, translation))
+  }
+  catch {
+    // Malformed TTML from a source is still worth keeping as text.
+    return { lyrics: lyric, lyricsDoc: null }
+  }
 }

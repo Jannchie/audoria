@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { lyricsDocFromText } from '@audoria/lyrics-core'
 import { annotateLyricsFurigana } from '../src/furigana.js'
-import { lyricsColumnsFromDoc, lyricsColumnsFromEdit, lyricsColumnsFromText, readLyricsDoc } from '../src/lyrics/store.js'
+import { lyricsColumnsFromDoc, lyricsColumnsFromEdit, lyricsColumnsFromSource, lyricsColumnsFromText, readLyricsDoc } from '../src/lyrics/store.js'
 
 describe('annotateLyricsFurigana', () => {
   it('keys readings by cue id and puts hand-set readings ahead of the analyzer', async () => {
@@ -57,5 +57,27 @@ describe('annotateLyricsFurigana with spaces', () => {
     const lines = await annotateLyricsFurigana(doc)
     assert.equal(lines.c0.map(segment => segment.text).join(''), '外を見るともう 明るいよね')
     assert.deepEqual(lines.c0.find(segment => segment.text === '外'), { text: '外', ruby: 'そと' })
+  })
+})
+
+describe('lyricsColumnsFromSource', () => {
+  const keep = { lyrics: 'old', lyricsDoc: null }
+
+  it('takes word-timed lyrics over plain ones, with the translation', () => {
+    const columns = lyricsColumnsFromSource({
+      lyric: '[00:01.00]一二\n[00:03.00]三',
+      word_lyric: '[1000,1000](1000,500,0)一(1500,500,0)二\n[3000,500](3000,500,0)三',
+      translated_lyric: '[00:01.00]one two',
+    }, keep)
+    const doc = readLyricsDoc(columns)!
+    assert.equal(doc.timing, 'word')
+    assert.deepEqual(doc.cues[0].words, [{ text: '一', begin: 1000, end: 1500 }, { text: '二', begin: 1500, end: 2000 }])
+    assert.deepEqual(doc.tracks[0].lines, { c0: 'one two' })
+  })
+
+  it('merges a translation into plain LRC, and keeps the track’s lyrics without any', () => {
+    const columns = lyricsColumnsFromSource({ lyric: '[00:01.00]a\n[00:02.00]b', word_lyric: null, translated_lyric: '[00:02.00]B' }, keep)
+    assert.equal(columns.lyrics, '[00:01.00]a\n[00:02.00]b\n[00:02.00]B')
+    assert.deepEqual(lyricsColumnsFromSource({ lyric: 'NULL', word_lyric: null, translated_lyric: null }, keep), keep)
   })
 })
