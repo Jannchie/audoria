@@ -1,6 +1,6 @@
 import type { LyricChunk as CoreLyricChunk, LyricsDoc, LyricsWord } from '@audoria/lyrics-core'
 import type { RubySegment } from '../api/types.gen'
-import { cueText, isWordTimedCue, layoutLine, lyricsDocFromText } from '@audoria/lyrics-core'
+import { cueText, isWordTimedCue, layoutLine, lyricsDocFromText, settleBreaks } from '@audoria/lyrics-core'
 import { useQuery } from '@tanstack/vue-query'
 import { computed } from 'vue'
 import { getMusicByIdLyrics } from '../api/sdk.gen'
@@ -21,10 +21,12 @@ export interface LyricLine {
   translations: string[]
 }
 
-export function linesFromDoc(doc: LyricsDoc | null | undefined): LyricLine[] | null {
-  if (!doc || doc.timing === 'none') {
+export function linesFromDoc(source: LyricsDoc | null | undefined): LyricLine[] | null {
+  if (!source || source.timing === 'none') {
     return null
   }
+  // Documents saved before blanks were settled can still have one cutting a line short.
+  const doc = settleBreaks(source)
   const translations = doc.tracks.filter(track => track.kind === 'translation')
   return doc.cues.map(cue => ({
     id: cue.id,

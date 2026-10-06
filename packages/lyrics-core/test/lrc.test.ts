@@ -2,7 +2,7 @@ import type { LyricsDoc } from '../src/index.js'
 import assert from 'node:assert/strict'
 // eslint-disable-next-line test/no-import-node-test
 import { describe, it } from 'node:test'
-import { lyricsDocFromText, lyricsDocToText, shiftLyricsDoc, validateLyricsDoc, wordTimeAt } from '../src/index.js'
+import { lyricsDocFromText, lyricsDocToText, settleBreaks, shiftLyricsDoc, validateLyricsDoc, wordTimeAt } from '../src/index.js'
 
 describe('lyricsDocFromText', () => {
   it('reads LRC lines into timed cues and repeated timestamps into translation tracks', () => {
@@ -115,6 +115,25 @@ describe('shiftLyricsDoc', () => {
       tracks: [],
     }, -100)
     assert.deepEqual(shifted.cues[0], { id: 'a', begin: 0, end: 800, words: [{ text: 'x', begin: 0, end: 800 }] })
+  })
+})
+
+describe('settleBreaks', () => {
+  it('moves a blank line out of the line it falls inside, never past the next line', () => {
+    const doc: LyricsDoc = {
+      version: 1,
+      timing: 'word',
+      tracks: [],
+      cues: [
+        { id: 'a', begin: 1000, words: [{ text: 'x', begin: 1000, end: 2000 }, { text: 'y', begin: 3000, end: 4000 }] },
+        { id: 'gap', begin: 1500, words: [] },
+        { id: 'b', begin: 6000, end: 7000, words: [{ text: 'z', begin: 6000, end: 7000 }] },
+        { id: 'early', begin: 6500, words: [] },
+        { id: 'c', begin: 6800, words: [{ text: 'w', begin: 6800, end: 7500 }] },
+        { id: 'after', begin: 9000, words: [] },
+      ],
+    }
+    assert.deepEqual(settleBreaks(doc).cues.map(cue => cue.begin), [1000, 4000, 6000, 6800, 6800, 9000])
   })
 })
 
