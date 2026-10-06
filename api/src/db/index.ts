@@ -169,6 +169,20 @@ export async function updateTrackCover(id: string, cover: {
   )
 }
 
+export async function updateTrackVocals(id: string, vocals: {
+  backend: string | null
+  key: string | null
+}): Promise<void> {
+  await queryRun(db.update(schema.tracks)
+    .set({
+      vocalsStorageBackend: vocals.backend,
+      vocalsStorageKey: vocals.key,
+      vocalsUpdatedAt: vocals.key ? Date.now() : null,
+    })
+    .where(eq(schema.tracks.id, id)),
+  )
+}
+
 export async function updateTrackImportedMetadata(id: string, metadata: {
   coverStorageBackend: string | null
   coverStorageKey: string | null

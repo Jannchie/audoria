@@ -115,6 +115,9 @@ export function initSqlite(dbPath: string): void {
       content_type TEXT,
       lyrics TEXT,
       lyrics_doc TEXT,
+      vocals_storage_backend TEXT,
+      vocals_storage_key TEXT,
+      vocals_updated_at INTEGER,
       sort_order INTEGER,
       play_count INTEGER NOT NULL DEFAULT 0,
       skip_count INTEGER NOT NULL DEFAULT 0,
@@ -314,6 +317,15 @@ export function initSqlite(dbPath: string): void {
   }
   if (!statColumns.has('lyrics_doc')) {
     sqlite.exec('ALTER TABLE tracks ADD COLUMN lyrics_doc TEXT')
+  }
+  if (!statColumns.has('vocals_storage_backend')) {
+    sqlite.exec('ALTER TABLE tracks ADD COLUMN vocals_storage_backend TEXT')
+  }
+  if (!statColumns.has('vocals_storage_key')) {
+    sqlite.exec('ALTER TABLE tracks ADD COLUMN vocals_storage_key TEXT')
+  }
+  if (!statColumns.has('vocals_updated_at')) {
+    sqlite.exec('ALTER TABLE tracks ADD COLUMN vocals_updated_at INTEGER')
   }
 
   const importJobColumns = sqlite.prepare('PRAGMA table_info(music_import_jobs)').all() as Array<{ name: string }>

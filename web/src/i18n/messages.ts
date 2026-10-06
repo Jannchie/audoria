@@ -117,6 +117,7 @@ export const messages = {
       coverUploadFailedStatus: 'Cover upload failed ({status})',
       uploadFailedStatus: 'Upload failed ({status})',
       coverDeleteFailedStatus: 'Cover delete failed ({status})',
+      vocalsLoadFailedStatus: 'Vocal analysis failed to load ({status})',
       missingImportJobId: 'Missing import job id',
     },
     settings: {
@@ -627,6 +628,7 @@ export const messages = {
       coverUploadFailedStatus: 'カバーアップロードに失敗しました（{status}）',
       uploadFailedStatus: 'アップロードに失敗しました（{status}）',
       coverDeleteFailedStatus: 'カバー削除に失敗しました（{status}）',
+      vocalsLoadFailedStatus: 'ボーカル解析の読み込みに失敗しました（{status}）',
       missingImportJobId: 'インポートジョブIDがありません',
     },
     settings: {
@@ -1137,6 +1139,7 @@ export const messages = {
       coverUploadFailedStatus: '封面上传失败（{status}）',
       uploadFailedStatus: '上传失败（{status}）',
       coverDeleteFailedStatus: '封面删除失败（{status}）',
+      vocalsLoadFailedStatus: '人声分析加载失败（{status}）',
       missingImportJobId: '缺少导入任务 ID',
     },
     settings: {

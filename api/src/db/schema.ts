@@ -29,6 +29,11 @@ export const tracks = sqliteTable('tracks', {
   // JSON LyricsDoc, the source of truth once lyrics are edited in place. `lyrics` then holds
   // its LRC rendering; while this is null, the document is read from `lyrics` instead.
   lyricsDoc: text('lyrics_doc'),
+  // Vocal analysis computed in the browser and uploaded as an opaque blob, so separation
+  // runs once per track instead of on every device.
+  vocalsStorageBackend: text('vocals_storage_backend'),
+  vocalsStorageKey: text('vocals_storage_key'),
+  vocalsUpdatedAt: integer('vocals_updated_at', { mode: 'number' }),
   sortOrder: integer('sort_order', { mode: 'number' }),
   playCount: integer('play_count', { mode: 'number' }).notNull().default(0),
   skipCount: integer('skip_count', { mode: 'number' }).notNull().default(0),

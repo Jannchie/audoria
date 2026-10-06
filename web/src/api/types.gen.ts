@@ -17,6 +17,10 @@ export type Music = {
      * The lyrics have been edited into a document, fetched from /music/{id}/lyrics; otherwise `lyrics` is the whole of them
      */
     hasLyricsDoc: boolean;
+    /**
+     * A vocal analysis is stored, fetched from /music/{id}/vocals
+     */
+    hasVocals: boolean;
     title: string | null;
     artists: string | null;
     album: string | null;
@@ -1187,6 +1191,105 @@ export type GetMusicByIdLyricsTtmlResponses = {
 };
 
 export type GetMusicByIdLyricsTtmlResponse = GetMusicByIdLyricsTtmlResponses[keyof GetMusicByIdLyricsTtmlResponses];
+
+export type DeleteMusicByIdVocalsData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/music/{id}/vocals';
+};
+
+export type DeleteMusicByIdVocalsErrors = {
+    /**
+     * Not found
+     */
+    404: {
+        message: string;
+    };
+};
+
+export type DeleteMusicByIdVocalsError = DeleteMusicByIdVocalsErrors[keyof DeleteMusicByIdVocalsErrors];
+
+export type DeleteMusicByIdVocalsResponses = {
+    /**
+     * Deleted, or there was none
+     */
+    204: void;
+};
+
+export type DeleteMusicByIdVocalsResponse = DeleteMusicByIdVocalsResponses[keyof DeleteMusicByIdVocalsResponses];
+
+export type GetMusicByIdVocalsData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/music/{id}/vocals';
+};
+
+export type GetMusicByIdVocalsErrors = {
+    /**
+     * Not found, or the track has no vocal analysis
+     */
+    404: {
+        message: string;
+    };
+};
+
+export type GetMusicByIdVocalsError = GetMusicByIdVocalsErrors[keyof GetMusicByIdVocalsErrors];
+
+export type GetMusicByIdVocalsResponses = {
+    /**
+     * Vocal analysis
+     */
+    200: Blob | File;
+};
+
+export type GetMusicByIdVocalsResponse = GetMusicByIdVocalsResponses[keyof GetMusicByIdVocalsResponses];
+
+export type PutMusicByIdVocalsData = {
+    body?: Blob | File;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/music/{id}/vocals';
+};
+
+export type PutMusicByIdVocalsErrors = {
+    /**
+     * Empty body
+     */
+    400: {
+        message: string;
+    };
+    /**
+     * Not found
+     */
+    404: {
+        message: string;
+    };
+    /**
+     * Larger than 8388608 bytes
+     */
+    413: {
+        message: string;
+    };
+};
+
+export type PutMusicByIdVocalsError = PutMusicByIdVocalsErrors[keyof PutMusicByIdVocalsErrors];
+
+export type PutMusicByIdVocalsResponses = {
+    /**
+     * Stored
+     */
+    200: Music;
+};
+
+export type PutMusicByIdVocalsResponse = PutMusicByIdVocalsResponses[keyof PutMusicByIdVocalsResponses];
 
 export type GetMusicByIdDownloadData = {
     body?: never;

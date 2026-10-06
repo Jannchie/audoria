@@ -4,7 +4,7 @@ import type { Music, MusicDlSearchResult, MusicDlSource, MusicImportJob } from '
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { computed, ref } from 'vue'
 import { client } from '../api/client.gen'
-import { deleteMusicById, getMusicImportsById, postMusicImports, postMusicImportsSearch, putMusicByIdLyrics } from '../api/sdk.gen'
+import { deleteMusicById, getMusicByIdVocals, getMusicImportsById, postMusicImports, postMusicImportsSearch, putMusicByIdLyrics, putMusicByIdVocals } from '../api/sdk.gen'
 import { translate } from '../i18n'
 import { lyricsDocQueryKey } from './useLyrics'
 
@@ -280,6 +280,39 @@ export function useUpdateLyrics() {
       queryClient.setQueryData(lyricsDocQueryKey(updated.id, updated.lyrics), doc)
       applyUpdatedTrack(queryClient, updated)
     },
+  })
+}
+
+/** Downloads a track's stored vocal analysis; null when none has been uploaded yet. */
+export async function fetchVocals(id: string): Promise<ArrayBuffer | null> {
+  const { data, error, response } = await getMusicByIdVocals({ path: { id }, parseAs: 'arrayBuffer' })
+  if (response.status === 404) {
+    return null
+  }
+  if (!response.ok) {
+    throw new Error(error?.message ?? translate('errors.vocalsLoadFailedStatus', { status: response.status }))
+  }
+  // parseAs makes the body an ArrayBuffer; the generated type only knows it is binary.
+  return data as unknown as ArrayBuffer
+}
+
+/** Stores a track's vocal analysis (at most 8 MB), replacing any previous one. */
+export async function uploadVocals(id: string, analysis: ArrayBuffer | Blob): Promise<Music> {
+  const body = analysis instanceof Blob ? analysis : new Blob([analysis], { type: 'application/octet-stream' })
+  const { data, error, response } = await putMusicByIdVocals({ path: { id }, body })
+  if (!data) {
+    throw new Error(error?.message ?? translate('errors.updateFailedStatus', { status: response.status }))
+  }
+  return data
+}
+
+export function useUploadVocals() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, analysis }: { id: string, analysis: ArrayBuffer | Blob }): Promise<Music> => {
+      return await uploadVocals(id, analysis)
+    },
+    onSuccess: updated => applyUpdatedTrack(queryClient, updated),
   })
 }
 

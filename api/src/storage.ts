@@ -447,6 +447,20 @@ function getCoverMaskObjectRef(record: Track): ObjectRef | null {
   }
 }
 
+function getTrackVocalsKey(trackId: string): string {
+  return `vocals/${trackId}/analysis.bin`
+}
+
+function getVocalsObjectRef(record: Track): ObjectRef | null {
+  if (!record.vocalsStorageBackend || !record.vocalsStorageKey) {
+    return null
+  }
+  return {
+    backend: record.vocalsStorageBackend as StorageBackend,
+    key: record.vocalsStorageKey,
+  }
+}
+
 function listCoverObjectRefs(record: Track): ObjectRef[] {
   const refs = [
     getCoverObjectRef(record, 'cover'),
@@ -579,6 +593,9 @@ export async function storeTrackFile({
     contentType: prepared.contentType,
     lyrics: embedded.lyrics,
     lyricsDoc: null,
+    vocalsStorageBackend: null,
+    vocalsStorageKey: null,
+    vocalsUpdatedAt: null,
     sortOrder: null,
     playCount: 0,
     skipCount: 0,
@@ -689,18 +706,23 @@ export async function storeTrackCoverMask(record: Track): Promise<void> {
   })
 }
 
-export async function deleteStoredTrack(record: Track): Promise<void> {
-  const trackRef = getTrackObjectRef(record)
-  await getStorageDriver(trackRef.backend).deleteObject(trackRef.key).catch((err: unknown) => {
-    if (!isStorageObjectMissingError(err)) throw err
-  })
+async function deleteObjectIfPresent(ref: ObjectRef): Promise<void> {
+  try {
+    await getStorageDriver(ref.backend).deleteObject(ref.key)
+  }
+  catch (error) {
+    if (!isStorageObjectMissingError(error)) {
+      throw error
+    }
+  }
+}
 
-  const coverRefs = listCoverObjectRefs(record)
-  await Promise.all(coverRefs.map(ref =>
-    getStorageDriver(ref.backend).deleteObject(ref.key).catch((err: unknown) => {
-      if (!isStorageObjectMissingError(err)) throw err
-    }),
-  ))
+export async function deleteStoredTrack(record: Track): Promise<void> {
+  await deleteObjectIfPresent(getTrackObjectRef(record))
+
+  const assetRefs = [...listCoverObjectRefs(record), getVocalsObjectRef(record)]
+    .filter((value): value is ObjectRef => value !== null)
+  await Promise.all(assetRefs.map(deleteObjectIfPresent))
 }
 
 export async function deleteTrackCover(record: Track): Promise<void> {
@@ -713,6 +735,49 @@ export async function deleteTrackCoverExcept(record: Track, keepRefs: ObjectRef[
   const coverRefs = listCoverObjectRefs(record)
     .filter(ref => !keepKeys.has(`${ref.backend}:${ref.key}`))
   await Promise.all(coverRefs.map(ref => getStorageDriver(ref.backend).deleteObject(ref.key)))
+}
+
+/**
+ * Stores a track's vocal analysis. The bytes are produced and read by the client only,
+ * so they are kept as given.
+ */
+export async function storeTrackVocals({
+  trackId,
+  body,
+}: {
+  trackId: string
+  body: Buffer
+}): Promise<{ backend: StorageBackend, key: string }> {
+  const backend = getActiveStorageBackend()
+  const key = getTrackVocalsKey(trackId)
+  await getStorageDriver(backend).putObject({
+    key,
+    body,
+    contentType: 'application/octet-stream',
+    contentLength: body.byteLength,
+  })
+  return { backend, key }
+}
+
+export async function readStoredTrackVocalsBuffer(record: Track): Promise<Buffer> {
+  const ref = getVocalsObjectRef(record)
+  if (!ref) {
+    throw new Error('Track vocals are not stored')
+  }
+  const object = await getStorageDriver(ref.backend).getObject({ key: ref.key })
+  return readReadableToBuffer(object.body)
+}
+
+/**
+ * Deletes the stored vocal analysis unless it sits at `keep`, which is where a
+ * replacement was just written.
+ */
+export async function deleteTrackVocals(record: Track, keep?: { backend: StorageBackend, key: string }): Promise<void> {
+  const ref = getVocalsObjectRef(record)
+  if (!ref || (keep && keep.backend === ref.backend && keep.key === ref.key)) {
+    return
+  }
+  await deleteObjectIfPresent(ref)
 }
 
 /**

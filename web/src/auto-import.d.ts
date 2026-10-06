@@ -40,6 +40,7 @@ declare global {
   const eagerComputed: typeof import('@vueuse/core').eagerComputed
   const effectScope: typeof import('vue').effectScope
   const extendRef: typeof import('@vueuse/core').extendRef
+  const fetchVocals: typeof import('./composables/useMusic').fetchVocals
   const findLyricLineAtTime: typeof import('./composables/useLyrics').findLyricLineAtTime
   const formatConfigMilliseconds: typeof import('./composables/useAppConfig').formatConfigMilliseconds
   const getCurrentInstance: typeof import('vue').getCurrentInstance
@@ -138,6 +139,7 @@ declare global {
   const unref: typeof import('vue').unref
   const unrefElement: typeof import('@vueuse/core').unrefElement
   const until: typeof import('@vueuse/core').until
+  const uploadVocals: typeof import('./composables/useMusic').uploadVocals
   const useActiveElement: typeof import('@vueuse/core').useActiveElement
   const useAddTrackToPlaylist: typeof import('./composables/usePlaylists').useAddTrackToPlaylist
   const useAnimate: typeof import('@vueuse/core').useAnimate
@@ -340,6 +342,7 @@ declare global {
   const useUpdateMusic: typeof import('./composables/useMusic').useUpdateMusic
   const useUpdatePlaylist: typeof import('./composables/usePlaylists').useUpdatePlaylist
   const useUploadMusic: typeof import('./composables/useMusic').useUploadMusic
+  const useUploadVocals: typeof import('./composables/useMusic').useUploadVocals
   const useUrlSearchParams: typeof import('@vueuse/core').useUrlSearchParams
   const useUserMedia: typeof import('@vueuse/core').useUserMedia
   const useVModel: typeof import('@vueuse/core').useVModel

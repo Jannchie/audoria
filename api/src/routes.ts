@@ -39,6 +39,7 @@ import {
   updateTrackCover,
   updateTrackEditableMetadata,
   updateTrackLyrics,
+  updateTrackVocals,
 } from './db/index.js'
 import { deletePlayEventsForTrack, getListeningStats, PlaySessionConflictError, recordPlayEvent } from './db/playStats.js'
 import { annotateLyricsFurigana } from './furigana.js'
@@ -50,12 +51,15 @@ import {
   deleteStoredTrack,
   deleteTrackCover,
   deleteTrackCoverExcept,
+  deleteTrackVocals,
   getStoredTrack,
   getStoredTrackCover,
   isStorageObjectMissingError,
   readStoredTrackCoverMaskBuffer,
+  readStoredTrackVocalsBuffer,
   storeTrack,
   storeTrackCover,
+  storeTrackVocals,
 } from './storage.js'
 
 function buildCoverPath(id: string, variant: 'cover' | 'thumb' = 'cover'): string {
@@ -76,6 +80,7 @@ function toMusicResponse(row: Track, playlistIds: string[] = []) {
     coverThumbhash: row.coverThumbhash,
     lyrics: row.lyrics,
     hasLyricsDoc: row.lyricsDoc !== null,
+    hasVocals: row.vocalsStorageKey !== null,
     title: row.title,
     artists: row.artists,
     album: row.album,
@@ -167,6 +172,7 @@ const MusicSchema = z.object({
   coverThumbhash: z.string().nullable().openapi({ example: '2OcRJYB4d3h/iIeHeEh3eIhw+j2A=' }),
   lyrics: z.string().nullable().openapi({ example: '[00:00.00] Lyrics line' }),
   hasLyricsDoc: z.boolean().openapi({ description: 'The lyrics have been edited into a document, fetched from /music/{id}/lyrics; otherwise `lyrics` is the whole of them' }),
+  hasVocals: z.boolean().openapi({ description: 'A vocal analysis is stored, fetched from /music/{id}/vocals' }),
   title: z.string().nullable().openapi({ example: '稻香' }),
   artists: z.string().nullable().openapi({ example: '周杰伦' }),
   album: z.string().nullable().openapi({ example: '魔杰座' }),
@@ -2138,6 +2144,197 @@ api.openapi(putLyricsRoute, async (c) => {
     return c.json({ message: 'Music not found' }, 404)
   }
   return c.json(updated, 200)
+})
+
+// Analyses are ~100 KB to 1 MB; the cap only keeps a bad client from filling storage.
+const MAX_VOCALS_BYTES = 8 * 1024 * 1024
+
+/** Reads a request body into memory, or returns null once it passes `maxBytes`. */
+async function readBodyUpTo(request: Request, maxBytes: number): Promise<Buffer | null> {
+  const declared = Number(request.headers.get('content-length'))
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    return null
+  }
+  if (!request.body) {
+    return Buffer.alloc(0)
+  }
+  // Content-Length can be absent (chunked) or wrong, so the bytes are counted as they arrive.
+  const chunks: Buffer[] = []
+  let total = 0
+  for await (const chunk of request.body as unknown as AsyncIterable<Uint8Array>) {
+    total += chunk.byteLength
+    if (total > maxBytes) {
+      return null
+    }
+    chunks.push(Buffer.from(chunk))
+  }
+  return Buffer.concat(chunks)
+}
+
+const vocalsTooLargeResponse = {
+  description: `Larger than ${MAX_VOCALS_BYTES} bytes`,
+  content: {
+    'application/json': {
+      schema: ErrorSchema,
+    },
+  },
+}
+
+const getVocalsRoute = createRoute({
+  method: 'get',
+  path: '/music/{id}/vocals',
+  summary: 'Get a track\'s stored vocal analysis',
+  description: 'An opaque blob written by the client; the server does not read it.',
+  request: {
+    params: trackParamsSchema,
+  },
+  responses: {
+    200: {
+      description: 'Vocal analysis',
+      content: {
+        'application/octet-stream': {
+          schema: z.string().openapi({ format: 'binary' }),
+        },
+      },
+    },
+    304: {
+      description: 'Unchanged since the ETag in If-None-Match',
+    },
+    404: {
+      description: 'Not found, or the track has no vocal analysis',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+  },
+})
+
+api.openapi(getVocalsRoute, async (c) => {
+  const { id } = c.req.valid('param')
+  const record = await getTrackById(id)
+  if (!record) {
+    return c.json({ message: 'Music not found' }, 404)
+  }
+  if (!record.vocalsStorageKey) {
+    return c.json({ message: 'Vocals not found' }, 404)
+  }
+
+  const etag = `"${record.vocalsUpdatedAt ?? 0}"`
+  // The blob can be replaced under the same URL, so caches must revalidate each time.
+  const cacheHeaders = { 'ETag': etag, 'Cache-Control': 'no-cache' }
+  if (c.req.header('if-none-match') === etag) {
+    return new Response(null, { status: 304, headers: cacheHeaders })
+  }
+
+  try {
+    const buffer = await readStoredTrackVocalsBuffer(record)
+    return new Response(new Uint8Array(buffer), {
+      status: 200,
+      headers: {
+        ...cacheHeaders,
+        'Content-Type': 'application/octet-stream',
+        'Content-Length': `${buffer.byteLength}`,
+      },
+    })
+  }
+  catch (error) {
+    if (isStorageObjectMissingError(error)) {
+      return c.json({ message: 'Vocals not found' }, 404)
+    }
+    throw error
+  }
+})
+
+const putVocalsRoute = createRoute({
+  method: 'put',
+  path: '/music/{id}/vocals',
+  summary: 'Store a track\'s vocal analysis, replacing any previous one',
+  request: {
+    params: trackParamsSchema,
+    body: {
+      content: {
+        'application/octet-stream': {
+          schema: z.string().openapi({ format: 'binary' }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: 'Stored',
+      content: {
+        'application/json': {
+          schema: MusicSchema,
+        },
+      },
+    },
+    400: {
+      description: 'Empty body',
+      content: {
+        'application/json': {
+          schema: ErrorSchema,
+        },
+      },
+    },
+    404: trackNotFoundResponse,
+    413: vocalsTooLargeResponse,
+  },
+})
+
+api.openapi(putVocalsRoute, async (c) => {
+  const { id } = c.req.valid('param')
+  const record = await getTrackById(id)
+  if (!record) {
+    return c.json({ message: 'Music not found' }, 404)
+  }
+  const body = await readBodyUpTo(c.req.raw, MAX_VOCALS_BYTES)
+  if (!body) {
+    return c.json({ message: `Vocal analysis must be at most ${MAX_VOCALS_BYTES} bytes` }, 413)
+  }
+  if (body.byteLength === 0) {
+    return c.json({ message: 'Vocal analysis body is required' }, 400)
+  }
+
+  const stored = await storeTrackVocals({ trackId: id, body })
+  await updateTrackVocals(id, stored)
+  // Only differs from the new object when the storage backend changed since the last upload.
+  await deleteTrackVocals(record, stored)
+
+  const updated = await loadMusicResponse(id)
+  if (!updated) {
+    return c.json({ message: 'Music not found' }, 404)
+  }
+  return c.json(updated, 200)
+})
+
+const deleteVocalsRoute = createRoute({
+  method: 'delete',
+  path: '/music/{id}/vocals',
+  summary: 'Remove a track\'s vocal analysis',
+  request: {
+    params: trackParamsSchema,
+  },
+  responses: {
+    204: {
+      description: 'Deleted, or there was none',
+    },
+    404: trackNotFoundResponse,
+  },
+})
+
+api.openapi(deleteVocalsRoute, async (c) => {
+  const { id } = c.req.valid('param')
+  const record = await getTrackById(id)
+  if (!record) {
+    return c.json({ message: 'Music not found' }, 404)
+  }
+  if (record.vocalsStorageKey) {
+    await updateTrackVocals(id, { backend: null, key: null })
+    await deleteTrackVocals(record)
+  }
+  return c.body(null, 204)
 })
 
 api.openapi(downloadRoute, async (c) => {
