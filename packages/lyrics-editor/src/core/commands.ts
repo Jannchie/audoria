@@ -1,5 +1,5 @@
 import type { LyricsCue, LyricsDoc, LyricsWord } from '@audoria/lyrics-core'
-import { cueText, isWordTimedCue, shiftCue as shiftCueTimes, validateLyricsDoc, wordTimeAt } from '@audoria/lyrics-core'
+import { cueText, isWordTimedCue, settleBreaks, shiftCue as shiftCueTimes, validateLyricsDoc, wordTimeAt } from '@audoria/lyrics-core'
 import { splitCueIntoWords } from './split.js'
 
 // Edits to a lyrics document while timing it. Each takes a document and returns a new one,
@@ -196,8 +196,8 @@ export function shiftLine(doc: LyricsDoc, index: number, deltaMs: number): Lyric
 }
 
 /**
- * Marks `at` as the start of a whole line. A line already timed word by word moves with it,
- * keeping its rhythm; otherwise only the line's begin changes.
+ * Marks `at` as the start of a whole line. A line with any word timed moves as a whole so its
+ * first timed word lands on `at`, keeping its rhythm; otherwise only the line's begin changes.
  */
 export function stampLine(doc: LyricsDoc, index: number, at: number): LyricsDoc {
   const cue = doc.cues[index]
@@ -205,8 +205,9 @@ export function stampLine(doc: LyricsDoc, index: number, at: number): LyricsDoc 
   if (!cue) {
     return doc
   }
-  if (isWordTimedCue(cue) && cue.begin !== undefined) {
-    return shiftLine(doc, index, time - cue.begin)
+  const start = cue.words.find(word => word.begin !== undefined)?.begin
+  if (start !== undefined) {
+    return shiftLine(doc, index, time - start)
   }
   return setLineBegin(doc, index, time)
 }
@@ -223,6 +224,17 @@ export function setLineBegin(doc: LyricsDoc, index: number, begin: number | unde
       return begin === undefined ? rest : { ...rest, begin }
     }),
   }
+}
+
+/**
+ * Sets where a line timed as a whole ends, never before it starts; undefined removes it, so the
+ * line runs on until the next one.
+ */
+export function setLineEnd(doc: LyricsDoc, index: number, end: number | undefined): LyricsDoc {
+  return updateCue(doc, index, (cue) => {
+    const { end: _end, ...rest } = cue
+    return end === undefined || cue.begin === undefined ? rest : { ...rest, end: Math.max(cue.begin, Math.round(end)) }
+  })
 }
 
 /** Times a line as a whole again, dropping its word times; the line keeps its begin. */
@@ -281,7 +293,8 @@ export function incompleteLines(doc: LyricsDoc): number[] {
  * - a word without an end runs until the next word starts, and a line's last word until the
  *   next line starts but at most `maxHoldMs`, so it doesn't run through a break;
  * - untimed credits and empty lines take their place between timed neighbours: those before
- *   the first timed line are spread over the intro, the others start with the line before;
+ *   the first timed line are spread over the intro, the others start with the line before,
+ *   and blank lines inside the line before them move to its end (see `settleBreaks`);
  * - lines timed as a whole are kept as one word, and a document with no word-timed line at
  *   all is saved as line timing.
  */
@@ -329,7 +342,7 @@ export function finishTiming(doc: LyricsDoc, maxHoldMs = 3000): LyricsDoc {
   }
 
   const wordTimed = cues.some(cue => isWordTimedCue(cue))
-  return { ...doc, timing: wordTimed ? 'word' : firstTimed >= 0 ? 'line' : 'none', cues }
+  return settleBreaks({ ...doc, timing: wordTimed ? 'word' : firstTimed >= 0 ? 'line' : 'none', cues })
 }
 
 export type SaveCheck

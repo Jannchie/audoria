@@ -2,12 +2,13 @@
 import type { LyricsDoc } from '@audoria/lyrics-core'
 import type { AudioSource, LineStatus } from './core/index.js'
 import type { EditorLocale } from './messages.js'
-import type { Stage } from './session.js'
+import type { Stage, VocalsStore } from './session.js'
 import { computed, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
 import LineStage from './components/LineStage.vue'
 import PreviewStage from './components/PreviewStage.vue'
 import ShortcutsOverlay from './components/ShortcutsOverlay.vue'
 import TransportBar from './components/TransportBar.vue'
+import VocalsControl from './components/VocalsControl.vue'
 import WordStage from './components/WordStage.vue'
 import { lineStatus } from './core/index.js'
 import { editorMessages } from './messages.js'
@@ -19,24 +20,37 @@ const props = withDefaults(defineProps<{
   audio: AudioSource
   /** The song's encoded audio, for drawing its waveform; without it the editor works unaided. */
   loadAudioData?: () => Promise<ArrayBuffer>
+  /** Where separated vocals are kept, so a song is separated once; without it they last the session. */
+  vocalsStore?: VocalsStore
   locale?: EditorLocale
-}>(), { locale: 'zh', loadAudioData: undefined })
+}>(), { locale: 'zh', loadAudioData: undefined, vocalsStore: undefined })
 
 const emit = defineEmits<{
   /** Every edit, as a draft: lines may be half timed. Pass it through `finishTiming` to save. */
   'update:doc': [doc: LyricsDoc]
 }>()
 
+/** The stage shown; a host can keep it, say in the URL, so a reload comes back to it. */
+const stageModel = defineModel<Stage>('stage', { default: 'line' })
+
 const t = computed(() => editorMessages(props.locale))
 const session = createSession({
   initial: props.doc,
   audio: () => props.audio,
   loadAudioData: props.loadAudioData,
+  vocalsStore: props.vocalsStore,
   messages: t,
   onChange: doc => emit('update:doc', doc),
 })
 provide(SESSION_KEY, session)
 const { doc, now, playing, duration, rate, stage, canUndo, canRedo } = session
+stage.value = stageModel.value
+watch(stage, (value) => {
+  stageModel.value = value
+})
+watch(stageModel, (value) => {
+  stage.value = value
+})
 
 // A different document from outside (another song) starts over; our own drafts coming back
 // through v-model are ignored.
@@ -146,6 +160,7 @@ function onKeydown(event: KeyboardEvent): void {
 
 // Capture, so the editor's keys are taken before any host page shortcut (such as a player's Space) sees them.
 onMounted(() => {
+  session.loadVocals()
   globalThis.addEventListener('keydown', onKeydown, true)
   frame = requestAnimationFrame(tick)
 })
@@ -202,6 +217,7 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="lte-tools">
+        <VocalsControl />
         <button
           type="button"
           class="lte-icon"
@@ -401,7 +417,11 @@ onBeforeUnmount(() => {
 
 .lte-tools {
   display: flex;
+  align-items: center;
   gap: 0.25rem;
+}
+.lte-tools > .vc {
+  margin-right: 0.5rem;
 }
 .lte-icon {
   display: grid;

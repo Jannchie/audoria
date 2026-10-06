@@ -122,6 +122,14 @@ describe('line timing', () => {
     expect(shiftLine(moved, 2, -2500).cues[2].begin).toBe(0)
   })
 
+  it('moves a partly word-timed line by its first timed word', () => {
+    let doc = stampLine(plain(), 2, 1000)
+    doc = stampWordStart(doc, { cue: 2, word: 1 }, 1500).doc
+    doc = stampWordStart(doc, { cue: 2, word: 2 }, 1700).doc
+    const moved = stampLine(doc, 2, 3000)
+    expect(moved.cues[2].words.map(word => [word.begin, word.end])).toEqual([[undefined, 3000], [3000, 3200], [3200, undefined]])
+  })
+
   it('reports line status and what keeps a draft from saving', () => {
     let doc = stampLine(plain(), 2, 1000)
     doc = stampWordStart(doc, { cue: 4, word: 0 }, 5000).doc

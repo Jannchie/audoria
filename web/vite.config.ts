@@ -102,12 +102,19 @@ export default defineConfig({
       '@': path.resolve(__dirname, 'src'),
     },
     // Workspace packages are bundled from their source, so the build never waits on theirs.
-    conditions: ['source', ...defaultClientConditions],
+    conditions: ['source', 'onnxruntime-web-use-extern-wasm', ...defaultClientConditions],
   },
   ssr: {
     resolve: {
       conditions: ['source', ...defaultServerConditions],
     },
+  },
+  optimizeDeps: {
+    // Pre-bundling would pick ONNX Runtime's build with the .wasm inlined.
+    exclude: ['onnxruntime-web'],
+  },
+  worker: {
+    format: 'es',
   },
   server: {
     port: 8788,

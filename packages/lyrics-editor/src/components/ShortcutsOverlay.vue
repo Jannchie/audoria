@@ -20,7 +20,8 @@ const groups = computed(() => [
   {
     title: t.value.keysLine,
     keys: [
-      [['Space'], t.value.keyLineTap],
+      [['['], t.value.keyLineTap],
+      [[']'], t.value.keyLineEnd],
       [['⌫'], t.value.keyLineUndo],
       [['↑', '↓'], t.value.keyLineMove],
       [['A', 'D'], t.value.keyLineNudge],
@@ -30,12 +31,11 @@ const groups = computed(() => [
   {
     title: t.value.keysWord,
     keys: [
-      [['Space', 'J'], t.value.keyWordTap],
-      [['K'], t.value.keyWordEnd],
+      [['['], t.value.keyWordTap],
+      [[']'], t.value.keyWordEnd],
       [['←', '→', '↑', '↓'], t.value.keyWordMove],
       [['A', 'D'], t.value.keyWordNudgeBegin],
       [['Z', 'C'], t.value.keyWordNudgeEnd],
-      [['L'], t.value.keyWordMode],
       [['R'], t.value.keyWordReplay],
       [['M'], t.value.keyWordMerge],
       [['⌫'], t.value.keyWordClear],

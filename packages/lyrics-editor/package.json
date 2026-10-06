@@ -20,7 +20,8 @@
     "vue": "^3.5.0"
   },
   "dependencies": {
-    "@audoria/lyrics-core": "workspace:*"
+    "@audoria/lyrics-core": "workspace:*",
+    "onnxruntime-web": "1.30.0"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.6",

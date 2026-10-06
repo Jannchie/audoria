@@ -1,7 +1,14 @@
 <script setup lang="ts">
+import type { Peaks } from '../core/index.js'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useSession } from '../session.js'
 import { formatTimecode } from '../time.js'
+
+export interface LaneMarker {
+  key: string
+  at: number
+  on: boolean
+}
 
 export interface LaneBlock {
   key: number
@@ -18,6 +25,8 @@ const props = defineProps<{
   start: number
   span: number
   blocks: LaneBlock[]
+  /** Suggested times to preview, drawn as dashed lines; `on` ones are about to be applied. */
+  markers?: LaneMarker[]
 }>()
 
 const emit = defineEmits<{
@@ -25,12 +34,17 @@ const emit = defineEmits<{
   /** A drag step: the block's edge (or the whole block) moved by `deltaMs` since the last step. */
   drag: [key: number, edge: 'begin' | 'end' | 'both', deltaMs: number]
   seek: [ms: number]
+  /** The lane was dragged or scrolled sideways: move the window by `deltaMs`. */
+  pan: [deltaMs: number]
   /** A drag began or ended; the window should hold still meanwhile. */
   dragging: [active: boolean]
 }>()
 
+/** How far the window is zoomed in from its natural span; the lane's buttons and wheel change it. */
+const zoom = defineModel<number>('zoom', { default: 1 })
+
 const session = useSession()
-const { now, peaks, peaksState, t } = session
+const { now, peaks, peaksState, vocals, showVocals, t } = session
 
 const root = ref<HTMLElement | null>(null)
 const canvas = ref<HTMLCanvasElement | null>(null)
@@ -44,6 +58,8 @@ const ticks = computed(() => {
 })
 
 const playhead = computed(() => pct(now.value))
+
+const visibleMarkers = computed(() => props.markers?.filter(marker => marker.at >= props.start && marker.at <= props.start + props.span) ?? [])
 
 function draw(): void {
   const element = canvas.value
@@ -67,6 +83,15 @@ function draw(): void {
     return
   }
   context.fillStyle = 'rgba(214, 218, 230, 0.42)'
+  drawPeaks(context, data, cssWidth, middle)
+  // The separated vocals at the same scale, so they sit inside the song's waveform.
+  if (vocals.value && showVocals.value) {
+    context.fillStyle = 'rgba(127, 209, 185, 0.8)'
+    drawPeaks(context, vocals.value.peaks, cssWidth, middle)
+  }
+}
+
+function drawPeaks(context: CanvasRenderingContext2D, data: Peaks, cssWidth: number, middle: number): void {
   const bucketsPerPixel = props.span / 1000 * data.rate / cssWidth
   for (let x = 0; x < cssWidth; x++) {
     const from = Math.floor((props.start / 1000) * data.rate + x * bucketsPerPixel)
@@ -100,7 +125,7 @@ onMounted(() => {
   }
 })
 onBeforeUnmount(() => observer?.disconnect())
-watch(() => [props.start, props.span, peaks.value], draw)
+watch(() => [props.start, props.span, peaks.value, vocals.value, showVocals.value], draw)
 
 // ── Dragging block edges, or whole blocks ──
 
@@ -133,9 +158,54 @@ function endDrag(): void {
   }
 }
 
-function onLaneClick(event: MouseEvent): void {
-  const rect = root.value!.getBoundingClientRect()
-  emit('seek', props.start + (event.clientX - rect.left) / rect.width * props.span)
+function zoomBy(factor: number): void {
+  zoom.value = Math.min(8, Math.max(0.25, zoom.value * factor))
+}
+
+const msPerPixel = (): number => props.span / (root.value?.clientWidth || 1)
+
+// A sideways scroll (trackpad, or Shift with a wheel) pans; an upright one zooms.
+function onWheel(event: WheelEvent): void {
+  const sideways = event.shiftKey ? event.deltaY : event.deltaX
+  if (Math.abs(sideways) > Math.abs(event.deltaY) || event.shiftKey) {
+    emit('pan', sideways * msPerPixel())
+  }
+  else {
+    zoomBy(event.deltaY < 0 ? 1.15 : 1 / 1.15)
+  }
+}
+
+// ── Panning the lane, or a click on it to seek ──
+
+let pan: { startX: number, lastX: number, moved: boolean } | null = null
+
+function startPan(event: PointerEvent): void {
+  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+  pan = { startX: event.clientX, lastX: event.clientX, moved: false }
+}
+
+function movePan(event: PointerEvent): void {
+  if (!pan) {
+    return
+  }
+  // A few pixels of jitter still count as a click.
+  pan.moved ||= Math.abs(event.clientX - pan.startX) > 3
+  if (pan.moved) {
+    emit('pan', (pan.lastX - event.clientX) * msPerPixel())
+    pan.lastX = event.clientX
+  }
+}
+
+function endPan(event: PointerEvent): void {
+  if (pan && !pan.moved) {
+    const rect = root.value!.getBoundingClientRect()
+    emit('seek', props.start + (event.clientX - rect.left) / rect.width * props.span)
+  }
+  pan = null
+}
+
+function cancelPan(): void {
+  pan = null
 }
 </script>
 
@@ -143,9 +213,41 @@ function onLaneClick(event: MouseEvent): void {
   <div
     ref="root"
     class="wl"
-    @click="onLaneClick"
+    @pointerdown="startPan"
+    @pointermove="movePan"
+    @pointerup="endPan"
+    @pointercancel="cancelPan"
+    @wheel.prevent="onWheel"
   >
     <div class="wl-ruler">
+      <div
+        class="wl-zoom"
+        @pointerdown.stop
+        @click.stop
+      >
+        <button
+          type="button"
+          :title="t.zoomOut"
+          @click="zoomBy(1 / 1.5)"
+        >
+          −
+        </button>
+        <button
+          type="button"
+          class="wl-zoom-span"
+          :title="t.zoomReset"
+          @click="zoom = 1"
+        >
+          {{ (span / 1000).toFixed(span < 10_000 ? 1 : 0) }}s
+        </button>
+        <button
+          type="button"
+          :title="t.zoomIn"
+          @click="zoomBy(1.5)"
+        >
+          +
+        </button>
+      </div>
       <span
         v-for="tick in ticks"
         :key="tick"
@@ -196,6 +298,13 @@ function onLaneClick(event: MouseEvent): void {
       </div>
     </div>
     <span
+      v-for="marker in visibleMarkers"
+      :key="marker.key"
+      class="wl-marker"
+      :class="{ 'wl-marker--on': marker.on }"
+      :style="{ left: `${pct(marker.at)}%` }"
+    />
+    <span
       class="wl-playhead"
       :style="{ left: `${playhead}%`, opacity: playhead >= 0 && playhead <= 100 ? 1 : 0 }"
     />
@@ -212,14 +321,54 @@ function onLaneClick(event: MouseEvent): void {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 40%),
     var(--lte-bg);
-  cursor: crosshair;
+  cursor: grab;
+  touch-action: pan-y;
   user-select: none;
+}
+.wl:active {
+  cursor: grabbing;
 }
 .wl-ruler {
   position: absolute;
   inset: 0 0 auto;
   height: 1.5rem;
   border-bottom: 1px solid var(--lte-line);
+}
+.wl-zoom {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  padding: 0 0.25rem 0 1.5rem;
+  background: linear-gradient(90deg, transparent, var(--lte-bg) 1.25rem);
+  font-family: var(--lte-mono);
+  cursor: default;
+}
+.wl-zoom button {
+  height: 1.125rem;
+  min-width: 1.125rem;
+  padding: 0 0.25rem;
+  border: none;
+  border-radius: 3px;
+  background: none;
+  color: var(--lte-muted);
+  font-family: inherit;
+  font-size: 0.75rem;
+  line-height: 1;
+  transition: background 120ms ease, color 120ms ease;
+}
+.wl-zoom button:hover {
+  background: var(--lte-hover);
+  color: var(--lte-text);
+}
+.wl-zoom .wl-zoom-span {
+  min-width: 2.75rem;
+  color: var(--lte-faint);
+  font-size: 0.625rem;
+  font-variant-numeric: tabular-nums;
 }
 .wl-tick {
   position: absolute;
@@ -327,6 +476,20 @@ function onLaneClick(event: MouseEvent): void {
 }
 .wl-edge--end {
   right: -5px;
+}
+.wl-marker {
+  position: absolute;
+  top: 1.5rem;
+  bottom: 0;
+  width: 0;
+  border-left: 1.5px dashed var(--lte-muted);
+  opacity: 0.6;
+  pointer-events: none;
+  z-index: 2;
+}
+.wl-marker--on {
+  border-left-color: var(--lte-word);
+  opacity: 1;
 }
 .wl-playhead {
   position: absolute;

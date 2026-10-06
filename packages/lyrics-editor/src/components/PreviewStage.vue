@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { lineAt } from '../core/index.js'
+import { scrollWithin } from '../scroll.js'
 import { useSession, useStageKeys } from '../session.js'
 import PreviewLine from './PreviewLine.vue'
 
@@ -21,7 +22,7 @@ function refine(index: number): void {
 }
 
 function scrollToActive(behavior: ScrollBehavior): void {
-  listEl.value?.querySelector('.pv-line--active')?.scrollIntoView({ block: 'center', behavior })
+  scrollWithin(listEl.value, listEl.value?.querySelector('.pv-line--active'), 'center', behavior)
 }
 
 watch(activeIndex, async () => {

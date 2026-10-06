@@ -2,7 +2,8 @@
 import type { LaneBlock } from './WaveformLane.vue'
 import { cueText } from '@audoria/lyrics-core'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { clearTiming, cueStart, incompleteLines, isCreditLine, isSung, lineStatus, mergeWithNext, nextLine, nudgeWord, setCueText, setLineBegin, shiftLine, splitWord, stampWordEnd, stampWordStart, toWholeLine, wordAt } from '../core/index.js'
+import { clearTiming, cueStart, incompleteLines, isCreditLine, isSung, lineStatus, mergeWithNext, nextLine, nudgeWord, setCueText, splitWord, stampWordEnd, stampWordStart, wordAt } from '../core/index.js'
+import { scrollWithin } from '../scroll.js'
 import { useSession, useStageKeys } from '../session.js'
 import { formatTimecode, parseTimecode } from '../time.js'
 import WaveformLane from './WaveformLane.vue'
@@ -19,7 +20,6 @@ const listEl = ref<HTMLElement | null>(null)
 const cueIndex = computed(() => cursor.value.cue)
 const cue = computed(() => doc.value.cues[cueIndex.value])
 const word = computed(() => wordAt(doc.value, cursor.value))
-const wordMode = computed(() => session.isWordMode(cueIndex.value))
 
 const todo = computed(() => new Set(incompleteLines(doc.value)))
 const visibleLines = computed(() => doc.value.cues.flatMap((item, index) => {
@@ -62,9 +62,7 @@ const fitWindow = computed(() => {
   if (!line) {
     return { start: 0, span: 6000 }
   }
-  const times = wordMode.value
-    ? line.words.flatMap(item => [item.begin, item.end]).filter((time): time is number => time !== undefined)
-    : []
+  const times = line.words.flatMap(item => [item.begin, item.end]).filter((time): time is number => time !== undefined)
   const low = times.length > 0 ? Math.min(...times) : line.begin ?? anchor.value
   const high = Math.max(times.length > 0 ? Math.max(...times) : line.end ?? followingStart(cueIndex.value) ?? low + 3000, low + 2500)
   const pad = (high - low) * 0.12 + 400
@@ -74,10 +72,12 @@ const fitWindow = computed(() => {
 
 // Held still while a block is dragged, so the pointer keeps its place on the time axis.
 const heldWindow = ref<{ start: number, span: number } | null>(null)
-const window_ = computed(() => heldWindow.value ?? fitWindow.value)
+// How far the lane has been panned from the fitted window; reset when another line is picked.
+const panOffset = ref(0)
+const window_ = computed(() => heldWindow.value ?? { start: Math.max(0, fitWindow.value.start + panOffset.value), span: fitWindow.value.span })
 
 function onDragging(active: boolean): void {
-  heldWindow.value = active ? { ...fitWindow.value } : null
+  heldWindow.value = active ? { ...window_.value } : null
 }
 
 const blocks = computed<LaneBlock[]>(() => {
@@ -85,47 +85,19 @@ const blocks = computed<LaneBlock[]>(() => {
   if (!line) {
     return []
   }
-  if (!wordMode.value) {
-    return line.begin === undefined
-      ? []
-      : [{ key: -1, label: cueText(line), begin: line.begin, end: line.end ?? followingStart(cueIndex.value), kind: 'line', selected: true }]
-  }
   return line.words.flatMap((item, index) => item.begin === undefined
     ? []
     : [{ key: index, label: item.text.trim() || '␣', begin: item.begin, end: item.end, kind: 'word' as const, selected: index === cursor.value.word }])
 })
 
 function onDrag(key: number, edge: 'begin' | 'end' | 'both', deltaMs: number): void {
-  const group = `drag:${cueIndex.value}:${key}:${edge}`
-  if (key >= 0) {
-    session.apply(nudgeWord(doc.value, { cue: cueIndex.value, word: key }, edge, deltaMs), group)
-  }
-  else if (edge !== 'end') {
-    session.apply(shiftLine(doc.value, cueIndex.value, deltaMs), group)
-  }
+  session.apply(nudgeWord(doc.value, { cue: cueIndex.value, word: key }, edge, deltaMs), `drag:${cueIndex.value}:${key}:${edge}`)
 }
 
 // ── Editing ──
 
-function toggleMode(): void {
-  const line = cue.value
-  if (!line) {
-    return
-  }
-  const toWords = !wordMode.value
-  session.setWordMode(cueIndex.value, toWords)
-  if (!toWords && line.words.some(item => item.begin !== undefined)) {
-    session.apply(toWholeLine(doc.value, cueIndex.value))
-  }
-  selectWord(0)
-}
-
 function stamp(): void {
   if (!cue.value?.words.length) {
-    return
-  }
-  if (!wordMode.value) {
-    session.stampLineNow(cueIndex.value)
     return
   }
   const at = cursor.value
@@ -135,10 +107,9 @@ function stamp(): void {
     selectWord(at.word + 1)
   }
   else {
-    // Past a line's last word, carry on into the next sung line, timing it word by word too.
+    // Past a line's last word, carry on into the next sung line.
     const following = nextLine(doc.value, at.cue, 1, isSung)
     if (following !== null) {
-      session.setWordMode(following, true)
       session.selectLine(following)
     }
   }
@@ -155,12 +126,7 @@ function stampEnd(): void {
 }
 
 function nudge(edge: 'begin' | 'end', deltaMs: number): void {
-  if (wordMode.value) {
-    session.apply(nudgeWord(doc.value, cursor.value, edge, deltaMs), `nudge:${cursor.value.cue}:${cursor.value.word}:${edge}`)
-  }
-  else if (edge === 'begin') {
-    session.nudgeLine(cueIndex.value, deltaMs)
-  }
+  session.apply(nudgeWord(doc.value, cursor.value, edge, deltaMs), `nudge:${cursor.value.cue}:${cursor.value.word}:${edge}`)
 }
 
 function replayLine(): void {
@@ -182,13 +148,6 @@ function setEdge(edge: 'begin' | 'end', text: string): void {
   }
   else {
     session.apply(nudgeWord(doc.value, cursor.value, edge, time - current))
-  }
-}
-
-function setLineStart(text: string): void {
-  const time = parseTimecode(text)
-  if (time !== undefined) {
-    session.apply(setLineBegin(doc.value, cueIndex.value, time))
   }
 }
 
@@ -214,22 +173,12 @@ function onKey(event: KeyboardEvent): boolean {
   }
   const step = event.shiftKey ? 100 : 10
   switch (event.key.toLowerCase()) {
-    case ' ':
-    case 'j': {
-      if (session.isPlaying()) {
-        stamp()
-      }
-      else {
-        session.play()
-      }
+    case '[': {
+      stamp()
       return true
     }
-    case 'k': {
+    case ']': {
       stampEnd()
-      return true
-    }
-    case 'l': {
-      toggleMode()
       return true
     }
     case 'r': {
@@ -277,9 +226,10 @@ useStageKeys(session, onKey)
 
 watch(cueIndex, async () => {
   zoom.value = 1
+  panOffset.value = 0
   anchor.value = now.value
   await nextTick()
-  listEl.value?.querySelector('.ws-item--on')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  scrollWithin(listEl.value, listEl.value?.querySelector('.ws-item--on'), 'nearest', 'smooth')
 })
 
 onMounted(() => {
@@ -359,26 +309,6 @@ onMounted(() => {
           spellcheck="false"
           @change="editText(($event.target as HTMLInputElement).value)"
         >
-        <div
-          class="ws-mode"
-          role="group"
-          title="L"
-        >
-          <button
-            type="button"
-            :class="{ 'ws-mode--on': !wordMode }"
-            @click="wordMode && toggleMode()"
-          >
-            {{ t.modeLine }}
-          </button>
-          <button
-            type="button"
-            :class="{ 'ws-mode--on': wordMode }"
-            @click="!wordMode && toggleMode()"
-          >
-            {{ t.modeWord }}
-          </button>
-        </div>
         <button
           type="button"
           class="ws-ghost"
@@ -391,6 +321,7 @@ onMounted(() => {
 
       <div class="ws-lane">
         <WaveformLane
+          v-model:zoom="zoom"
           :start="window_.start"
           :span="window_.span"
           :blocks="blocks"
@@ -398,124 +329,89 @@ onMounted(() => {
           @drag="onDrag"
           @dragging="onDragging"
           @seek="session.seek"
+          @pan="panOffset += $event"
         />
-        <div class="ws-zoom">
-          <button
-            type="button"
-            :title="t.zoomOut"
-            @click="zoom = Math.max(0.25, zoom / 1.5)"
-          >
-            −
-          </button>
-          <button
-            type="button"
-            :title="t.zoomIn"
-            @click="zoom = Math.min(8, zoom * 1.5)"
-          >
-            +
-          </button>
-        </div>
       </div>
 
-      <template v-if="wordMode">
-        <p class="ws-hint">
-          {{ t.modeWordHint }}
-        </p>
-        <div class="ws-words">
-          <template
-            v-for="(item, w) in cue.words"
-            :key="w"
-          >
-            <button
-              v-if="w > 0"
-              type="button"
-              class="ws-join"
-              :title="t.merge"
-              @click="session.apply(mergeWithNext(doc, { cue: cueIndex, word: w - 1 }))"
-            />
-            <button
-              type="button"
-              class="ws-word"
-              :class="{
-                'ws-word--timed': item.begin !== undefined,
-                'ws-word--on': w === cursor.word,
-              }"
-              @click="selectWord(w)"
-              @dblclick="item.begin !== undefined && session.seek(item.begin)"
-            >
-              <span
-                v-if="session.isFlashing(cueIndex, w)"
-                :key="session.lastStamp.value!.at"
-                class="ws-flash"
-              />
-              <span class="ws-word-text">{{ item.text.trim() || '␣' }}</span>
-              <span class="ws-word-time">{{ item.begin === undefined ? '·' : (item.begin / 1000).toFixed(2) }}</span>
-            </button>
-          </template>
-        </div>
-
-        <div
-          v-if="word"
-          class="ws-detail"
+      <p class="ws-hint">
+        {{ t.modeWordHint }}
+      </p>
+      <div class="ws-words">
+        <template
+          v-for="(item, w) in cue.words"
+          :key="w"
         >
-          <p
-            class="ws-split"
-            :title="t.splitHere"
-          >
-            <template
-              v-for="(char, i) in [...word.text]"
-              :key="i"
-            >
-              <button
-                v-if="i > 0"
-                type="button"
-                class="ws-split-at"
-                :aria-label="t.splitHere"
-                @click="session.apply(splitWord(doc, cursor, i))"
-              />
-              <span>{{ char === ' ' ? '␣' : char }}</span>
-            </template>
-          </p>
-          <label
-            v-for="edge in (['begin', 'end'] as const)"
-            :key="edge"
-            class="ws-field"
-          >
-            <span>{{ edge === 'begin' ? t.begin : t.end }}</span>
-            <input
-              :value="word[edge] === undefined ? '' : formatTimecode(word[edge])"
-              :placeholder="t.untimed"
-              spellcheck="false"
-              @change="setEdge(edge, ($event.target as HTMLInputElement).value)"
-            >
-          </label>
+          <button
+            v-if="w > 0"
+            type="button"
+            class="ws-join"
+            :title="t.merge"
+            @click="session.apply(mergeWithNext(doc, { cue: cueIndex, word: w - 1 }))"
+          />
           <button
             type="button"
-            class="ws-ghost"
-            :disabled="word.begin === undefined"
-            @click="session.apply(clearTiming(doc, cursor))"
+            class="ws-word"
+            :class="{
+              'ws-word--timed': item.begin !== undefined,
+              'ws-word--on': w === cursor.word,
+            }"
+            @click="selectWord(w)"
+            @dblclick="item.begin !== undefined && session.seek(item.begin)"
           >
-            {{ t.clear }}
+            <span
+              v-if="session.isFlashing(cueIndex, w)"
+              :key="session.lastStamp.value!.at"
+              class="ws-flash"
+            />
+            <span class="ws-word-text">{{ item.text.trim() || '␣' }}</span>
+            <span class="ws-word-time">{{ item.begin === undefined ? '·' : (item.begin / 1000).toFixed(2) }}</span>
           </button>
-        </div>
-      </template>
+        </template>
+      </div>
 
       <div
-        v-else
-        class="ws-detail ws-detail--line"
+        v-if="word"
+        class="ws-detail"
       >
-        <p class="ws-hint">
-          {{ t.modeLineHint }}
+        <p
+          class="ws-split"
+          :title="t.splitHere"
+        >
+          <template
+            v-for="(char, i) in [...word.text]"
+            :key="i"
+          >
+            <button
+              v-if="i > 0"
+              type="button"
+              class="ws-split-at"
+              :aria-label="t.splitHere"
+              @click="session.apply(splitWord(doc, cursor, i))"
+            />
+            <span>{{ char === ' ' ? '␣' : char }}</span>
+          </template>
         </p>
-        <label class="ws-field">
-          <span>{{ t.begin }}</span>
+        <label
+          v-for="edge in (['begin', 'end'] as const)"
+          :key="edge"
+          class="ws-field"
+        >
+          <span>{{ edge === 'begin' ? t.begin : t.end }}</span>
           <input
-            :value="cue.begin === undefined ? '' : formatTimecode(cue.begin)"
+            :value="word[edge] === undefined ? '' : formatTimecode(word[edge])"
             :placeholder="t.untimed"
             spellcheck="false"
-            @change="setLineStart(($event.target as HTMLInputElement).value)"
+            @change="setEdge(edge, ($event.target as HTMLInputElement).value)"
           >
         </label>
+        <button
+          type="button"
+          class="ws-ghost"
+          :disabled="word.begin === undefined"
+          @click="session.apply(clearTiming(doc, cursor))"
+        >
+          {{ t.clear }}
+        </button>
       </div>
     </section>
     <p
@@ -676,30 +572,6 @@ onMounted(() => {
   border-color: var(--lte-accent);
   background: var(--lte-bg);
 }
-.ws-mode {
-  display: flex;
-  overflow: hidden;
-  border: 1px solid var(--lte-line-strong);
-  border-radius: var(--lte-radius);
-}
-.ws-mode button {
-  padding: 0.35rem 0.8rem;
-  border: none;
-  background: none;
-  color: var(--lte-muted);
-  font-family: var(--lte-sans) !important;
-}
-.ws-mode button + button {
-  border-left: 1px solid var(--lte-line-strong);
-}
-.ws-mode .ws-mode--on:first-child {
-  background: var(--lte-whole-soft);
-  color: var(--lte-whole);
-}
-.ws-mode .ws-mode--on:last-child {
-  background: var(--lte-word-soft);
-  color: var(--lte-word);
-}
 .ws-ghost {
   padding: 0.35rem 0.75rem;
   border: 1px solid var(--lte-line-strong);
@@ -714,25 +586,14 @@ onMounted(() => {
 
 .ws-lane {
   position: relative;
+  /* Edge to edge across the pane, past its padding. */
+  margin: 0 -1.5rem;
 }
-.ws-zoom {
-  position: absolute;
-  top: 0.3rem;
-  right: 0.4rem;
-  display: flex;
-  gap: 2px;
-  z-index: 3;
+.ws-lane :deep(.wl) {
+  border-right: none;
+  border-left: none;
+  border-radius: 0;
 }
-.ws-zoom button {
-  width: 1.4rem;
-  height: 1.1rem;
-  padding: 0;
-  border: 1px solid var(--lte-line-strong);
-  border-radius: 3px;
-  background: var(--lte-panel);
-  line-height: 1;
-}
-
 .ws-hint {
   margin: 0;
   color: var(--lte-muted);
@@ -833,10 +694,6 @@ onMounted(() => {
   border: 1px solid var(--lte-line);
   border-radius: calc(var(--lte-radius) + 2px);
   background: var(--lte-panel);
-}
-.ws-detail--line {
-  flex-direction: column;
-  align-items: start;
 }
 .ws-split {
   display: flex;

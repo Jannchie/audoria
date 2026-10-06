@@ -7,7 +7,14 @@ export default defineConfig({
   plugins: [vue()],
   resolve: {
     // Workspace packages are bundled from their source.
-    conditions: ['source', ...defaultClientConditions],
+    conditions: ['source', 'onnxruntime-web-use-extern-wasm', ...defaultClientConditions],
+  },
+  optimizeDeps: {
+    // Pre-bundling would pick ONNX Runtime's build with the .wasm inlined.
+    exclude: ['onnxruntime-web'],
+  },
+  worker: {
+    format: 'es',
   },
   server: {
     port: 5873,

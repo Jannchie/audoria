@@ -1,18 +1,27 @@
 <script setup lang="ts">
 import type { LyricsDoc } from '@audoria/lyrics-core'
-import type { AudioSource, EditorLocale } from '@audoria/lyrics-editor'
+import type { AudioSource, EditorLocale, Stage, VocalsStore } from '@audoria/lyrics-editor'
+
 import { LyricsTimingEditor, mediaElementSource, prepareSave, toEditorLocale } from '@audoria/lyrics-editor'
 import { useEventListener, watchDebounced } from '@vueuse/core'
 import { computed, onMounted, ref, shallowRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useLyricsDoc } from '../composables/useLyrics'
-import { buildDownloadUrl, useMusicQuery, useUpdateLyrics } from '../composables/useMusic'
+import { buildDownloadUrl, fetchVocals, useMusicQuery, useUpdateLyrics, useUploadVocals } from '../composables/useMusic'
 import { usePlayerState } from '../composables/usePlayerState'
 
 const { t, locale } = useI18n()
 const route = useRoute()
+const router = useRouter()
 const trackId = computed(() => String(route.params.id))
+
+// The stage lives in the URL, so a reload comes back to it.
+const STAGES: readonly Stage[] = ['line', 'word', 'preview']
+const stage = computed<Stage>({
+  get: () => STAGES.find(item => item === route.query.stage) ?? 'line',
+  set: value => void router.replace({ query: { ...route.query, stage: value } }),
+})
 const { data: tracks, isPending: isLoadingTracks } = useMusicQuery()
 const track = computed(() => tracks.value?.find(item => item.id === trackId.value))
 const serverDoc = useLyricsDoc(() => track.value)
@@ -119,13 +128,22 @@ watch(audioEl, (element) => {
 })
 onMounted(() => setPlaying(false))
 
-// The waveform needs the whole file; the editor asks for it only when words are refined.
+// The waveform needs the whole file; the editor asks for it only once a marking stage opens.
 async function loadAudioData(): Promise<ArrayBuffer> {
   const response = await fetch(buildDownloadUrl(trackId.value))
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}`)
   }
   return await response.arrayBuffer()
+}
+
+// Separated vocals are kept with the track, so each song is separated once.
+const uploadVocals = useUploadVocals()
+const vocalsStore: VocalsStore = {
+  load: async () => track.value?.hasVocals ? await fetchVocals(trackId.value) : null,
+  save: async (data) => {
+    await uploadVocals.mutateAsync({ id: trackId.value, analysis: data })
+  },
 }
 </script>
 
@@ -178,9 +196,11 @@ async function loadAudioData(): Promise<ArrayBuffer> {
     <LyricsTimingEditor
       v-if="doc && audio"
       v-model:doc="doc"
+      v-model:stage="stage"
       class="editor"
       :audio="audio"
       :load-audio-data="loadAudioData"
+      :vocals-store="vocalsStore"
       :locale="editorLocale"
     />
     <p

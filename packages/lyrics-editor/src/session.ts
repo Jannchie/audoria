@@ -2,8 +2,11 @@ import type { LyricsCue, LyricsDoc } from '@audoria/lyrics-core'
 import type { InjectionKey, Ref, ShallowRef } from 'vue'
 import type { AudioSource, Peaks, WordRef } from './core/index.js'
 import type { EditorMessages } from './messages.js'
-import { inject, onBeforeUnmount, onMounted, reactive, ref, shallowRef } from 'vue'
+import type { VocalAnalysis } from './vocals/analysis.js'
+import type { SeparationProgress } from './vocals/separate.js'
+import { inject, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import { decodePeaks, firstOpenLine, History, nextLine, prepareForTiming, shiftLine, stampLine, wordAt } from './core/index.js'
+import { decodeVocalAnalysis, encodeVocalAnalysis } from './vocals/analysis.js'
 
 export type Stage = 'line' | 'word' | 'preview'
 
@@ -22,6 +25,18 @@ export interface Stamp {
 }
 
 export type PeaksState = 'idle' | 'loading' | 'ready' | 'failed' | 'unavailable'
+
+/**
+ * Where separated vocals are kept between sessions, so a song is separated once. The host
+ * decides where; the analysis is opaque bytes to it.
+ */
+export interface VocalsStore {
+  /** The stored analysis, or null when the song hasn't been separated yet. */
+  load: () => Promise<ArrayBuffer | null>
+  save: (data: ArrayBuffer) => Promise<void>
+}
+
+export type VocalsState = 'unavailable' | 'idle' | 'loading' | 'separating' | 'ready' | 'failed'
 
 /**
  * State the editor's stages share: the document with its history, playback, the selected line
@@ -52,10 +67,6 @@ export interface EditorSession {
   stage: Ref<Stage>
   cursor: Ref<WordRef>
   selectLine: (cue: number) => void
-  /** A line is timed word by word once a word is timed, or once switched to it. */
-  isWordMode: (cue: number) => boolean
-  /** Switches a line to word timing before any of its words is timed, or back. */
-  setWordMode: (cue: number, on: boolean) => void
 
   /** Marks the start of a whole line now, and moves on to the next line with words that `accept` takes. */
   stampLineNow: (cue: number, accept?: (line: LyricsCue) => boolean) => void
@@ -68,6 +79,17 @@ export interface EditorSession {
   peaks: ShallowRef<Peaks | null>
   peaksState: Ref<PeaksState>
   loadPeaks: () => void
+
+  vocals: ShallowRef<VocalAnalysis | null>
+  vocalsState: Ref<VocalsState>
+  vocalsProgress: Ref<SeparationProgress | null>
+  vocalsError: Ref<string>
+  /** Whether the vocals are drawn over the song's waveform. */
+  showVocals: Ref<boolean>
+  /** Picks up vocals separated before, if the host keeps them. */
+  loadVocals: () => void
+  /** Separates the vocals now (a fresh run replaces any kept ones) and keeps them with the host. */
+  separateVocals: () => void
 
   keyHandler: ShallowRef<KeyHandler | null>
   t: Ref<EditorMessages>
@@ -99,6 +121,7 @@ export function createSession(options: {
   initial: LyricsDoc
   audio: () => AudioSource
   loadAudioData?: () => Promise<ArrayBuffer>
+  vocalsStore?: VocalsStore
   onChange: (doc: LyricsDoc) => void
   messages: Ref<EditorMessages>
 }): EditorSession {
@@ -108,14 +131,30 @@ export function createSession(options: {
   const canUndo = ref(false)
   const canRedo = ref(false)
   const cursor = ref<WordRef>({ cue: firstOpenLine(doc.value), word: 0 })
-  // Lines switched to word timing before any word is timed: an editing intent, not document data.
-  const wordLines = reactive(new Set<string>())
   const now = ref(0)
   const playing = ref(false)
   const duration = ref(0)
   const rate = ref(1)
   const peaks = shallowRef<Peaks | null>(null)
   const peaksState = ref<PeaksState>(options.loadAudioData ? 'idle' : 'unavailable')
+  const vocals = shallowRef<VocalAnalysis | null>(null)
+  const vocalsState = ref<VocalsState>(options.loadAudioData ? 'idle' : 'unavailable')
+  const vocalsProgress = ref<SeparationProgress | null>(null)
+  const vocalsError = ref('')
+  const showVocals = ref(true)
+
+  // The song is fetched once for both the waveform and the separation. Decoding takes over
+  // (detaches) the buffer it is given, so each gets a copy.
+  let audioData: Promise<ArrayBuffer> | null = null
+  function songData(): Promise<ArrayBuffer> {
+    audioData ??= options.loadAudioData!()
+    audioData.catch(() => {
+      audioData = null
+    })
+    // An ArrayBuffer copy; spreading would make an array of numbers.
+    // eslint-disable-next-line unicorn/prefer-spread
+    return audioData.then(data => data.slice(0))
+  }
   const lastStamp = ref<Stamp | null>(null)
 
   function refresh(): void {
@@ -155,7 +194,6 @@ export function createSession(options: {
     reset(value) {
       history.reset(prepareForTiming(value))
       refresh()
-      wordLines.clear()
       cursor.value = { cue: firstOpenLine(doc.value), word: 0 }
     },
 
@@ -190,21 +228,6 @@ export function createSession(options: {
     selectLine(cue) {
       cursor.value = { cue, word: 0 }
     },
-    isWordMode(index) {
-      const cue = doc.value.cues[index]
-      return Boolean(cue) && (cue.words.some(word => word.begin !== undefined) || wordLines.has(cue.id))
-    },
-    setWordMode(index, on) {
-      const id = doc.value.cues[index]?.id
-      if (id !== undefined) {
-        if (on) {
-          wordLines.add(id)
-        }
-        else {
-          wordLines.delete(id)
-        }
-      }
-    },
 
     stampLineNow(index, accept) {
       const ms = audio().currentTime * 1000
@@ -233,7 +256,7 @@ export function createSession(options: {
         return
       }
       peaksState.value = 'loading'
-      options.loadAudioData()
+      songData()
         .then(data => decodePeaks(data))
         .then((value) => {
           peaks.value = value
@@ -241,6 +264,53 @@ export function createSession(options: {
         })
         .catch(() => {
           peaksState.value = 'failed'
+        })
+    },
+
+    vocals,
+    vocalsState,
+    vocalsProgress,
+    vocalsError,
+    showVocals,
+    loadVocals() {
+      const store = options.vocalsStore
+      if (!store || vocalsState.value !== 'idle' || vocals.value) {
+        return
+      }
+      vocalsState.value = 'loading'
+      store.load()
+        .then((data) => {
+          vocals.value = data ? decodeVocalAnalysis(data) : null
+          vocalsState.value = vocals.value ? 'ready' : 'idle'
+        })
+        .catch(() => {
+          vocalsState.value = 'idle'
+        })
+    },
+    separateVocals() {
+      if (!options.loadAudioData || vocalsState.value === 'separating' || vocalsState.value === 'loading') {
+        return
+      }
+      vocalsState.value = 'separating'
+      vocalsError.value = ''
+      vocalsProgress.value = { phase: 'separating', fraction: 0 }
+      // Loaded on demand: the separation code and ONNX Runtime stay out of the editor's bundle.
+      Promise.all([songData(), import('./vocals/separate.js')])
+        .then(([data, module]) => module.separateVocals(data, { onProgress: (progress) => {
+          vocalsProgress.value = progress
+        } }))
+        .then((analysis) => {
+          vocals.value = analysis
+          vocalsState.value = 'ready'
+          showVocals.value = true
+          void options.vocalsStore?.save(encodeVocalAnalysis(analysis)).catch(() => {})
+        })
+        .catch((error: unknown) => {
+          vocalsError.value = error instanceof Error ? error.message : String(error)
+          vocalsState.value = vocals.value ? 'ready' : 'failed'
+        })
+        .finally(() => {
+          vocalsProgress.value = null
         })
     },
 
