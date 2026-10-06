@@ -1,0 +1,22 @@
+{
+  "name": "@audoria/vocal-probe",
+  "type": "module",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Throwaway spike: measure in-browser vocal separation with UVR MDX-Net ONNX models on WebGPU",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "onnxruntime-web": "^1.30.0"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "vite": "^8.0.8",
+    "vitest": "^4.1.4"
+  }
+}

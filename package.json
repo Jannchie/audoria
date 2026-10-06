@@ -11,6 +11,7 @@
     "web:dev": "pnpm -C web dev",
     "editor:dev": "pnpm -C apps/lyrics-editor dev",
     "editor:build": "pnpm -C apps/lyrics-editor build",
+    "probe:dev": "pnpm -C apps/vocal-probe dev",
     "dev": "concurrently \"pnpm api:dev\" \"pnpm api:worker\" \"pnpm web:dev\"",
     "db:generate": "drizzle-kit generate --config=api/drizzle.config.ts",
     "docker:build": "docker compose build",

@@ -7,3 +7,4 @@ api/data/
 
 .claude/
 packages/*/dist/
+apps/*/dist/

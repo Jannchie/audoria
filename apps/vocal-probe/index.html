@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>Vocal Probe</title>
+  </head>
+  <body>
+    <main class="vp">
+      <header class="vp-head">
+        <h1>人声分离探针</h1>
+        <span class="vp-sub">UVR MDX-Net · ONNX Runtime Web · <span id="ort-version"></span></span>
+      </header>
+
+      <section class="vp-panel vp-controls">
+        <label class="vp-field">
+          <span>音频</span>
+          <input id="audio-file" type="file" accept="audio/*,video/*" />
+        </label>
+        <label class="vp-field">
+          <span>模型</span>
+          <select id="model-select"></select>
+        </label>
+        <label class="vp-field" id="local-model-field" hidden>
+          <span>本地 .onnx</span>
+          <input id="model-file" type="file" accept=".onnx" />
+        </label>
+        <label class="vp-field">
+          <span>后端</span>
+          <select id="backend-select">
+            <option value="auto">auto（webgpu → wasm）</option>
+            <option value="webgpu">webgpu</option>
+            <option value="wasm">wasm</option>
+          </select>
+        </label>
+        <div class="vp-actions">
+          <button id="run-btn" class="vp-btn vp-btn--primary" disabled>运行</button>
+          <button id="cancel-btn" class="vp-btn" disabled>取消</button>
+          <button id="clear-cache-btn" class="vp-btn" title="删除 Cache API 中缓存的模型">清除模型缓存</button>
+        </div>
+      </section>
+
+      <section class="vp-panel vp-params">
+        <label class="vp-field vp-field--num"><span>n_fft</span><input id="p-nfft" type="number" min="16" step="2" /></label>
+        <label class="vp-field vp-field--num"><span>hop</span><input id="p-hop" type="number" min="1" /></label>
+        <label class="vp-field vp-field--num"><span>dim_f</span><input id="p-dimf" type="number" min="1" /></label>
+        <label class="vp-field vp-field--num"><span>dim_t</span><input id="p-dimt" type="number" min="1" /></label>
+        <label class="vp-field vp-field--num"><span>compensate</span><input id="p-comp" type="number" step="0.001" /></label>
+        <label class="vp-field vp-field--num"><span>margin</span><input id="p-margin" type="number" min="0" value="32" /></label>
+        <label class="vp-field">
+          <span>主输出</span>
+          <select id="p-stem">
+            <option value="Vocals">Vocals</option>
+            <option value="Instrumental">Instrumental（人声 = 混音 − 输出）</option>
+          </select>
+        </label>
+      </section>
+
+      <section class="vp-progress">
+        <div class="vp-bar"><div id="progress-fill" class="vp-bar-fill"></div></div>
+        <div id="status" class="vp-status">选择一个音频文件开始。</div>
+      </section>
+
+      <section class="vp-panel vp-viz">
+        <canvas id="viz"></canvas>
+        <div class="vp-viz-foot">
+          <span class="vp-legend"><i class="vp-swatch vp-swatch--wave"></i>混音波形</span>
+          <span class="vp-legend"><i class="vp-swatch vp-swatch--vocal-wave"></i>人声波形</span>
+          <span class="vp-legend"><i class="vp-swatch vp-swatch--mix"></i>混音能量 dB</span>
+          <span class="vp-legend"><i class="vp-swatch vp-swatch--vocal"></i>人声能量 dB</span>
+          <span class="vp-hint">滚轮缩放 · Shift+滚轮 / 拖动平移 · 点击定位</span>
+          <button id="download-btn" class="vp-btn" disabled>下载包络 JSON</button>
+        </div>
+        <div class="vp-stems">
+          <div class="vp-seg" role="group" aria-label="播放">
+            <button class="vp-seg-btn vp-seg-btn--on" data-stem="mix">原曲</button>
+            <button class="vp-seg-btn" data-stem="vocals" disabled>人声</button>
+            <button class="vp-seg-btn" data-stem="instrumental" disabled>伴奏</button>
+          </div>
+          <a id="dl-vocals" class="vp-btn" hidden>下载人声 WAV</a>
+          <a id="dl-instrumental" class="vp-btn" hidden>下载伴奏 WAV</a>
+        </div>
+        <audio id="player" controls></audio>
+      </section>
+
+      <section class="vp-panel">
+        <table class="vp-metrics"><tbody id="metrics"></tbody></table>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
