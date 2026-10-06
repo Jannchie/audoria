@@ -144,12 +144,13 @@ function onKeydown(event: KeyboardEvent): void {
   }
 }
 
+// Capture, so the editor's keys are taken before any host page shortcut (such as a player's Space) sees them.
 onMounted(() => {
-  globalThis.addEventListener('keydown', onKeydown)
+  globalThis.addEventListener('keydown', onKeydown, true)
   frame = requestAnimationFrame(tick)
 })
 onBeforeUnmount(() => {
-  globalThis.removeEventListener('keydown', onKeydown)
+  globalThis.removeEventListener('keydown', onKeydown, true)
   cancelAnimationFrame(frame)
 })
 </script>
