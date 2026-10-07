@@ -10,7 +10,7 @@ export interface SourceDisplay {
 const sourceDisplayMap = {
   NeteaseMusicClient: { label: 'Netease', icon: 'i-simple-icons-neteasecloudmusic', accent: '#d43c33' },
   QQMusicClient: { label: 'QQ', icon: 'i-simple-icons-qq', accent: '#12b7f5' },
-  KuwoMusicClient: { label: 'Kuwo', icon: 'i-tabler-disc', accent: '#f59e0b' },
+  KuwoMusicClient: { label: 'Kuwo', icon: 'i-jannchie-disc', accent: '#f59e0b' },
   MiguMusicClient: { label: 'Migu', icon: 'i-arcticons-migu', accent: '#60a5fa' },
   JamendoMusicClient: { label: 'Jamendo', icon: 'i-arcticons-jamendo', accent: '#f472b6' },
 } satisfies Record<MusicDlSource, SourceDisplay>
@@ -39,7 +39,7 @@ export function getSourceDisplay(source: string | null | undefined): SourceDispl
   }
   return {
     accent: '#8e8e99',
-    icon: 'i-tabler-world',
+    icon: 'i-jannchie-globe',
     label: source || translate('common.unknown'),
   }
 }

@@ -272,10 +272,4 @@ input[type="search"]::-webkit-search-cancel-button {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-
-  /* Loading spinners convey state; keep them turning. */
-  .animate-spin {
-    animation-duration: 1s !important;
-    animation-iteration-count: infinite !important;
-  }
 }

@@ -109,7 +109,7 @@ function play(track: Music): void {
       class="stats-note"
     >
       <span
-        class="i-tabler-info-circle"
+        class="i-jannchie-info"
         aria-hidden="true"
       />
       {{ t('stats.guestNote') }}
@@ -120,7 +120,7 @@ function play(track: Music): void {
       class="stats-state"
     >
       <span
-        class="i-tabler-loader-2 animate-spin"
+        class="i-jannchie-loading-spinner"
         aria-hidden="true"
       />
     </div>
@@ -149,7 +149,7 @@ function play(track: Music): void {
         class="stats-state"
       >
         <span
-          class="i-tabler-chart-bar stats-empty-icon"
+          class="stats-empty-icon i-jannchie-chart-bar"
           aria-hidden="true"
         />
         <span>{{ t('stats.empty') }}</span>
@@ -200,7 +200,7 @@ function play(track: Music): void {
                     />
                     <span
                       v-else
-                      class="i-tabler-music"
+                      class="i-jannchie-music"
                       aria-hidden="true"
                     />
                   </span>
@@ -252,7 +252,7 @@ function play(track: Music): void {
                     />
                     <span
                       v-else
-                      class="i-tabler-music"
+                      class="i-jannchie-music"
                       aria-hidden="true"
                     />
                   </span>

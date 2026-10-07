@@ -132,10 +132,10 @@ async function handleDelete(playlist: Playlist, event: MouseEvent): Promise<void
 
   try {
     await deletePlaylistMutation.mutateAsync(playlist.id)
-    toast.show({ message: t('feedback.playlistDeleted'), icon: 'i-tabler-trash' })
+    toast.show({ message: t('feedback.playlistDeleted'), icon: 'i-jannchie-trash' })
   }
   catch {
-    toast.show({ message: t('feedback.failed'), icon: 'i-tabler-alert-circle', tone: 'danger' })
+    toast.show({ message: t('feedback.failed'), icon: 'i-jannchie-alert-circle', tone: 'danger' })
   }
 }
 
@@ -166,7 +166,7 @@ async function playPlaylist(playlist: Playlist, event: MouseEvent): Promise<void
     setPlaying(true)
   }
   catch {
-    toast.show({ message: t('feedback.failed'), icon: 'i-tabler-alert-circle', tone: 'danger' })
+    toast.show({ message: t('feedback.failed'), icon: 'i-jannchie-alert-circle', tone: 'danger' })
   }
   finally {
     startingPlaylistId.value = null
@@ -197,7 +197,7 @@ async function playPlaylist(playlist: Playlist, event: MouseEvent): Promise<void
         @click="toggleCreate"
       >
         <span
-          class="i-tabler-plus"
+          class="i-jannchie-plus"
           aria-hidden="true"
         />
         <span>{{ t('playlist.newPlaylist') }}</span>
@@ -240,12 +240,12 @@ async function playPlaylist(playlist: Playlist, event: MouseEvent): Promise<void
         >
           <span
             v-if="isCreating"
-            class="i-tabler-loader-2 animate-spin"
+            class="i-jannchie-loading-spinner"
             aria-hidden="true"
           />
           <span
             v-else
-            class="i-tabler-plus"
+            class="i-jannchie-plus"
             aria-hidden="true"
           />
           <span>{{ t('common.actions.save') }}</span>
@@ -271,7 +271,7 @@ async function playPlaylist(playlist: Playlist, event: MouseEvent): Promise<void
     <div class="playlists-toolbar">
       <div class="playlists-search">
         <span
-          class="i-tabler-search playlists-search-icon"
+          class="playlists-search-icon i-jannchie-search"
           aria-hidden="true"
         />
         <input
@@ -291,14 +291,14 @@ async function playPlaylist(playlist: Playlist, event: MouseEvent): Promise<void
           @click="search = ''"
         >
           <span
-            class="i-tabler-x"
+            class="i-jannchie-x"
             aria-hidden="true"
           />
         </button>
       </div>
       <label class="playlists-sort">
         <span
-          class="i-tabler-sort-descending"
+          class="i-jannchie-sort-descending"
           aria-hidden="true"
         />
         <select
@@ -323,7 +323,7 @@ async function playPlaylist(playlist: Playlist, event: MouseEvent): Promise<void
       role="alert"
     >
       <span
-        class="i-tabler-alert-circle playlist-empty-icon playlist-empty-icon--danger"
+        class="playlist-empty-icon playlist-empty-icon--danger i-jannchie-alert-circle"
         aria-hidden="true"
       />
       <p class="playlist-empty-title">
@@ -359,7 +359,7 @@ async function playPlaylist(playlist: Playlist, event: MouseEvent): Promise<void
     >
       <span
         class="playlist-empty-icon"
-        :class="search ? 'i-tabler-search-off' : 'i-tabler-playlist'"
+        :class="search ? 'i-jannchie-search-off' : 'i-jannchie-list-music'"
         aria-hidden="true"
       />
       <p class="playlist-empty-title">
@@ -375,7 +375,7 @@ async function playPlaylist(playlist: Playlist, event: MouseEvent): Promise<void
         @click="toggleCreate"
       >
         <span
-          class="i-tabler-plus"
+          class="i-jannchie-plus"
           aria-hidden="true"
         />
         <span>{{ t('playlist.newPlaylist') }}</span>
@@ -406,7 +406,7 @@ async function playPlaylist(playlist: Playlist, event: MouseEvent): Promise<void
             @click="playPlaylist(playlist, $event)"
           >
             <span
-              :class="startingPlaylistId === playlist.id ? 'i-tabler-loader-2 animate-spin' : 'i-tabler-player-play-filled'"
+              :class="startingPlaylistId === playlist.id ? 'i-jannchie-loading-spinner' : 'i-jannchie-play'"
               aria-hidden="true"
             />
           </button>
@@ -419,7 +419,7 @@ async function playPlaylist(playlist: Playlist, event: MouseEvent): Promise<void
             @click="handleDelete(playlist, $event)"
           >
             <span
-              class="i-tabler-trash"
+              class="i-jannchie-trash"
               aria-hidden="true"
             />
           </button>

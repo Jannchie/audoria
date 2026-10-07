@@ -187,7 +187,7 @@ watch(isOpen, (open) => {
               @click="close"
             >
               <span
-                class="i-tabler-x"
+                class="i-jannchie-x"
                 aria-hidden="true"
               />
             </button>
@@ -212,7 +212,7 @@ watch(isOpen, (open) => {
                   />
                   <span
                     v-else
-                    class="i-tabler-music queue-cover-placeholder"
+                    class="queue-cover-placeholder i-jannchie-music"
                     aria-hidden="true"
                   />
                 </div>
@@ -267,7 +267,7 @@ watch(isOpen, (open) => {
                   @dragend="handleDragEnd"
                 >
                   <span
-                    class="queue-drag-handle i-tabler-grip-vertical"
+                    class="queue-drag-handle i-jannchie-grip-vertical"
                     aria-hidden="true"
                   />
                   <button
@@ -284,7 +284,7 @@ watch(isOpen, (open) => {
                       />
                       <span
                         v-else
-                        class="i-tabler-music queue-cover-placeholder"
+                        class="queue-cover-placeholder i-jannchie-music"
                         aria-hidden="true"
                       />
                     </div>
@@ -304,7 +304,7 @@ watch(isOpen, (open) => {
                     @click="removeFromQueueAt(item.index)"
                   >
                     <span
-                      class="i-tabler-x"
+                      class="i-jannchie-x"
                       aria-hidden="true"
                     />
                   </button>
@@ -340,7 +340,7 @@ watch(isOpen, (open) => {
                       />
                       <span
                         v-else
-                        class="i-tabler-music queue-cover-placeholder"
+                        class="queue-cover-placeholder i-jannchie-music"
                         aria-hidden="true"
                       />
                     </div>

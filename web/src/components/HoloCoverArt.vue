@@ -188,7 +188,7 @@ watchMaskReady(() => props.foregroundMaskUrl, foregroundMaskReady)
           v-if="!imageUrl"
           class="holo-cover__placeholder"
         >
-          <span class="i-tabler-music text-5xl text-white/15" />
+          <span class="i-jannchie-music text-5xl text-white/15" />
         </div>
       </div>
     </ParallaxCard>

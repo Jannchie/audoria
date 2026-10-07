@@ -28,7 +28,7 @@ const tooltip = computed(() => [
     :title="tooltip"
   >
     <span
-      class="i-tabler-player-play track-play-meta-icon"
+      class="track-play-meta-icon i-jannchie-play"
       aria-hidden="true"
     />
     <span class="track-play-meta-count">{{ t('stats.track.plays', { n: playCount }, playCount) }}</span>

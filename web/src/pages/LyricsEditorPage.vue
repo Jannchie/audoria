@@ -180,7 +180,7 @@ const vocalsStore: VocalsStore = {
         :aria-label="t('lyricsEditor.back')"
       >
         <span
-          class="i-tabler-arrow-left"
+          class="i-jannchie-arrow-left"
           aria-hidden="true"
         />
       </RouterLink>

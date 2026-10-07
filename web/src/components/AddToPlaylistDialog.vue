@@ -144,7 +144,7 @@ function handleBackdropClick(event: MouseEvent): void {
               @click="closeDialog"
             >
               <span
-                class="i-tabler-x"
+                class="i-jannchie-x"
                 aria-hidden="true"
               />
             </button>
@@ -214,12 +214,12 @@ function handleBackdropClick(event: MouseEvent): void {
                 >
                   <span
                     v-if="isPending"
-                    class="i-tabler-loader-2 animate-spin"
+                    class="i-jannchie-loading-spinner"
                     aria-hidden="true"
                   />
                   <span
                     v-else
-                    class="i-tabler-plus"
+                    class="i-jannchie-plus"
                     aria-hidden="true"
                   />
                   <span>Create and add</span>

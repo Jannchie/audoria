@@ -83,7 +83,7 @@ const gridCovers = computed(() => {
     </template>
     <template v-else>
       <span
-        class="i-tabler-playlist playlist-cover-placeholder"
+        class="playlist-cover-placeholder i-jannchie-list-music"
         aria-hidden="true"
       />
     </template>

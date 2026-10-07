@@ -46,24 +46,12 @@ const lineMarks = computed(() => duration.value > 0
     >
       <svg
         v-if="playing"
-        viewBox="0 0 16 16"
-      ><rect
-        x="3.5"
-        y="2.5"
-        width="3"
-        height="11"
-        rx="1"
-      /><rect
-        x="9.5"
-        y="2.5"
-        width="3"
-        height="11"
-        rx="1"
-      /></svg>
+        viewBox="0 0 24 24"
+      ><path d="M8.5 5h0a2 2 0 012 2V17a2 2 0 01-2 2h0a2 2 0 01-2-2V7a2 2 0 012-2zm7 0h0a2 2 0 012 2V17a2 2 0 01-2 2h0a2 2 0 01-2-2V7a2 2 0 012-2z" /></svg>
       <svg
         v-else
-        viewBox="0 0 16 16"
-      ><path d="M4.5 2.8v10.4a.6.6 0 0 0 .9.5l8.2-5.2a.6.6 0 0 0 0-1L5.4 2.3a.6.6 0 0 0-.9.5Z" /></svg>
+        viewBox="0 0 24 24"
+      ><path d="M10.23 6l8.66 5a1.16 1.16 0 010 2l-8.66 5A1.16 1.16 0 018.5 17V7a1.16 1.16 0 011.73-1z" /></svg>
     </button>
     <span class="tb-clock">{{ formatTimecode(now) }}</span>
     <div
@@ -127,9 +115,12 @@ const lineMarks = computed(() => duration.value > 0
   transform: scale(0.94);
 }
 .tb-play svg {
-  width: 0.95rem;
-  height: 0.95rem;
+  width: 1.15rem;
+  height: 1.15rem;
   fill: #fff;
+  stroke: #fff;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
 }
 .tb-clock {
   min-width: 8.5ch;

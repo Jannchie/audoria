@@ -493,7 +493,7 @@ function isImporting(id: string): boolean {
     <div class="search-area">
       <div class="search-bar">
         <span
-          class="i-tabler-search search-bar-icon"
+          class="search-bar-icon i-jannchie-search"
           aria-hidden="true"
         />
         <input
@@ -514,7 +514,7 @@ function isImporting(id: string): boolean {
           @click="searchKeyword = ''"
         >
           <span
-            class="i-tabler-x"
+            class="i-jannchie-x"
             aria-hidden="true"
           />
         </button>
@@ -527,7 +527,7 @@ function isImporting(id: string): boolean {
           @click="handleSearch"
         >
           <span
-            :class="isSearching ? 'i-tabler-loader-2 animate-spin' : 'i-tabler-arrow-right'"
+            :class="isSearching ? 'i-jannchie-loading-spinner' : 'i-jannchie-arrow-right'"
             aria-hidden="true"
           />
         </button>
@@ -591,7 +591,7 @@ function isImporting(id: string): boolean {
       v-if="!isSearching && !hasSearched"
       class="empty-state"
     >
-      <span class="i-tabler-world-search text-4xl text-[var(--text-tertiary)]/30" />
+      <span class="i-jannchie-globe-search text-4xl text-[var(--text-tertiary)]/30" />
       <p class="empty-text">
         {{ t('import.emptyText') }}
       </p>
@@ -650,7 +650,7 @@ function isImporting(id: string): boolean {
           >
           <span
             v-else
-            class="i-tabler-music result-cover-icon"
+            class="result-cover-icon i-jannchie-music"
           />
         </div>
 
@@ -682,35 +682,35 @@ function isImporting(id: string): boolean {
             v-if="isImporting(result.id)"
             class="result-badge result-badge--importing"
           >
-            <span class="i-tabler-loader-2 text-sm animate-spin" />
+            <span class="i-jannchie-loading-spinner text-sm" />
             <span>{{ t('import.badges.importing') }}</span>
           </span>
           <span
             v-else-if="isAlreadyImported(result)"
             class="result-badge result-badge--imported"
           >
-            <span class="i-tabler-check text-sm" />
+            <span class="i-jannchie-check text-sm" />
             <span>{{ t('import.badges.inLibrary') }}</span>
           </span>
           <span
             v-else-if="getLibraryMatchState(result) === 'possible'"
             class="result-badge result-badge--possible"
           >
-            <span class="i-tabler-alert-circle text-sm" />
+            <span class="i-jannchie-alert-circle text-sm" />
             <span>{{ t('import.badges.possibleMatch') }}</span>
           </span>
           <span
             v-else-if="result.downloadable"
             class="result-badge result-badge--download"
           >
-            <span class="i-tabler-download text-sm" />
+            <span class="i-jannchie-download text-sm" />
             <span>{{ t('import.badges.download') }}</span>
           </span>
           <span
             v-else
             class="result-badge result-badge--unavailable"
           >
-            <span class="i-tabler-ban text-sm" />
+            <span class="i-jannchie-ban text-sm" />
             <span>{{ t('import.badges.unavailable') }}</span>
           </span>
         </div>
@@ -723,11 +723,11 @@ function isImporting(id: string): boolean {
       >
         <span
           v-if="isLoadingMore"
-          class="i-tabler-loader-2 animate-spin"
+          class="i-jannchie-loading-spinner"
         />
         <span
           v-else
-          class="i-tabler-plus"
+          class="i-jannchie-plus"
         />
         {{ isLoadingMore ? t('import.loadingMore') : t('import.loadMore', { count: limitPerSource + loadMoreStep }) }}
       </button>
@@ -738,7 +738,7 @@ function isImporting(id: string): boolean {
       v-else-if="searchMutation.isSuccess.value || searchResults.length > 0"
       class="empty-state"
     >
-      <span class="i-tabler-mood-empty text-4xl text-[var(--text-tertiary)]/30" />
+      <span class="i-jannchie-mood-empty text-4xl text-[var(--text-tertiary)]/30" />
       <p class="empty-text">
         {{ searchResults.length > 0 && filteredSearchResults.length === 0 ? t('import.noEnabledResults') : t('import.noResults') }}
       </p>

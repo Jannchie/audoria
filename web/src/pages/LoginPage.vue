@@ -70,7 +70,7 @@ async function handleSubmit(): Promise<void> {
       >
         <span
           v-if="loading"
-          class="i-tabler-loader-2 animate-spin"
+          class="i-jannchie-loading-spinner"
           aria-hidden="true"
         />
         <span v-else>

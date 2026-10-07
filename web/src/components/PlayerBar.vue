@@ -104,15 +104,15 @@ const progress = computed(() => {
 
 const playModeIcon = computed(() => {
   if (playMode.value === 'sequence') {
-    return 'i-tabler-list'
+    return 'i-jannchie-list'
   }
   if (playMode.value === 'repeat-all') {
-    return 'i-tabler-repeat'
+    return 'i-jannchie-repeat'
   }
   if (playMode.value === 'repeat-one') {
-    return 'i-tabler-repeat-once'
+    return 'i-jannchie-repeat-one'
   }
-  return 'i-tabler-arrows-shuffle'
+  return 'i-jannchie-shuffle'
 })
 
 const playModeLabel = computed(() => {
@@ -142,12 +142,12 @@ const playModeLabel = computed(() => {
 
 const volumeIcon = computed(() => {
   if (muted.value || volume.value === 0) {
-    return 'i-tabler-volume-off'
+    return 'i-jannchie-volume-mute'
   }
   if (volume.value < 0.5) {
-    return 'i-tabler-volume-2'
+    return 'i-jannchie-volume-low'
   }
-  return 'i-tabler-volume'
+  return 'i-jannchie-volume'
 })
 
 const displayedCurrentTime = computed(() => {
@@ -600,7 +600,7 @@ onUnmounted(() => {
           />
           <span
             v-else
-            class="i-tabler-music playerbar-cover-placeholder"
+            class="playerbar-cover-placeholder i-jannchie-music"
           />
         </div>
         <div class="playerbar-meta">
@@ -634,7 +634,7 @@ onUnmounted(() => {
           @click.stop="togglePlayPause"
         >
           <span
-            :class="isPlaying ? 'i-tabler-player-pause-filled' : 'i-tabler-player-play-filled'"
+            :class="isPlaying ? 'i-jannchie-pause' : 'i-jannchie-play'"
             aria-hidden="true"
           />
         </button>
@@ -645,7 +645,7 @@ onUnmounted(() => {
           @click.stop="handleNext"
         >
           <span
-            class="i-tabler-player-skip-forward-filled"
+            class="i-jannchie-skip-forward"
             aria-hidden="true"
           />
         </button>
@@ -657,7 +657,7 @@ onUnmounted(() => {
           :aria-label="t('common.actions.previousTrack')"
           :title="`${t('common.actions.previousTrack')} (P)`"
           aria-keyshortcuts="P"
-          icon="i-tabler-player-skip-back-filled"
+          icon="i-jannchie-skip-back"
           size="sm"
           @click="handlePrev"
         />
@@ -666,7 +666,7 @@ onUnmounted(() => {
           :aria-label="isPlaying ? t('common.actions.pause') : t('common.actions.play')"
           :title="`${isPlaying ? t('common.actions.pause') : t('common.actions.play')} (${t('shortcuts.space')})`"
           aria-keyshortcuts="Space K"
-          :icon="isPlaying ? 'i-tabler-player-pause-filled' : 'i-tabler-player-play-filled'"
+          :icon="isPlaying ? 'i-jannchie-pause' : 'i-jannchie-play'"
           tone="primary"
           size="lg"
           @click="togglePlayPause"
@@ -675,7 +675,7 @@ onUnmounted(() => {
           :aria-label="t('common.actions.nextTrack')"
           :title="`${t('common.actions.nextTrack')} (N)`"
           aria-keyshortcuts="N"
-          icon="i-tabler-player-skip-forward-filled"
+          icon="i-jannchie-skip-forward"
           size="sm"
           @click="handleNext"
         />
@@ -698,7 +698,7 @@ onUnmounted(() => {
           :aria-expanded="isQueueOpen"
           :title="`${t('player.toggleQueue')} (Q)`"
           aria-keyshortcuts="Q"
-          icon="i-tabler-playlist"
+          icon="i-jannchie-list-music"
           size="sm"
           @click="toggleQueuePanel"
         />

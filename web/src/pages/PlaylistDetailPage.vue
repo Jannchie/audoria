@@ -219,7 +219,7 @@ function openHeaderMenu(event: MouseEvent): void {
     {
       id: 'edit',
       label: t('common.actions.editMetadata'),
-      icon: 'i-tabler-edit',
+      icon: 'i-jannchie-edit',
       onSelect: () => {
         isEditing.value = true
       },
@@ -227,14 +227,14 @@ function openHeaderMenu(event: MouseEvent): void {
     {
       id: 'add-tracks',
       label: t('playlist.addTracks'),
-      icon: 'i-tabler-playlist-add',
+      icon: 'i-jannchie-list-music-plus',
       onSelect: () => goToLibrary(),
     },
     { id: 'div', label: '', divider: true },
     {
       id: 'delete',
       label: t('playlist.deletePlaylist'),
-      icon: 'i-tabler-trash',
+      icon: 'i-jannchie-trash',
       danger: true,
       onSelect: () => handleDeletePlaylist(),
     },
@@ -275,10 +275,10 @@ async function handleDeletePlaylist(): Promise<void> {
     await deletePlaylistMutation.mutateAsync(playlistId.value)
   }
   catch {
-    toast.show({ message: t('feedback.failed'), icon: 'i-tabler-alert-circle', tone: 'danger' })
+    toast.show({ message: t('feedback.failed'), icon: 'i-jannchie-alert-circle', tone: 'danger' })
     return
   }
-  toast.show({ message: t('feedback.playlistDeleted'), icon: 'i-tabler-trash' })
+  toast.show({ message: t('feedback.playlistDeleted'), icon: 'i-jannchie-trash' })
 
   if (isCurrentPlaylistContext.value) {
     selectTrack(null, {
@@ -354,7 +354,7 @@ function openSortMenu(event: MouseEvent): void {
   openFromAnchor(anchor, playlistSortKeys.map(key => ({
     id: `sort:${key}`,
     label: t(`playlist.trackSort.${key}`),
-    icon: sortKey.value === key ? 'i-tabler-check' : 'i-tabler-point',
+    icon: sortKey.value === key ? 'i-jannchie-check' : 'i-jannchie-dot',
     onSelect: () => {
       sortKey.value = key
     },
@@ -425,7 +425,7 @@ function handleDragEnd(): void {
       role="alert"
     >
       <span
-        class="i-tabler-alert-circle empty-state-icon"
+        class="empty-state-icon i-jannchie-alert-circle"
         aria-hidden="true"
       />
       <p class="empty-title">
@@ -493,7 +493,7 @@ function handleDragEnd(): void {
                 @click="savePlaylist"
               >
                 <span
-                  class="i-tabler-check"
+                  class="i-jannchie-check"
                   aria-hidden="true"
                 />
                 <span>{{ t('common.actions.save') }}</span>
@@ -514,7 +514,7 @@ function handleDragEnd(): void {
                 @click="playAll"
               >
                 <span
-                  class="i-tabler-player-play-filled"
+                  class="i-jannchie-play"
                   aria-hidden="true"
                 />
                 <span>{{ t('playlist.playAll') }}</span>
@@ -526,7 +526,7 @@ function handleDragEnd(): void {
                 @click="shuffleAll"
               >
                 <span
-                  class="i-tabler-arrows-shuffle"
+                  class="i-jannchie-shuffle"
                   aria-hidden="true"
                 />
                 <span>{{ t('playlist.shuffle') }}</span>
@@ -539,7 +539,7 @@ function handleDragEnd(): void {
                 @click="openHeaderMenu($event)"
               >
                 <span
-                  class="i-tabler-dots"
+                  class="i-jannchie-dots"
                   aria-hidden="true"
                 />
               </button>
@@ -551,7 +551,7 @@ function handleDragEnd(): void {
                 @click="openSortMenu($event)"
               >
                 <span
-                  class="i-tabler-arrows-sort"
+                  class="i-jannchie-arrows-up-down"
                   aria-hidden="true"
                 />
                 <span class="sort-button-text">{{ t(`playlist.trackSort.${sortKey}`) }}</span>
@@ -580,7 +580,7 @@ function handleDragEnd(): void {
           @click="openSelectionMenu($event)"
         >
           <span
-            class="i-tabler-dots"
+            class="i-jannchie-dots"
             aria-hidden="true"
           />
           <span>{{ t('common.actions.moreOptions') }}</span>
@@ -591,7 +591,7 @@ function handleDragEnd(): void {
           @click="selection.clear"
         >
           <span
-            class="i-tabler-x"
+            class="i-jannchie-x"
             aria-hidden="true"
           />
           <span>{{ t('common.actions.cancel') }}</span>
@@ -603,7 +603,7 @@ function handleDragEnd(): void {
         class="playlist-detail-empty"
       >
         <span
-          class="i-tabler-playlist playlist-detail-empty-icon"
+          class="playlist-detail-empty-icon i-jannchie-list-music"
           aria-hidden="true"
         />
         <p>{{ t('playlist.empty') }}</p>
@@ -612,7 +612,7 @@ function handleDragEnd(): void {
           to="/library"
         >
           <span
-            class="i-tabler-vinyl"
+            class="i-jannchie-vinyl"
             aria-hidden="true"
           />
           <span>{{ t('playlist.addTracks') }}</span>
@@ -629,7 +629,7 @@ function handleDragEnd(): void {
           <span class="tr-head-index">#</span>
           <span class="tr-head-title">{{ t('metadata.fields.title') }}</span>
           <span>{{ t('metadata.fields.album') }}</span>
-          <span class="tr-head-duration i-tabler-clock" />
+          <span class="tr-head-duration i-jannchie-clock" />
         </div>
         <div
           v-for="(track, index) in tracks"
@@ -673,7 +673,7 @@ function handleDragEnd(): void {
             />
             <span
               v-else
-              class="i-tabler-music tr-cover-placeholder"
+              class="tr-cover-placeholder i-jannchie-music"
               aria-hidden="true"
             />
             <span
@@ -686,7 +686,7 @@ function handleDragEnd(): void {
               />
               <span
                 v-else
-                class="i-tabler-player-play-filled tr-cover-play"
+                class="tr-cover-play i-jannchie-play"
               />
             </span>
           </div>
@@ -717,7 +717,7 @@ function handleDragEnd(): void {
             @click.stop="openTrackMoreMenu(track.id, $event)"
           >
             <span
-              class="i-tabler-dots"
+              class="i-jannchie-dots"
               aria-hidden="true"
             />
           </button>

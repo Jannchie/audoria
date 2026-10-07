@@ -405,7 +405,7 @@ const activeLanguageHint = computed(() => {
           @click="activeSection = 'runtime'"
         >
           <span
-            class="i-tabler-server-cog settings-tab__icon"
+            class="settings-tab__icon i-jannchie-server-cog"
             aria-hidden="true"
           />
           <span>{{ t('settings.groups.runtime') }}</span>
@@ -418,7 +418,7 @@ const activeLanguageHint = computed(() => {
           @click="activeSection = 'appearance'"
         >
           <span
-            class="i-tabler-palette settings-tab__icon"
+            class="settings-tab__icon i-jannchie-palette"
             aria-hidden="true"
           />
           <span>{{ t('settings.groups.appearance') }}</span>
@@ -777,7 +777,7 @@ const activeLanguageHint = computed(() => {
                         </template>
                       </span>
                       <span
-                        class="ai-provider-row__chevron i-tabler-chevron-down"
+                        class="ai-provider-row__chevron i-jannchie-chevron-down"
                         :class="{ 'ai-provider-row__chevron--open': expandedProvider === p.key }"
                       />
                     </div>

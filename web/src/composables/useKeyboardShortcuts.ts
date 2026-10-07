@@ -96,7 +96,7 @@ export function useKeyboardShortcuts(): void {
     toast.show({
       key: 'volume',
       message: percent === 0 ? t('feedback.muted') : t('feedback.volume', { percent }),
-      icon: percent === 0 ? 'i-tabler-volume-off' : percent < 50 ? 'i-tabler-volume-2' : 'i-tabler-volume',
+      icon: percent === 0 ? 'i-jannchie-volume-mute' : percent < 50 ? 'i-jannchie-volume-low' : 'i-jannchie-volume',
       duration: 1200,
     })
   }
@@ -257,7 +257,7 @@ export function useKeyboardShortcuts(): void {
       handler: () => {
         controls.toggleMute()
         if (controls.muted.value) {
-          toast.show({ key: 'volume', message: t('feedback.muted'), icon: 'i-tabler-volume-off', duration: 1200 })
+          toast.show({ key: 'volume', message: t('feedback.muted'), icon: 'i-jannchie-volume-mute', duration: 1200 })
         }
         else {
           announceVolume(controls.volume.value)
@@ -271,7 +271,7 @@ export function useKeyboardShortcuts(): void {
       combos: ['s'],
       handler: () => {
         const mode = controls.toggleShuffle()
-        toast.show({ key: 'play-mode', message: modeLabel(mode), icon: mode === 'shuffle' ? 'i-tabler-arrows-shuffle' : 'i-tabler-repeat' })
+        toast.show({ key: 'play-mode', message: modeLabel(mode), icon: mode === 'shuffle' ? 'i-jannchie-shuffle' : 'i-jannchie-repeat' })
       },
     },
     {
@@ -281,7 +281,7 @@ export function useKeyboardShortcuts(): void {
       combos: ['r'],
       handler: () => {
         const mode = controls.cycleRepeat()
-        const icon = mode === 'repeat-one' ? 'i-tabler-repeat-once' : mode === 'sequence' ? 'i-tabler-list' : 'i-tabler-repeat'
+        const icon = mode === 'repeat-one' ? 'i-jannchie-repeat-one' : mode === 'sequence' ? 'i-jannchie-list' : 'i-jannchie-repeat'
         toast.show({ key: 'play-mode', message: modeLabel(mode), icon })
       },
     },

@@ -225,7 +225,7 @@ onBeforeUnmount(() => {
           :title="`${t.undo} · Ctrl+Z`"
           @click="session.undo()"
         >
-          <svg viewBox="0 0 16 16"><path d="M6 3 2.5 6.5 6 10M3 6.5h6.5a4 4 0 0 1 0 8H7" /></svg>
+          <svg viewBox="0 0 24 24"><path d="M9 4.5L4.35 9.15a.5.5 0 000 .7L9 14.5m-3.94-5H14.5a5.5 5.5 0 010 11H11" /></svg>
         </button>
         <button
           type="button"
@@ -234,7 +234,7 @@ onBeforeUnmount(() => {
           :title="`${t.redo} · Ctrl+Shift+Z`"
           @click="session.redo()"
         >
-          <svg viewBox="0 0 16 16"><path d="M10 3l3.5 3.5L10 10m3-3.5H6.5a4 4 0 0 0 0 8H9" /></svg>
+          <svg viewBox="0 0 24 24"><path d="M15 4.5l4.65 4.65a.5.5 0 010 .7L15 14.5m3.94-5H9.5a5.5 5.5 0 000 11H13" /></svg>
         </button>
         <button
           type="button"
@@ -442,7 +442,7 @@ onBeforeUnmount(() => {
   height: 1rem;
   fill: none;
   stroke: currentColor;
-  stroke-width: 1.4;
+  stroke-width: 1.5;
   stroke-linecap: round;
   stroke-linejoin: round;
 }

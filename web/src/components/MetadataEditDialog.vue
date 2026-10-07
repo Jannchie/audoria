@@ -258,7 +258,7 @@ function applySourcePreset(value: string): void {
               @click="handleClose"
             >
               <span
-                class="i-tabler-x"
+                class="i-jannchie-x"
                 aria-hidden="true"
               />
             </button>
@@ -276,14 +276,14 @@ function applySourcePreset(value: string): void {
                 />
                 <span
                   v-else
-                  class="i-tabler-music metadata-cover-placeholder"
+                  class="metadata-cover-placeholder i-jannchie-music"
                   aria-hidden="true"
                 />
               </div>
               <div class="metadata-cover-actions">
                 <label class="metadata-btn metadata-btn--secondary">
                   <span
-                    class="i-tabler-upload"
+                    class="i-jannchie-upload"
                     aria-hidden="true"
                   />
                   <span>{{ t('common.actions.chooseImage') }}</span>
@@ -303,7 +303,7 @@ function applySourcePreset(value: string): void {
                   @click="handleRemoveCover"
                 >
                   <span
-                    class="i-tabler-trash"
+                    class="i-jannchie-trash"
                     aria-hidden="true"
                   />
                   <span>{{ t('common.actions.remove') }}</span>
@@ -316,7 +316,7 @@ function applySourcePreset(value: string): void {
                   @click="handleUndoRemove"
                 >
                   <span
-                    class="i-tabler-arrow-back-up"
+                    class="i-jannchie-undo"
                     aria-hidden="true"
                   />
                   <span>{{ t('common.actions.keepCurrent') }}</span>
@@ -398,7 +398,7 @@ function applySourcePreset(value: string): void {
                     @click="applySourcePreset('')"
                   >
                     <span
-                      class="i-tabler-x"
+                      class="i-jannchie-x"
                       aria-hidden="true"
                     />
                   </button>
@@ -457,7 +457,7 @@ function applySourcePreset(value: string): void {
               >
                 <span
                   v-if="isSaving"
-                  class="i-tabler-loader-2 animate-spin"
+                  class="i-jannchie-loading-spinner"
                   aria-hidden="true"
                 />
                 <span>{{ isSaving ? t('common.actions.saving') : t('common.actions.save') }}</span>

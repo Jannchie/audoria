@@ -83,7 +83,7 @@ function handleBackdropClick(event: MouseEvent): void {
               @click="close"
             >
               <span
-                class="i-tabler-x"
+                class="i-jannchie-x"
                 aria-hidden="true"
               />
             </button>

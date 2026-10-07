@@ -279,15 +279,15 @@ const progress = computed(() => {
 
 const playModeIcon = computed(() => {
   if (playMode.value === 'sequence') {
-    return 'i-tabler-list'
+    return 'i-jannchie-list'
   }
   if (playMode.value === 'repeat-all') {
-    return 'i-tabler-repeat'
+    return 'i-jannchie-repeat'
   }
   if (playMode.value === 'repeat-one') {
-    return 'i-tabler-repeat-once'
+    return 'i-jannchie-repeat-one'
   }
-  return 'i-tabler-arrows-shuffle'
+  return 'i-jannchie-shuffle'
 })
 
 const playModeLabel = computed(() => {
@@ -314,12 +314,12 @@ const playModeLabel = computed(() => {
 
 const volumeIcon = computed(() => {
   if (muted.value || volume.value === 0) {
-    return 'i-tabler-volume-off'
+    return 'i-jannchie-volume-mute'
   }
   if (volume.value < 0.5) {
-    return 'i-tabler-volume-2'
+    return 'i-jannchie-volume-low'
   }
-  return 'i-tabler-volume'
+  return 'i-jannchie-volume'
 })
 
 const displayedCurrentTime = computed(() => {
@@ -691,7 +691,7 @@ onUnmounted(() => {
       @click="router.back()"
     >
       <span
-        class="i-tabler-chevron-left"
+        class="i-jannchie-chevron-left"
         aria-hidden="true"
       />
     </button>
@@ -758,7 +758,7 @@ onUnmounted(() => {
                 @click="shiftCurrentLyrics(-1)"
               >
                 <span
-                  class="i-tabler-minus"
+                  class="i-jannchie-minus"
                   aria-hidden="true"
                 />
               </button>
@@ -785,7 +785,7 @@ onUnmounted(() => {
                 @click="shiftCurrentLyrics(1)"
               >
                 <span
-                  class="i-tabler-plus"
+                  class="i-jannchie-plus"
                   aria-hidden="true"
                 />
               </button>
@@ -794,7 +794,7 @@ onUnmounted(() => {
                 class="lyrics-saving"
               >
                 <span
-                  class="i-tabler-loader-2 animate-spin"
+                  class="i-jannchie-loading-spinner"
                   aria-hidden="true"
                 />
               </span>
@@ -812,7 +812,7 @@ onUnmounted(() => {
                 @click="isFuriganaEditing = !isFuriganaEditing"
               >
                 <span
-                  class="i-tabler-pencil"
+                  class="i-jannchie-pen"
                   aria-hidden="true"
                 />
                 {{ t('player.lyrics.editFurigana') }}
@@ -824,7 +824,7 @@ onUnmounted(() => {
               :to="`/lyrics-editor/${currentTrack.id}`"
             >
               <span
-                class="i-tabler-clock-edit"
+                class="i-jannchie-clock-edit"
                 aria-hidden="true"
               />
               {{ t('player.lyrics.timing') }}
@@ -835,7 +835,7 @@ onUnmounted(() => {
               download
             >
               <span
-                class="i-tabler-download"
+                class="i-jannchie-download"
                 aria-hidden="true"
               />
               {{ t('player.lyrics.exportTtml') }}
@@ -972,7 +972,7 @@ onUnmounted(() => {
               v-else
               class="lyrics-empty"
             >
-              <span class="i-tabler-music-off text-3xl text-white/10" />
+              <span class="i-jannchie-music-off text-3xl text-white/10" />
               <p class="text-sm text-white/25 mt-3">
                 {{ t('player.noLyricsAvailable') }}
               </p>
@@ -1061,7 +1061,7 @@ onUnmounted(() => {
               @click="handlePrev"
             >
               <span
-                class="i-tabler-player-skip-back-filled"
+                class="i-jannchie-skip-back"
                 aria-hidden="true"
               />
             </button>
@@ -1072,7 +1072,7 @@ onUnmounted(() => {
               @click="togglePlayPause"
             >
               <span
-                :class="isPlaying ? 'i-tabler-player-pause-filled' : 'i-tabler-player-play-filled'"
+                :class="isPlaying ? 'i-jannchie-pause' : 'i-jannchie-play'"
                 aria-hidden="true"
               />
             </button>
@@ -1083,7 +1083,7 @@ onUnmounted(() => {
               @click="handleNext"
             >
               <span
-                class="i-tabler-player-skip-forward-filled"
+                class="i-jannchie-skip-forward"
                 aria-hidden="true"
               />
             </button>
@@ -1102,7 +1102,7 @@ onUnmounted(() => {
                 @click="toggleFurigana"
               >
                 <span
-                  class="i-tabler-language-hiragana"
+                  class="i-jannchie-language-hiragana"
                   aria-hidden="true"
                 />
               </button>
@@ -1117,7 +1117,7 @@ onUnmounted(() => {
                 @click="toggleLyricsToolbar"
               >
                 <span
-                  class="i-tabler-adjustments-horizontal"
+                  class="i-jannchie-sliders"
                   aria-hidden="true"
                 />
               </button>
@@ -1130,7 +1130,7 @@ onUnmounted(() => {
                 @click="openEdit"
               >
                 <span
-                  class="i-tabler-edit"
+                  class="i-jannchie-edit"
                   aria-hidden="true"
                 />
               </button>

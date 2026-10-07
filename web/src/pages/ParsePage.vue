@@ -73,7 +73,7 @@ function sourceDisplay(source: string | null | undefined): { label: string, icon
   if (source === 'Youtube') {
     return { label: 'YouTube', icon: 'i-simple-icons-youtube' }
   }
-  return { label: source || t('common.unknown'), icon: 'i-tabler-world' }
+  return { label: source || t('common.unknown'), icon: 'i-jannchie-globe' }
 }
 
 const detectedSource = computed<'Bilibili' | 'Youtube' | null>(() => {
@@ -236,7 +236,7 @@ watch(
     <div class="parse-bar-wrapper">
       <div class="parse-bar">
         <span
-          class="i-tabler-link parse-bar-icon"
+          class="parse-bar-icon i-jannchie-link"
           aria-hidden="true"
         />
         <input
@@ -262,7 +262,7 @@ watch(
           @click="handleParse"
         >
           <span
-            :class="isParsing ? 'i-tabler-loader-2 animate-spin' : 'i-tabler-arrow-right'"
+            :class="isParsing ? 'i-jannchie-loading-spinner' : 'i-jannchie-arrow-right'"
             aria-hidden="true"
           />
         </button>
@@ -298,7 +298,7 @@ watch(
         >
         <span
           v-else
-          class="i-tabler-music preview-cover-icon"
+          class="preview-cover-icon i-jannchie-music"
           aria-hidden="true"
         />
       </div>
@@ -323,7 +323,7 @@ watch(
             class="preview-tag"
           >
             <span
-              class="i-tabler-clock preview-tag-icon"
+              class="preview-tag-icon i-jannchie-clock"
               aria-hidden="true"
             />
             {{ parsedResult.duration }}
@@ -342,7 +342,7 @@ watch(
           @click="handleReset"
         >
           <span
-            class="i-tabler-x"
+            class="i-jannchie-x"
             aria-hidden="true"
           />
           {{ t('common.actions.reset') }}
@@ -355,12 +355,12 @@ watch(
         >
           <span
             v-if="isImporting"
-            class="i-tabler-loader-2 animate-spin"
+            class="i-jannchie-loading-spinner"
             aria-hidden="true"
           />
           <span
             v-else
-            class="i-tabler-download"
+            class="i-jannchie-download"
             aria-hidden="true"
           />
           {{ isImporting ? t('common.actions.downloading') : t('common.actions.download') }}
@@ -374,7 +374,7 @@ watch(
       class="empty-state"
     >
       <span
-        class="i-tabler-link text-4xl text-[var(--text-tertiary)]/30"
+        class="i-jannchie-link text-4xl text-[var(--text-tertiary)]/30"
         aria-hidden="true"
       />
       <p class="empty-title">

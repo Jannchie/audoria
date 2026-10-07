@@ -31,18 +31,18 @@ const authReady = computed(() => status.value !== 'loading')
 
 // Labels are computed so they follow runtime locale changes.
 const allNavItems = computed(() => [
-  { name: t('nav.library'), path: '/library', icon: 'i-tabler-vinyl' },
-  { name: t('nav.playlists'), path: '/playlists', icon: 'i-tabler-playlist' },
-  { name: t('nav.explore'), path: '/import', icon: 'i-tabler-compass' },
-  { name: t('nav.parse'), path: '/parse', icon: 'i-tabler-link' },
-  { name: t('nav.upload'), path: '/upload', icon: 'i-tabler-upload' },
-  { name: t('nav.player'), path: '/player', icon: 'i-tabler-wave-sine' },
-  { name: t('nav.settings'), path: '/settings', icon: 'i-tabler-settings' },
+  { name: t('nav.library'), path: '/library', icon: 'i-jannchie-vinyl' },
+  { name: t('nav.playlists'), path: '/playlists', icon: 'i-jannchie-list-music' },
+  { name: t('nav.explore'), path: '/import', icon: 'i-jannchie-compass' },
+  { name: t('nav.parse'), path: '/parse', icon: 'i-jannchie-link' },
+  { name: t('nav.upload'), path: '/upload', icon: 'i-jannchie-upload' },
+  { name: t('nav.player'), path: '/player', icon: 'i-jannchie-wave-sine' },
+  { name: t('nav.settings'), path: '/settings', icon: 'i-jannchie-settings' },
 ])
 
 const restrictedPaths: Set<string> = new Set(GUEST_RESTRICTED_PATHS)
 
-const loginNavItem = computed(() => ({ name: t('nav.login'), path: '/login', icon: 'i-tabler-login' }))
+const loginNavItem = computed(() => ({ name: t('nav.login'), path: '/login', icon: 'i-jannchie-login' }))
 
 const navItems = computed(() => {
   if (isGuest.value) {
@@ -56,10 +56,10 @@ const navItems = computed(() => {
 
 // Mobile tabs
 const allMobileNavItems = computed(() => [
-  { name: t('nav.library'), path: '/library', icon: 'i-tabler-vinyl' },
-  { name: t('nav.playlists'), path: '/playlists', icon: 'i-tabler-playlist' },
-  { name: t('nav.explore'), path: '/import', icon: 'i-tabler-compass' },
-  { name: t('nav.settings'), path: '/settings', icon: 'i-tabler-settings' },
+  { name: t('nav.library'), path: '/library', icon: 'i-jannchie-vinyl' },
+  { name: t('nav.playlists'), path: '/playlists', icon: 'i-jannchie-list-music' },
+  { name: t('nav.explore'), path: '/import', icon: 'i-jannchie-compass' },
+  { name: t('nav.settings'), path: '/settings', icon: 'i-jannchie-settings' },
 ])
 
 const mobileNavItems = computed(() => {
@@ -115,7 +115,7 @@ watchEffect(() => {
     class="auth-loading"
   >
     <span
-      class="i-tabler-loader-2 auth-loading-icon animate-spin"
+      class="auth-loading-icon i-jannchie-loading-spinner"
       aria-hidden="true"
     />
   </div>

@@ -122,7 +122,7 @@ function openSortMenu(event: MouseEvent): void {
   openFromAnchor(anchor, librarySortKeys.map(key => ({
     id: `sort:${key}`,
     label: t(`library.sort.${key}`),
-    icon: sortKey.value === key ? 'i-tabler-check' : 'i-tabler-point',
+    icon: sortKey.value === key ? 'i-jannchie-check' : 'i-jannchie-dot',
     onSelect: () => {
       sortKey.value = key
     },
@@ -319,7 +319,7 @@ function handleDragEnd(): void {
     <div class="search-wrapper">
       <div class="search-field">
         <span
-          class="i-tabler-search search-icon"
+          class="search-icon i-jannchie-search"
           aria-hidden="true"
         />
         <input
@@ -344,7 +344,7 @@ function handleDragEnd(): void {
           @click="search = ''"
         >
           <span
-            class="i-tabler-x"
+            class="i-jannchie-x"
             aria-hidden="true"
           />
         </button>
@@ -356,7 +356,7 @@ function handleDragEnd(): void {
         @click="openSortMenu($event)"
       >
         <span
-          class="i-tabler-arrows-sort"
+          class="i-jannchie-arrows-up-down"
           aria-hidden="true"
         />
         <span class="sort-button-text">{{ t(`library.sort.${sortKey}`) }}</span>
@@ -377,7 +377,7 @@ function handleDragEnd(): void {
         @click="openBatchMenu($event)"
       >
         <span
-          class="i-tabler-dots"
+          class="i-jannchie-dots"
           aria-hidden="true"
         />
         <span>{{ t('common.actions.moreOptions') }}</span>
@@ -388,7 +388,7 @@ function handleDragEnd(): void {
         @click="selection.clear"
       >
         <span
-          class="i-tabler-x"
+          class="i-jannchie-x"
           aria-hidden="true"
         />
         <span>{{ t('common.actions.cancel') }}</span>
@@ -401,7 +401,7 @@ function handleDragEnd(): void {
       class="empty-state"
       role="alert"
     >
-      <span class="i-tabler-alert-circle text---danger/50 text-(3xl)" />
+      <span class="text---danger/50 i-jannchie-alert-circle text-(3xl)" />
       <p class="empty-text">
         {{ (error as Error)?.message ?? t('library.loadFailed') }}
       </p>
@@ -438,7 +438,7 @@ function handleDragEnd(): void {
       v-else-if="filteredTracks.length === 0"
       class="empty-state"
     >
-      <span class="i-tabler-music-off text---text-tertiary/40 text-(4xl)" />
+      <span class="text---text-tertiary/40 i-jannchie-music-off text-(4xl)" />
       <p class="empty-title">
         {{ search ? t('library.noResultsTitle') : t('library.emptyTitle') }}
       </p>
@@ -451,7 +451,7 @@ function handleDragEnd(): void {
         :to="{ path: '/import', query: { q: search.trim() } }"
       >
         <span
-          class="i-tabler-compass"
+          class="i-jannchie-compass"
           aria-hidden="true"
         />
         <span>{{ t('library.searchInExplore') }}</span>
@@ -498,7 +498,7 @@ function handleDragEnd(): void {
           />
           <span
             v-else
-            class="i-tabler-music tr-cover-placeholder"
+            class="tr-cover-placeholder i-jannchie-music"
             aria-hidden="true"
           />
           <span
@@ -511,7 +511,7 @@ function handleDragEnd(): void {
             />
             <span
               v-else
-              class="i-tabler-player-play-filled tr-cover-play"
+              class="tr-cover-play i-jannchie-play"
             />
           </span>
         </div>
@@ -563,12 +563,12 @@ function handleDragEnd(): void {
         >
           <span
             v-if="isDeleting(track.id)"
-            class="i-tabler-loader-2 animate-spin"
+            class="i-jannchie-loading-spinner"
             aria-hidden="true"
           />
           <span
             v-else
-            class="i-tabler-dots"
+            class="i-jannchie-dots"
             aria-hidden="true"
           />
         </button>

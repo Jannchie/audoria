@@ -105,7 +105,7 @@ function formatFileSize(bytes: number): string {
       <div class="drop-icon">
         <span
           class="text-3xl"
-          :class="selectedFile ? 'i-tabler-music' : isDragOver ? 'i-tabler-upload' : 'i-tabler-cloud-upload'"
+          :class="selectedFile ? 'i-jannchie-music' : isDragOver ? 'i-jannchie-upload' : 'i-jannchie-cloud-upload'"
           aria-hidden="true"
         />
       </div>
@@ -144,7 +144,7 @@ function formatFileSize(bytes: number): string {
       >
         <span
           class="text-base"
-          :class="isUploading ? 'i-tabler-loader-2 animate-spin' : 'i-tabler-upload'"
+          :class="isUploading ? 'i-jannchie-loading-spinner' : 'i-jannchie-upload'"
         />
         {{ uploadButtonLabel }}
       </button>

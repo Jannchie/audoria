@@ -362,7 +362,7 @@ useEventListener('resize', close)
               >{{ item.shortcut }}</span>
               <span
                 v-if="item.submenu"
-                class="ctx-menu-caret i-tabler-chevron-right"
+                class="ctx-menu-caret i-jannchie-chevron-right"
                 aria-hidden="true"
               />
             </li>
@@ -381,7 +381,7 @@ useEventListener('resize', close)
             class="ctx-menu-item ctx-menu-item--disabled"
           >
             <span
-              class="ctx-menu-icon i-tabler-loader-2 animate-spin"
+              class="ctx-menu-icon i-jannchie-loading-spinner"
               aria-hidden="true"
             />
             <span class="ctx-menu-label">Loading...</span>

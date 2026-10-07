@@ -230,6 +230,9 @@ importers:
       '@jannchie/eslint-config':
         specifier: ^3.7.8
         version: 3.7.8(@typescript-eslint/rule-tester@8.58.1(eslint@10.2.0(jiti@2.6.1))(typescript@6.0.3))(@typescript-eslint/typescript-estree@8.58.2(typescript@6.0.3))(@typescript-eslint/utils@8.58.2(eslint@10.2.0(jiti@2.6.1))(typescript@6.0.3))(@unocss/eslint-plugin@66.6.8(eslint@10.2.0(jiti@2.6.1))(typescript@6.0.3))(@vue/compiler-sfc@3.5.32)(eslint@10.2.0(jiti@2.6.1))(typescript@6.0.3)(vitest@4.1.4(@types/node@25.6.0)(vite@8.0.8(@types/node@25.6.0)(esbuild@0.28.2)(jiti@2.6.1)(terser@5.46.1)(tsx@4.23.15)(yaml@2.8.3)))
+      '@jannchie/iconify-json':
+        specifier: ^0.4.0
+        version: 0.4.0
       '@types/node':
         specifier: ^25.6.0
         version: 25.6.0
@@ -2030,6 +2033,9 @@ packages:
         optional: true
       svelte-eslint-parser:
         optional: true
+
+  '@jannchie/iconify-json@0.4.0':
+    resolution: {integrity: sha512-9GQibzZOeL22zQZn2UYfLZqDnvMOTAXI9kLDAwQdZ0nxnk3Tn6MF2WbAJL84Sk27w1wyPIeftIoAvkZhar5XSA==}
 
   '@jannchie/mdl-core@0.5.0':
     resolution: {integrity: sha512-RTmS8WQqLFCpLaNH43Z1rDdN4OZG85IZOeeQc3OMvKe5xf4wE3lfnNvHQddE93sznmA3XYGdyCihMzeWjMjHew==}
@@ -8209,6 +8215,8 @@ snapshots:
       - supports-color
       - typescript
       - vitest
+
+  '@jannchie/iconify-json@0.4.0': {}
 
   '@jannchie/mdl-core@0.5.0': {}
 

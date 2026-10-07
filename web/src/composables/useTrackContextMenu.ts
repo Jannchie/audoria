@@ -60,7 +60,7 @@ export function useTrackContextMenu() {
         // Track already in playlist — skip silently.
       }
     }
-    toast.show({ message: t('feedback.addedToPlaylist', { name }), icon: 'i-tabler-playlist-add', tone: 'success' })
+    toast.show({ message: t('feedback.addedToPlaylist', { name }), icon: 'i-jannchie-list-music-plus', tone: 'success' })
   }
 
   async function removeTracksFromPlaylist(playlistId: string, tracks: Music[]): Promise<void> {
@@ -72,7 +72,7 @@ export function useTrackContextMenu() {
         // Ignore — track may no longer be in the playlist.
       }
     }
-    toast.show({ message: t('feedback.removedFromPlaylist', { name: playlistName(playlistId) }), icon: 'i-tabler-playlist-off' })
+    toast.show({ message: t('feedback.removedFromPlaylist', { name: playlistName(playlistId) }), icon: 'i-jannchie-list-off' })
   }
 
   async function createPlaylistWithTracks(tracks: Music[]): Promise<void> {
@@ -89,7 +89,7 @@ export function useTrackContextMenu() {
       await addTracksToPlaylist(playlist.id, tracks, playlist.name)
     }
     catch {
-      toast.show({ message: t('feedback.failed'), icon: 'i-tabler-alert-circle', tone: 'danger' })
+      toast.show({ message: t('feedback.failed'), icon: 'i-jannchie-alert-circle', tone: 'danger' })
     }
   }
 
@@ -98,7 +98,7 @@ export function useTrackContextMenu() {
     const newItem: ContextMenuItem = {
       id: 'playlist:new',
       label: t('common.actions.newPlaylist'),
-      icon: 'i-tabler-plus',
+      icon: 'i-jannchie-plus',
       onSelect: () => createPlaylistWithTracks(tracks),
     }
     if (list.length === 0) {
@@ -116,8 +116,8 @@ export function useTrackContextMenu() {
         ? 'none'
         : (containsCount === tracks.length ? 'all' : 'some')
       const icon = state === 'all'
-        ? 'i-tabler-check'
-        : (state === 'some' ? 'i-tabler-minus' : 'i-tabler-playlist')
+        ? 'i-jannchie-check'
+        : (state === 'some' ? 'i-jannchie-minus' : 'i-jannchie-list-music')
       return {
         id: `playlist:${playlist.id}`,
         label: playlist.name,
@@ -149,7 +149,7 @@ export function useTrackContextMenu() {
       items.push({
         id: 'play',
         label: isCurrent && isPlaying.value ? t('common.actions.pause') : t('common.actions.play'),
-        icon: isCurrent && isPlaying.value ? 'i-tabler-player-pause' : 'i-tabler-player-play',
+        icon: isCurrent && isPlaying.value ? 'i-jannchie-pause' : 'i-jannchie-play',
         onSelect: () => {
           if (isCurrent) {
             setPlaying(!isPlaying.value)
@@ -165,19 +165,19 @@ export function useTrackContextMenu() {
       {
         id: 'play-next',
         label: t('common.actions.playNext'),
-        icon: 'i-tabler-corner-down-right',
+        icon: 'i-jannchie-corner-down-right',
         onSelect: () => {
           enqueueNext(ids)
-          toast.show({ message: t('feedback.playNext'), icon: 'i-tabler-corner-down-right', tone: 'success' })
+          toast.show({ message: t('feedback.playNext'), icon: 'i-jannchie-corner-down-right', tone: 'success' })
         },
       },
       {
         id: 'add-to-queue',
         label: t('common.actions.addToQueue'),
-        icon: 'i-tabler-playlist-add',
+        icon: 'i-jannchie-list-music-plus',
         onSelect: () => {
           enqueueLast(ids)
-          toast.show({ message: t('feedback.addedToQueue'), icon: 'i-tabler-playlist-add', tone: 'success' })
+          toast.show({ message: t('feedback.addedToQueue'), icon: 'i-jannchie-list-music-plus', tone: 'success' })
         },
       },
     )
@@ -191,7 +191,7 @@ export function useTrackContextMenu() {
         {
           id: 'add-to-playlist',
           label: t('common.actions.addToPlaylist'),
-          icon: 'i-tabler-playlist-add',
+          icon: 'i-jannchie-list-music-plus',
           submenu: () => buildPlaylistSubmenu(tracks),
         },
       )
@@ -202,7 +202,7 @@ export function useTrackContextMenu() {
       items.push({
         id: 'remove-from-playlist',
         label: t('common.actions.removeFromPlaylist'),
-        icon: 'i-tabler-playlist-off',
+        icon: 'i-jannchie-list-off',
         danger: true,
         onSelect: () => removeTracksFromPlaylist(playlistId, tracks),
       })
@@ -214,7 +214,7 @@ export function useTrackContextMenu() {
         {
           id: 'download',
           label: t('common.actions.download'),
-          icon: 'i-tabler-download',
+          icon: 'i-jannchie-download',
           onSelect: () => downloadTrack(singleTrack),
         },
       )
@@ -224,7 +224,7 @@ export function useTrackContextMenu() {
       items.push({
         id: 'edit-metadata',
         label: t('common.actions.editMetadata'),
-        icon: 'i-tabler-edit',
+        icon: 'i-jannchie-edit',
         onSelect: () => onEditMetadata(singleTrack),
       })
     }
@@ -233,7 +233,7 @@ export function useTrackContextMenu() {
       items.push({
         id: 'delete',
         label: t('common.actions.deleteTrack'),
-        icon: 'i-tabler-trash',
+        icon: 'i-jannchie-trash',
         danger: true,
         onSelect: async () => {
           const confirmed = await confirm({
@@ -249,10 +249,10 @@ export function useTrackContextMenu() {
           }
           try {
             await onDelete(tracks)
-            toast.show({ message: t('feedback.tracksDeleted'), icon: 'i-tabler-trash' })
+            toast.show({ message: t('feedback.tracksDeleted'), icon: 'i-jannchie-trash' })
           }
           catch {
-            toast.show({ message: t('feedback.failed'), icon: 'i-tabler-alert-circle', tone: 'danger' })
+            toast.show({ message: t('feedback.failed'), icon: 'i-jannchie-alert-circle', tone: 'danger' })
           }
         },
       })
